@@ -27,7 +27,8 @@ QUERY RULES:
 4. Use proper JOIN syntax when linking tables.
 5. When searching text, use LIKE with wildcards: WHERE RTRIM(fcompany) LIKE '%search%'
 6. Dates of 1899-12-31 or 1900-01-01 mean "not set" — filter these out when showing dates.
-7. Common table relationships:
+7. CRITICAL: ONLY use table names and column names that exist in the schema provided below. NEVER guess or invent column names. If you are unsure whether a column exists, do NOT include it in the query. If the user asks for data that you cannot map to a known column in the schema, tell them in the explanation that the column was not found in the schema and suggest alternatives.
+8. Common table relationships:
    - SOMAST.fsono = SOITEM.fsono (Sales Order -> Line Items)
    - SOMAST.fsono = JOMAST.fsono (Sales Order -> Job Orders)
    - JOMAST.fjobno = JODRTG.fjobno (Job Order -> Routing Steps)
