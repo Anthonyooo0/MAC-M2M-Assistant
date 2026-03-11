@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
-import { loginRequest, ALLOWED_DOMAIN } from './authConfig';
+import { ALLOWED_DOMAIN } from './authConfig';
 import { Login } from './components/Login';
 import { ChatMessage } from './components/ChatMessage';
 import { ResultsTable } from './components/ResultsTable';
 
 const M2M_QUERY_URL = import.meta.env.VITE_M2M_QUERY_URL || '';
+const CHAT_SESSIONS_URL = import.meta.env.VITE_CHAT_SESSIONS_URL || '';
+const CHAT_MESSAGES_URL = import.meta.env.VITE_CHAT_MESSAGES_URL || '';
 
 interface Message {
   id: string;
@@ -19,6 +21,16 @@ interface Message {
   loading?: boolean;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  user_email?: string;  // populated in admin mode
+}
+
+const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net'];
+
 function App() {
   const { instance, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
@@ -29,6 +41,18 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Chat history state
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const [adminMode, setAdminMode] = useState(false);
+
+  const chatHistoryEnabled = !!CHAT_SESSIONS_URL && !!CHAT_MESSAGES_URL;
+  const isAdmin = ADMIN_EMAILS.includes(currentUser || '');
 
   useEffect(() => {
     if (isAuthenticated && accounts.length > 0) {
@@ -43,6 +67,127 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Load sessions when user logs in
+  useEffect(() => {
+    if (currentUser && chatHistoryEnabled) {
+      loadSessions();
+    }
+  }, [currentUser]);
+
+  // Focus rename input
+  useEffect(() => {
+    if (editingSessionId) editInputRef.current?.focus();
+  }, [editingSessionId]);
+
+  const loadSessions = useCallback(async (forceAdmin?: boolean) => {
+    if (!currentUser || !chatHistoryEnabled) return;
+    const useAdmin = forceAdmin !== undefined ? forceAdmin : adminMode;
+    setLoadingSessions(true);
+    try {
+      let url = `${CHAT_SESSIONS_URL}&userEmail=${encodeURIComponent(currentUser)}`;
+      if (useAdmin && isAdmin) url += '&admin=true';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setSessions(data);
+      }
+    } catch (err) {
+      console.error('Failed to load sessions:', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [currentUser, adminMode, isAdmin]);
+
+  const createSession = useCallback(async (): Promise<string | null> => {
+    if (!currentUser || !chatHistoryEnabled) return null;
+    try {
+      const res = await fetch(CHAT_SESSIONS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail: currentUser }),
+      });
+      if (res.ok) {
+        const session = await res.json();
+        setSessions(prev => [session, ...prev]);
+        return session.id;
+      }
+    } catch (err) {
+      console.error('Failed to create session:', err);
+    }
+    return null;
+  }, [currentUser]);
+
+  const saveMessages = useCallback(async (sessionId: string, msgs: Message[]) => {
+    if (!chatHistoryEnabled) return;
+    try {
+      await fetch(CHAT_MESSAGES_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          messages: msgs.map(m => ({
+            role: m.role,
+            content: m.content,
+            sql: m.sql,
+            columns: m.columns,
+            rows: m.rows,
+            rowCount: m.rowCount,
+            error: m.error,
+          })),
+        }),
+      });
+      // Refresh sessions to get updated title
+      loadSessions();
+    } catch (err) {
+      console.error('Failed to save messages:', err);
+    }
+  }, [loadSessions]);
+
+  const loadSessionMessages = useCallback(async (sessionId: string) => {
+    if (!chatHistoryEnabled) return;
+    try {
+      const res = await fetch(`${CHAT_MESSAGES_URL}&sessionId=${encodeURIComponent(sessionId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data);
+        setActiveSessionId(sessionId);
+      }
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+    }
+  }, []);
+
+  const renameSession = useCallback(async (sessionId: string, title: string) => {
+    if (!chatHistoryEnabled) return;
+    try {
+      await fetch(CHAT_SESSIONS_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, title }),
+      });
+      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
+    } catch (err) {
+      console.error('Failed to rename session:', err);
+    }
+    setEditingSessionId(null);
+  }, []);
+
+  const deleteSession = useCallback(async (sessionId: string) => {
+    if (!chatHistoryEnabled) return;
+    try {
+      await fetch(`${CHAT_SESSIONS_URL}&sessionId=${encodeURIComponent(sessionId)}`, {
+        method: 'DELETE',
+      });
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+    }
+  }, [activeSessionId]);
+
   const handleLogout = async () => {
     await instance.logoutPopup();
     setCurrentUser(null);
@@ -51,6 +196,13 @@ function App() {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading) return;
+
+    // Auto-create session if none active
+    let sessionId = activeSessionId;
+    if (!sessionId && chatHistoryEnabled) {
+      sessionId = await createSession();
+      if (sessionId) setActiveSessionId(sessionId);
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -110,14 +262,23 @@ function App() {
       };
 
       setMessages(prev => prev.map(m => m.id === loadingMsg.id ? assistantMsg : m));
+
+      // Save to Azure SQL
+      if (sessionId && chatHistoryEnabled) {
+        saveMessages(sessionId, [userMsg, assistantMsg]);
+      }
     } catch (err: any) {
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === loadingMsg.id
-            ? { ...m, loading: false, content: `Error: ${err.message}`, error: err.message }
-            : m
-        )
-      );
+      const errorMsg: Message = {
+        id: loadingMsg.id,
+        role: 'assistant',
+        content: `Error: ${err.message}`,
+        error: err.message,
+      };
+      setMessages(prev => prev.map(m => m.id === loadingMsg.id ? errorMsg : m));
+
+      if (sessionId && chatHistoryEnabled) {
+        saveMessages(sessionId, [userMsg, errorMsg]);
+      }
     } finally {
       setIsLoading(false);
       setTimeout(() => inputRef.current?.focus(), 100);
@@ -133,8 +294,22 @@ function App() {
 
   const handleNewChat = () => {
     setMessages([]);
+    setActiveSessionId(null);
     setInput('');
     inputRef.current?.focus();
+  };
+
+  const handleSelectSession = (session: ChatSession) => {
+    if (session.id === activeSessionId) return;
+    loadSessionMessages(session.id);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent, sessionId: string) => {
+    if (e.key === 'Enter') {
+      renameSession(sessionId, editTitle);
+    } else if (e.key === 'Escape') {
+      setEditingSessionId(null);
+    }
   };
 
   // Auth gate
@@ -189,20 +364,117 @@ function App() {
           </button>
         </div>
 
-        {/* Chat nav - active */}
-        <div className="flex-1 px-2">
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-sm nav-active text-white bg-white/10 rounded-lg">
-            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-            </svg>
-            {!sidebarCollapsed && <span className="font-medium">Chat</span>}
-          </button>
-        </div>
+        {/* Chat History */}
+        {!sidebarCollapsed && chatHistoryEnabled && (
+          <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
+            <div className="px-3 py-2 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300/50">
+                {adminMode ? 'All Users\' Chats' : 'Recent Chats'}
+              </span>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    const next = !adminMode;
+                    setAdminMode(next);
+                    loadSessions(next);
+                  }}
+                  className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded transition-all ${
+                    adminMode
+                      ? 'bg-yellow-500/20 text-yellow-300'
+                      : 'text-blue-300/40 hover:text-blue-200'
+                  }`}
+                  title={adminMode ? 'Switch to My Chats' : 'View All Users'}
+                >
+                  {adminMode ? 'ADMIN' : 'ADMIN'}
+                </button>
+              )}
+            </div>
+            {loadingSessions && (
+              <div className="px-4 py-2 text-xs text-blue-300/50">Loading...</div>
+            )}
+            {sessions.map(session => (
+              <div
+                key={session.id}
+                className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${
+                  session.id === activeSessionId
+                    ? 'bg-white/10 text-white'
+                    : 'text-blue-200 hover:text-white hover:bg-white/5'
+                }`}
+                onClick={() => handleSelectSession(session)}
+              >
+                <svg className="w-4 h-4 flex-shrink-0 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                {editingSessionId === session.id ? (
+                  <input
+                    ref={editInputRef}
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
+                    onBlur={() => renameSession(session.id, editTitle)}
+                    className="flex-1 bg-white/10 text-white text-xs px-2 py-1 rounded outline-none min-w-0"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs truncate block">{session.title}</span>
+                    {adminMode && session.user_email && (
+                      <span className="text-[9px] text-blue-300/40 truncate block">{session.user_email.split('@')[0]}</span>
+                    )}
+                  </div>
+                )}
+                {/* Action buttons - visible on hover */}
+                <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingSessionId(session.id);
+                      setEditTitle(session.title);
+                    }}
+                    className="p-1 hover:bg-white/10 rounded"
+                    title="Rename"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteSession(session.id);
+                    }}
+                    className="p-1 hover:bg-red-500/20 rounded text-red-300"
+                    title="Delete"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+            {!loadingSessions && sessions.length === 0 && (
+              <div className="px-4 py-3 text-xs text-blue-300/30 text-center">No saved chats yet</div>
+            )}
+          </div>
+        )}
+
+        {/* Fallback if no chat history — just show active chat button */}
+        {(!chatHistoryEnabled || sidebarCollapsed) && (
+          <div className="flex-1 px-2">
+            <button className="w-full flex items-center gap-3 px-4 py-3 text-sm nav-active text-white bg-white/10 rounded-lg">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              {!sidebarCollapsed && <span className="font-medium">Chat</span>}
+            </button>
+          </div>
+        )}
 
         {/* Version tag */}
         {!sidebarCollapsed && (
           <div className="px-4 py-2 text-center">
-            <span className="text-[10px] font-mono text-blue-300/50">V1.0.0</span>
+            <span className="text-[10px] font-mono text-blue-300/50">V1.1.0</span>
           </div>
         )}
 
@@ -286,7 +558,8 @@ function App() {
           )}
         </div>
 
-        {/* Input area */}
+        {/* Input area — hidden when viewing another user's chat in admin mode */}
+        {!(adminMode && activeSessionId && sessions.find(s => s.id === activeSessionId)?.user_email && sessions.find(s => s.id === activeSessionId)?.user_email !== currentUser) && (
         <div className="border-t border-slate-200 bg-white px-6 py-4">
           <div className="max-w-4xl mx-auto flex gap-3">
             <textarea
@@ -312,6 +585,7 @@ function App() {
             </button>
           </div>
         </div>
+        )}
       </main>
     </div>
   );
