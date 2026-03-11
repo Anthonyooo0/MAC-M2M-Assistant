@@ -6,7 +6,7 @@ interface ResultsTableProps {
   sql: string;
 }
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, sql }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows }) => {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [search, setSearch] = useState('');
