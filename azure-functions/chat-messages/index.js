@@ -8,7 +8,7 @@ const CORS = {
 };
 
 function getDbConfig() {
-  const connString = process.env.CHAT_DB_CONNECTION_STRING;
+  const connString = process.env.CHAT_DB_CONNECTION;
   if (!connString) throw new Error('CHAT_DB_CONNECTION_STRING not configured');
   const parts = {};
   for (const segment of connString.split(';')) {
