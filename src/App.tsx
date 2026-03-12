@@ -49,7 +49,8 @@ const COMPANIES: Company[] = [
 // Users not in this map get MAC Products only by default
 const MULTI_COMPANY_USERS: Record<string, string[]> = {
   'henry.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
-  'anthony.jimenez@macproducts.net': ['mac-products', 'mac-impulse'], // admin gets both for testing
+  'anthony.jimenez@macproducts.net': ['mac-products', 'mac-impulse'],
+  'juan.ortiz@macproducts.net': ['mac-products', 'mac-impulse'],
 };
 
 function App() {
