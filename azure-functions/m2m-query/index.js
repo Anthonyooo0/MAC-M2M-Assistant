@@ -29,6 +29,7 @@ QUERY RULES:
 6. Dates of 1899-12-31 or 1900-01-01 mean "not set" — filter these out when showing dates.
 7. CRITICAL: ONLY use table names and column names that are explicitly listed as fields under a table heading (## TABLENAME) in the schema below. Column names mentioned inside descriptions of OTHER columns do NOT mean they exist on the current table. For example, if a description says "aritem.fshipqty", that does NOT mean fshipqty exists on SOITEM. Always verify the column is listed directly under the table you are querying. If a column is not explicitly listed under a table heading, DO NOT use it. Instead, explain in your response which columns are available and suggest alternatives.
 8. SOITEM quantity column is FQUANTITY (not fshipqty). SOMAST status column is FSTATUS. SOITEM product class is FPRODCL.
+9. POMAST and POITEM do NOT have FDUEDATE. For PO dates use: POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
 8. Common table relationships:
    - SOMAST.fsono = SOITEM.fsono (Sales Order -> Line Items)
    - SOMAST.fsono = JOMAST.fsono (Sales Order -> Job Orders)
