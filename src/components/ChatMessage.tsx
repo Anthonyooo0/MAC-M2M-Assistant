@@ -11,16 +11,17 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message;
+  logo?: string;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_logo.png' }) => {
   const isUser = message.role === 'user';
 
   if (message.loading) {
     return (
       <div className="flex gap-3 view-transition">
         <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-          <img src="/mac_logo.png" alt="MAC" className="w-8 h-8 object-contain" />
+          <img src={logo} alt="MAC" className="w-8 h-8 object-contain" />
         </div>
         <div className="bg-white rounded-xl px-4 py-3 border border-slate-200 shadow-sm">
           <div className="flex gap-1.5">
@@ -43,7 +44,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
         ) : (
-          <img src="/mac_logo.png" alt="MAC" className="w-8 h-8 object-contain" />
+          <img src={logo} alt="MAC" className="w-8 h-8 object-contain" />
         )}
       </div>
 

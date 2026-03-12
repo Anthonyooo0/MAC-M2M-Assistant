@@ -599,7 +599,7 @@ function App() {
             <div className="max-w-4xl mx-auto space-y-4">
               {messages.map((msg) => (
                 <div key={msg.id}>
-                  <ChatMessage message={msg} />
+                  <ChatMessage message={msg} logo={activeCompany.logo} />
                   {msg.role === 'assistant' && !msg.loading && !msg.error && msg.rows && msg.columns && (
                     <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} />
                   )}
