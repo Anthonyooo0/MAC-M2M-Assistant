@@ -51,6 +51,7 @@ const MULTI_COMPANY_USERS: Record<string, string[]> = {
   'henry.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
   'anthony.jimenez@macproducts.net': ['mac-products', 'mac-impulse'],
   'juan.ortiz@macproducts.net': ['mac-products', 'mac-impulse'],
+  'edward.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
 };
 
 function App() {
