@@ -31,6 +31,27 @@ interface ChatSession {
 
 const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net'];
 
+// Company/tenant configuration
+interface Company {
+  id: string;
+  name: string;
+  shortName: string;
+  logo: string;
+  database: string; // sent to backend to pick connection string
+}
+
+const COMPANIES: Company[] = [
+  { id: 'mac-products', name: 'MAC Products', shortName: 'MAC PRODUCTS', logo: '/mac_logo.png', database: 'm2mdata99' },
+  { id: 'mac-impulse', name: 'MAC Impulse', shortName: 'MAC IMPULSE', logo: '/mac_impulse_logo.png', database: 'm2mdata66' },
+];
+
+// Map of users who have access to specific companies (by email → company IDs)
+// Users not in this map get MAC Products only by default
+const MULTI_COMPANY_USERS: Record<string, string[]> = {
+  'henry.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
+  'anthony.jimenez@macproducts.net': ['mac-products', 'mac-impulse'], // admin gets both for testing
+};
+
 function App() {
   const { instance, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
@@ -50,6 +71,12 @@ function App() {
   const [editTitle, setEditTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
   const [adminMode, setAdminMode] = useState(false);
+
+  // Company/tenant state
+  const userCompanyIds = MULTI_COMPANY_USERS[currentUser || ''] || ['mac-products'];
+  const userCompanies = COMPANIES.filter(c => userCompanyIds.includes(c.id));
+  const [activeCompanyId, setActiveCompanyId] = useState('mac-products');
+  const activeCompany = COMPANIES.find(c => c.id === activeCompanyId) || COMPANIES[0];
 
   const chatHistoryEnabled = !!CHAT_SESSIONS_URL && !!CHAT_MESSAGES_URL;
   const isAdmin = ADMIN_EMAILS.includes(currentUser || '');
@@ -233,7 +260,7 @@ function App() {
       const res = await fetch(M2M_QUERY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, database: activeCompany.database }),
       });
 
       const data = await res.json();
@@ -338,7 +365,7 @@ function App() {
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
-              <img src="/mac_logo.png" alt="MAC Logo" className="w-full h-full object-contain" />
+              <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain" />
             </div>
             {!sidebarCollapsed && (
               <div className="overflow-hidden">
@@ -508,9 +535,34 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">M2M Assistant</h2>
-            <p className="text-xs text-slate-400">Ask questions about your M2M ERP data in plain English</p>
+          <div className="flex items-center gap-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">M2M Assistant</h2>
+              <p className="text-xs text-slate-400">Ask questions about your M2M ERP data in plain English</p>
+            </div>
+            {userCompanies.length > 1 && (
+              <div className="flex bg-slate-100 rounded-lg p-1">
+                {userCompanies.map(company => (
+                  <button
+                    key={company.id}
+                    onClick={() => {
+                      if (company.id !== activeCompanyId) {
+                        setActiveCompanyId(company.id);
+                        handleNewChat();
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${
+                      company.id === activeCompanyId
+                        ? 'bg-white text-mac-navy shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <img src={company.logo} alt={company.shortName} className="w-5 h-5 object-contain" />
+                    {company.shortName}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-1 rounded">Powered by Gemini</span>
         </header>
@@ -520,7 +572,7 @@ function App() {
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center view-transition">
               <div className="w-16 h-16 mb-4">
-                <img src="/mac_logo.png" alt="MAC Logo" className="w-full h-full object-contain opacity-20" />
+                <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain opacity-20" />
               </div>
               <h3 className="text-lg font-bold text-slate-400 mb-2">What would you like to know?</h3>
               <p className="text-sm text-slate-400 max-w-md mb-8">

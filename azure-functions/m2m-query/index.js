@@ -81,10 +81,21 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const connString = process.env.M2M_CONNECTION_STRING;
-    if (!connString) {
-      context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'M2M database connection is not configured.' }) };
-      return;
+    // Pick connection string based on requested database
+    const { database } = req.body || {};
+    let connString;
+    if (database === 'm2mdata66') {
+      connString = process.env.M2M_IMPULSE_CONNECTION_STRING;
+      if (!connString) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'MAC Impulse database connection is not configured.' }) };
+        return;
+      }
+    } else {
+      connString = process.env.M2M_CONNECTION_STRING;
+      if (!connString) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'M2M database connection is not configured.' }) };
+        return;
+      }
     }
 
     // Build conversation for Gemini
