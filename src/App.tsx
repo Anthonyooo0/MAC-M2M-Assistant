@@ -364,7 +364,7 @@ function App() {
         {/* Logo */}
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 flex items-center justify-center flex-shrink-0 bg-white rounded-lg p-1">
               <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain" />
             </div>
             {!sidebarCollapsed && (
