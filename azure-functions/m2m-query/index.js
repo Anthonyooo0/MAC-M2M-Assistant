@@ -217,7 +217,9 @@ module.exports = async function (context, req) {
     }
 
     // SAFETY: Only SELECT or WITH (CTEs) allowed
-    const firstWord = sqlQuery.split(/\s+/)[0].toUpperCase();
+    // Strip leading SQL comments (-- and /* */) before checking
+    const strippedSql = sqlQuery.replace(/^\s*--[^\n]*\n/gm, '').replace(/^\s*\/\*[\s\S]*?\*\/\s*/g, '').trim();
+    const firstWord = (strippedSql.split(/\s+/)[0] || '').toUpperCase();
     if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
       context.res = {
         status: 400,
