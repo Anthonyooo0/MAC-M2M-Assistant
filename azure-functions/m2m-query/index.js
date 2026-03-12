@@ -20,6 +20,11 @@ You MUST respond with valid JSON in this exact format:
 If the user asks a general question that does NOT need a database query (like 'what am I looking at', 'explain this', 'what does this field mean', etc.), respond with:
 {"explanation":"Your helpful answer here","sql":""}
 
+=== RESTRICTED TABLES — NEVER QUERY THESE ===
+The following tables contain sensitive/personal information and must NEVER be queried, referenced, or included in any SQL:
+- PREMPL (employee personal data)
+If a user asks for data from these tables, politely explain that the table contains restricted personal information and cannot be queried.
+
 === ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
 The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
 - You may ONLY use table names and column names that are EXPLICITLY listed in the schema below.
@@ -226,6 +231,21 @@ module.exports = async function (context, req) {
         headers: CORS,
         body: JSON.stringify({
           error: 'Only SELECT queries are allowed.',
+          explanation,
+          sql: sqlQuery,
+        }),
+      };
+      return;
+    }
+
+    // SAFETY: Block restricted tables (personal/sensitive data)
+    const restrictedTables = /\bPREMPL\b/i;
+    if (restrictedTables.test(sqlQuery)) {
+      context.res = {
+        status: 400,
+        headers: CORS,
+        body: JSON.stringify({
+          error: 'This query references a restricted table containing personal information.',
           explanation,
           sql: sqlQuery,
         }),
