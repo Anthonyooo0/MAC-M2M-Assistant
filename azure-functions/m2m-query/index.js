@@ -61,6 +61,96 @@ Here is the COMPLETE M2M database schema with all tables and fields:
 ${M2M_SCHEMA}
 `;
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function callGeminiAPI(geminiUrl, geminiBody) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(geminiBody);
+    const urlObj = new URL(geminiUrl);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          parsed._statusCode = res.statusCode;
+          resolve(parsed);
+        } catch (e) {
+          reject(new Error('Failed to parse Gemini response: ' + data.substring(0, 200)));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function parseGeminiResponse(geminiData) {
+  const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!generatedText) throw new Error('Gemini returned no response.');
+
+  let aiResponse;
+  try {
+    let cleaned = generatedText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+    aiResponse = JSON.parse(cleaned);
+  } catch (e) {
+    // Fallback: treat entire response as SQL (backward compat)
+    aiResponse = {
+      explanation: '',
+      sql: generatedText
+        .replace(/^```sql\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim(),
+    };
+  }
+
+  return {
+    explanation: aiResponse.explanation || '',
+    sqlQuery: (aiResponse.sql || '').trim(),
+  };
+}
+
+function validateSqlSafety(sqlQuery) {
+  // Strip leading SQL comments before checking first keyword
+  const strippedSql = sqlQuery
+    .replace(/^\s*--[^\n]*\n/gm, '')
+    .replace(/^\s*\/\*[\s\S]*?\*\/\s*/g, '')
+    .trim();
+  const firstWord = (strippedSql.split(/\s+/)[0] || '').toUpperCase();
+
+  if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
+    return { ok: false, reason: 'Only SELECT queries are allowed.' };
+  }
+  if (/\bPREMPL\b/i.test(sqlQuery)) {
+    return { ok: false, reason: 'This query references a restricted table containing personal information.' };
+  }
+  if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i.test(sqlQuery)) {
+    return { ok: false, reason: 'Query contains forbidden keywords.' };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Main Azure Function
+// ---------------------------------------------------------------------------
+
 module.exports = async function (context, req) {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -128,9 +218,11 @@ module.exports = async function (context, req) {
 
     geminiMessages.push({ role: 'user', parts: [{ text: message.trim() }] });
 
-    // Call Gemini API
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${geminiKey}`;
 
+    // -----------------------------------------------------------------------
+    // First Gemini call
+    // -----------------------------------------------------------------------
     const geminiBody = {
       system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: geminiMessages,
@@ -140,35 +232,7 @@ module.exports = async function (context, req) {
       },
     };
 
-    const geminiData = await new Promise((resolve, reject) => {
-      const payload = JSON.stringify(geminiBody);
-      const urlObj = new URL(geminiUrl);
-      const options = {
-        hostname: urlObj.hostname,
-        path: urlObj.pathname + urlObj.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-        },
-      };
-      const req = https.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(data);
-            parsed._statusCode = res.statusCode;
-            resolve(parsed);
-          } catch (e) {
-            reject(new Error('Failed to parse Gemini response: ' + data.substring(0, 200)));
-          }
-        });
-      });
-      req.on('error', reject);
-      req.write(payload);
-      req.end();
-    });
+    const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
 
     if (geminiData._statusCode && geminiData._statusCode >= 400) {
       context.log.error('[m2m-query] Gemini error:', JSON.stringify(geminiData));
@@ -180,90 +244,30 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (!generatedText) {
+    if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
       context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
       return;
     }
 
-    // Parse Gemini JSON response
-    let aiResponse;
-    try {
-      // Strip markdown code blocks if present
-      let cleaned = generatedText
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-      aiResponse = JSON.parse(cleaned);
-    } catch (e) {
-      // Fallback: treat entire response as SQL (backward compat)
-      aiResponse = { explanation: '', sql: generatedText.replace(/^```sql\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim() };
-    }
-
-    const explanation = aiResponse.explanation || '';
-    const sqlQuery = (aiResponse.sql || '').trim();
+    let { explanation, sqlQuery } = parseGeminiResponse(geminiData);
 
     // If no SQL query, just return the explanation (conversational response)
     if (!sqlQuery) {
       context.res = {
         status: 200,
         headers: CORS,
-        body: JSON.stringify({
-          explanation,
-          sql: '',
-          columns: [],
-          rows: [],
-          rowCount: 0,
-        }),
+        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }),
       };
       return;
     }
 
-    // SAFETY: Only SELECT or WITH (CTEs) allowed
-    // Strip leading SQL comments (-- and /* */) before checking
-    const strippedSql = sqlQuery.replace(/^\s*--[^\n]*\n/gm, '').replace(/^\s*\/\*[\s\S]*?\*\/\s*/g, '').trim();
-    const firstWord = (strippedSql.split(/\s+/)[0] || '').toUpperCase();
-    if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
+    // Safety checks
+    const safety = validateSqlSafety(sqlQuery);
+    if (!safety.ok) {
       context.res = {
         status: 400,
         headers: CORS,
-        body: JSON.stringify({
-          error: 'Only SELECT queries are allowed.',
-          explanation,
-          sql: sqlQuery,
-        }),
-      };
-      return;
-    }
-
-    // SAFETY: Block restricted tables (personal/sensitive data)
-    const restrictedTables = /\bPREMPL\b/i;
-    if (restrictedTables.test(sqlQuery)) {
-      context.res = {
-        status: 400,
-        headers: CORS,
-        body: JSON.stringify({
-          error: 'This query references a restricted table containing personal information.',
-          explanation,
-          sql: sqlQuery,
-        }),
-      };
-      return;
-    }
-
-    // SAFETY: Block dangerous keywords
-    const dangerous = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i;
-    if (dangerous.test(sqlQuery)) {
-      context.res = {
-        status: 400,
-        headers: CORS,
-        body: JSON.stringify({
-          error: 'Query contains forbidden keywords.',
-          explanation,
-          sql: sqlQuery,
-        }),
+        body: JSON.stringify({ error: safety.reason, explanation, sql: sqlQuery }),
       };
       return;
     }
@@ -289,7 +293,85 @@ module.exports = async function (context, req) {
     };
 
     pool = await sql.connect(config);
-    const result = await pool.request().query(sqlQuery);
+
+    // -----------------------------------------------------------------------
+    // Execute SQL — with one silent retry on invalid column name errors
+    // -----------------------------------------------------------------------
+    let result;
+    try {
+      result = await pool.request().query(sqlQuery);
+    } catch (sqlErr) {
+      // Detect SQL Server "Invalid column name 'X'" hallucination
+      const invalidColMatch = sqlErr.message && sqlErr.message.match(/Invalid column name '([^']+)'/i);
+
+      if (!invalidColMatch) {
+        // Not a column-name error — surface it normally
+        throw sqlErr;
+      }
+
+      const badColumn = invalidColMatch[1];
+      context.log.warn(`[m2m-query] Invalid column '${badColumn}' — retrying with correction context`);
+
+      // Build retry conversation: feed the failed attempt back as context
+      const retryMessages = [
+        ...geminiMessages,
+        // What the model previously produced (the bad SQL)
+        { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+        // Correction from the "user" (automated, never shown to the human user)
+        {
+          role: 'user',
+          parts: [{
+            text:
+              `The SQL query you just generated failed with this database error: ` +
+              `"Invalid column name '${badColumn}'". ` +
+              `The column '${badColumn}' does not exist in the database schema. ` +
+              `Please search the schema carefully for the correct column name in the relevant table(s) ` +
+              `and generate a corrected SQL query using only column names that are explicitly listed in the schema. ` +
+              `Do not guess or infer any column names.`,
+          }],
+        },
+      ];
+
+      const retryGeminiBody = {
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: retryMessages,
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+      };
+
+      const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
+
+      if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
+        context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
+        throw sqlErr; // Fall back to original error
+      }
+
+      if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+        throw sqlErr;
+      }
+
+      const retryParsed = parseGeminiResponse(retryGeminiData);
+      explanation = retryParsed.explanation;
+      const retrySqlQuery = retryParsed.sqlQuery;
+
+      if (!retrySqlQuery) {
+        // Model responded with explanation-only on retry — return it
+        context.res = {
+          status: 200,
+          headers: CORS,
+          body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }),
+        };
+        return;
+      }
+
+      const retrySafety = validateSqlSafety(retrySqlQuery);
+      if (!retrySafety.ok) {
+        throw sqlErr; // Unexpected — fall back to original error
+      }
+
+      context.log.info(`[m2m-query] Retry SQL: ${retrySqlQuery}`);
+      result = await pool.request().query(retrySqlQuery);
+      sqlQuery = retrySqlQuery; // use the corrected SQL in the response
+    }
 
     const columns = result.recordset.length > 0 ? Object.keys(result.recordset[0]) : [];
 
