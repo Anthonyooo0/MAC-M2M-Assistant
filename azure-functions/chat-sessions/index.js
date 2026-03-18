@@ -7,24 +7,35 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
-function getDbConfig() {
-  const connString = process.env.CHAT_DB_CONNECTION;
-  if (!connString) throw new Error('CHAT_DB_CONNECTION_STRING not configured');
-  const parts = {};
-  for (const segment of connString.split(';')) {
-    const idx = segment.indexOf('=');
-    if (idx === -1) continue;
-    parts[segment.substring(0, idx).trim().toLowerCase()] = segment.substring(idx + 1).trim();
+// Shared connection pool — reused across invocations (big perf win)
+let poolPromise = null;
+
+function getPool() {
+  if (!poolPromise) {
+    const connString = process.env.CHAT_DB_CONNECTION;
+    if (!connString) throw new Error('CHAT_DB_CONNECTION not configured');
+    const parts = {};
+    for (const segment of connString.split(';')) {
+      const idx = segment.indexOf('=');
+      if (idx === -1) continue;
+      parts[segment.substring(0, idx).trim().toLowerCase()] = segment.substring(idx + 1).trim();
+    }
+    const config = {
+      server: parts['server'] || parts['data source'] || '',
+      database: parts['database'] || parts['initial catalog'] || '',
+      user: parts['user id'] || parts['uid'] || '',
+      password: parts['password'] || parts['pwd'] || '',
+      options: { encrypt: true, trustServerCertificate: false },
+      connectionTimeout: 15000,
+      requestTimeout: 30000,
+      pool: { max: 10, min: 1, idleTimeoutMillis: 30000 },
+    };
+    poolPromise = sql.connect(config).catch(err => {
+      poolPromise = null; // Reset so next call retries
+      throw err;
+    });
   }
-  return {
-    server: parts['server'] || parts['data source'] || '',
-    database: parts['database'] || parts['initial catalog'] || '',
-    user: parts['user id'] || parts['uid'] || '',
-    password: parts['password'] || parts['pwd'] || '',
-    options: { encrypt: true, trustServerCertificate: false },
-    connectionTimeout: 15000,
-    requestTimeout: 30000,
-  };
+  return poolPromise;
 }
 
 module.exports = async function (context, req) {
@@ -33,9 +44,8 @@ module.exports = async function (context, req) {
     return;
   }
 
-  let pool = null;
   try {
-    pool = await sql.connect(getDbConfig());
+    const pool = await getPool();
 
     // GET — list sessions for a user (or all users if admin=true)
     if (req.method === 'GET') {
@@ -113,9 +123,11 @@ module.exports = async function (context, req) {
 
     context.res = { status: 405, headers: CORS, body: JSON.stringify({ error: 'Method not allowed' }) };
   } catch (err) {
+    // If pool went bad, reset it so next request reconnects
+    if (err.code === 'ECONNCLOSED' || err.code === 'ENOTOPEN') {
+      poolPromise = null;
+    }
     context.log.error('[chat-sessions] Error:', err);
     context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: err.message }) };
-  } finally {
-    if (pool) try { await pool.close(); } catch { }
   }
 };

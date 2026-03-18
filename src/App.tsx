@@ -75,6 +75,8 @@ function App() {
   const editInputRef = useRef<HTMLInputElement>(null);
   const [adminMode, setAdminMode] = useState(false);
   const [viewMode, setViewMode] = useState<'chat' | 'admin'>('chat');
+  // Message cache — avoids re-fetching when clicking between sessions
+  const messageCacheRef = useRef<Record<string, Message[]>>({});
 
   // Company/tenant state
   const userCompanyIds = MULTI_COMPANY_USERS[currentUser || ''] || ['mac-products'];
@@ -151,7 +153,7 @@ function App() {
   const saveMessages = useCallback(async (sessionId: string, msgs: Message[]) => {
     if (!chatHistoryEnabled) return;
     try {
-      await fetch(CHAT_MESSAGES_URL, {
+      const res = await fetch(CHAT_MESSAGES_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,19 +169,34 @@ function App() {
           })),
         }),
       });
-      // Refresh sessions to get updated title
-      loadSessions();
+      // Update session title locally from response instead of re-fetching all sessions
+      if (res.ok) {
+        const data = await res.json();
+        if (data.title) {
+          setSessions(prev => prev.map(s =>
+            s.id === sessionId ? { ...s, title: data.title, updated_at: new Date().toISOString() } : s
+          ));
+        }
+      }
     } catch (err) {
       console.error('Failed to save messages:', err);
     }
-  }, [loadSessions]);
+  }, []);
 
   const loadSessionMessages = useCallback(async (sessionId: string) => {
     if (!chatHistoryEnabled) return;
+    // Check cache first — instant switch between already-loaded sessions
+    const cached = messageCacheRef.current[sessionId];
+    if (cached) {
+      setMessages(cached);
+      setActiveSessionId(sessionId);
+      return;
+    }
     try {
       const res = await fetch(`${CHAT_MESSAGES_URL}&sessionId=${encodeURIComponent(sessionId)}`);
       if (res.ok) {
         const data = await res.json();
+        messageCacheRef.current[sessionId] = data; // Cache it
         setMessages(data);
         setActiveSessionId(sessionId);
       }
@@ -206,6 +223,7 @@ function App() {
   const deleteSession = useCallback(async (sessionId: string) => {
     if (!chatHistoryEnabled) return;
     try {
+      delete messageCacheRef.current[sessionId];
       await fetch(`${CHAT_SESSIONS_URL}&sessionId=${encodeURIComponent(sessionId)}`, {
         method: 'DELETE',
       });
@@ -292,7 +310,11 @@ function App() {
         error: data.error,
       };
 
-      setMessages(prev => prev.map(m => m.id === loadingMsg.id ? assistantMsg : m));
+      setMessages(prev => {
+        const updated = prev.map(m => m.id === loadingMsg.id ? assistantMsg : m);
+        if (sessionId) messageCacheRef.current[sessionId] = updated;
+        return updated;
+      });
 
       // Save to Azure SQL
       if (sessionId && chatHistoryEnabled) {
@@ -305,7 +327,11 @@ function App() {
         content: `Error: ${err.message}`,
         error: err.message,
       };
-      setMessages(prev => prev.map(m => m.id === loadingMsg.id ? errorMsg : m));
+      setMessages(prev => {
+        const updated = prev.map(m => m.id === loadingMsg.id ? errorMsg : m);
+        if (sessionId) messageCacheRef.current[sessionId] = updated;
+        return updated;
+      });
 
       if (sessionId && chatHistoryEnabled) {
         saveMessages(sessionId, [userMsg, errorMsg]);
@@ -329,6 +355,7 @@ function App() {
     setInput('');
     inputRef.current?.focus();
   };
+
 
   const handleSelectSession = (session: ChatSession) => {
     if (session.id === activeSessionId) return;

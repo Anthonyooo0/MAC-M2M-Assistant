@@ -7,24 +7,35 @@ const CORS = {
   'Content-Type': 'application/json',
 };
 
-function getDbConfig() {
-  const connString = process.env.CHAT_DB_CONNECTION;
-  if (!connString) throw new Error('CHAT_DB_CONNECTION_STRING not configured');
-  const parts = {};
-  for (const segment of connString.split(';')) {
-    const idx = segment.indexOf('=');
-    if (idx === -1) continue;
-    parts[segment.substring(0, idx).trim().toLowerCase()] = segment.substring(idx + 1).trim();
+// Shared connection pool — reused across invocations (big perf win)
+let poolPromise = null;
+
+function getPool() {
+  if (!poolPromise) {
+    const connString = process.env.CHAT_DB_CONNECTION;
+    if (!connString) throw new Error('CHAT_DB_CONNECTION not configured');
+    const parts = {};
+    for (const segment of connString.split(';')) {
+      const idx = segment.indexOf('=');
+      if (idx === -1) continue;
+      parts[segment.substring(0, idx).trim().toLowerCase()] = segment.substring(idx + 1).trim();
+    }
+    const config = {
+      server: parts['server'] || parts['data source'] || '',
+      database: parts['database'] || parts['initial catalog'] || '',
+      user: parts['user id'] || parts['uid'] || '',
+      password: parts['password'] || parts['pwd'] || '',
+      options: { encrypt: true, trustServerCertificate: false },
+      connectionTimeout: 15000,
+      requestTimeout: 30000,
+      pool: { max: 10, min: 1, idleTimeoutMillis: 30000 },
+    };
+    poolPromise = sql.connect(config).catch(err => {
+      poolPromise = null;
+      throw err;
+    });
   }
-  return {
-    server: parts['server'] || parts['data source'] || '',
-    database: parts['database'] || parts['initial catalog'] || '',
-    user: parts['user id'] || parts['uid'] || '',
-    password: parts['password'] || parts['pwd'] || '',
-    options: { encrypt: true, trustServerCertificate: false },
-    connectionTimeout: 15000,
-    requestTimeout: 30000,
-  };
+  return poolPromise;
 }
 
 module.exports = async function (context, req) {
@@ -33,9 +44,8 @@ module.exports = async function (context, req) {
     return;
   }
 
-  let pool = null;
   try {
-    pool = await sql.connect(getDbConfig());
+    const pool = await getPool();
 
     // GET — load all messages for a session
     if (req.method === 'GET') {
@@ -87,27 +97,34 @@ module.exports = async function (context, req) {
       }
 
       // Update session timestamp and auto-title from first user message
+      // Also return the new title so frontend can update without re-fetching
       const firstUserMsg = messages.find(m => m.role === 'user');
+      let newTitle = null;
       if (firstUserMsg) {
-        // Auto-title: use first 60 chars of first user message if session title is still "New Chat"
-        await pool.request()
+        const autoTitle = firstUserMsg.content.substring(0, 60);
+        const updateResult = await pool.request()
           .input('sessionId', sql.UniqueIdentifier, sessionId)
-          .input('autoTitle', sql.NVarChar, firstUserMsg.content.substring(0, 60))
+          .input('autoTitle', sql.NVarChar, autoTitle)
           .query(`UPDATE chat_sessions SET
                     updated_at = GETUTCDATE(),
                     title = CASE WHEN title = 'New Chat' THEN @autoTitle ELSE title END
-                  WHERE id = @sessionId`);
+                  WHERE id = @sessionId;
+                  SELECT title FROM chat_sessions WHERE id = @sessionId;`);
+        if (updateResult.recordset && updateResult.recordset[0]) {
+          newTitle = updateResult.recordset[0].title;
+        }
       }
 
-      context.res = { status: 201, headers: CORS, body: JSON.stringify({ ok: true }) };
+      context.res = { status: 201, headers: CORS, body: JSON.stringify({ ok: true, title: newTitle }) };
       return;
     }
 
     context.res = { status: 405, headers: CORS, body: JSON.stringify({ error: 'Method not allowed' }) };
   } catch (err) {
+    if (err.code === 'ECONNCLOSED' || err.code === 'ENOTOPEN') {
+      poolPromise = null;
+    }
     context.log.error('[chat-messages] Error:', err);
     context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: err.message }) };
-  } finally {
-    if (pool) try { await pool.close(); } catch { }
   }
 };
