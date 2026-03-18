@@ -22,8 +22,19 @@ If the user asks a general question that does NOT need a database query (like 'w
 
 === RESTRICTED TABLES — NEVER QUERY THESE ===
 The following tables contain sensitive/personal information and must NEVER be queried, referenced, or included in any SQL:
-- PREMPL (employee personal data)
-If a user asks for data from these tables, politely explain that the table contains restricted personal information and cannot be queried.
+- PREMPL (Employee Master — SSN, DOB, salary, home address, emergency contacts)
+- PRDIST (GL Postings from Payroll — employee payroll amounts)
+- LADETAIL (Daily Labor Detail — employee earnings, overtime rates)
+- LADETAILVIEW (Daily Labor Detail View)
+- LAMAST (Daily Labor Master — employee work records)
+- CRHEAD (Cash Flow/Payroll Header — wages, salary, fringe benefits)
+- CSPAYR (Payroll System Setup — payroll config, earnings codes)
+- UTUSER (User Master — passwords, login credentials)
+- UTPASSWD (Change Password — stored passwords)
+- APCHAC (AP Checking Accounts — bank account numbers, routing numbers)
+- APEFTMAST (AP EFT Batch Master — bank account IDs)
+- VENDEFT (Vendor EFT Bank Detail — vendor bank accounts, routing numbers)
+If a user asks for data from ANY of these tables, politely explain that the table contains restricted information (employee personal data, payroll, credentials, or banking details) and cannot be queried.
 
 === ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
 The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
@@ -157,8 +168,11 @@ function validateSqlSafety(sqlQuery) {
   if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
     return { ok: false, reason: 'Only SELECT queries are allowed.' };
   }
-  if (/\bPREMPL\b/i.test(sqlQuery)) {
-    return { ok: false, reason: 'This query references a restricted table containing personal information.' };
+  const RESTRICTED_TABLES = ['PREMPL','PRDIST','LADETAIL','LADETAILVIEW','LAMAST','CRHEAD','CSPAYR','UTUSER','UTPASSWD','APCHAC','APEFTMAST','VENDEFT'];
+  for (const table of RESTRICTED_TABLES) {
+    if (new RegExp('\\b' + table + '\\b', 'i').test(sqlQuery)) {
+      return { ok: false, reason: `This query references a restricted table (${table}) containing sensitive information.` };
+    }
   }
   if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i.test(sqlQuery)) {
     return { ok: false, reason: 'Query contains forbidden keywords.' };
