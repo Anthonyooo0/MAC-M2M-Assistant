@@ -4,6 +4,7 @@ import { ALLOWED_DOMAIN } from './authConfig';
 import { Login } from './components/Login';
 import { ChatMessage } from './components/ChatMessage';
 import { ResultsTable } from './components/ResultsTable';
+import { AdminView } from './components/AdminView';
 
 const M2M_QUERY_URL = import.meta.env.VITE_M2M_QUERY_URL || '';
 const CHAT_SESSIONS_URL = import.meta.env.VITE_CHAT_SESSIONS_URL || '';
@@ -73,6 +74,7 @@ function App() {
   const [editTitle, setEditTitle] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
   const [adminMode, setAdminMode] = useState(false);
+  const [viewMode, setViewMode] = useState<'chat' | 'admin'>('chat');
 
   // Company/tenant state
   const userCompanyIds = MULTI_COMPANY_USERS[currentUser || ''] || ['mac-products'];
@@ -500,6 +502,25 @@ function App() {
           </div>
         )}
 
+        {/* Admin Dashboard nav */}
+        {isAdmin && (
+          <div className="px-2 pb-1">
+            <button
+              onClick={() => setViewMode(viewMode === 'admin' ? 'chat' : 'admin')}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-lg transition-all ${
+                viewMode === 'admin'
+                  ? 'nav-active text-white bg-white/10'
+                  : 'text-blue-200 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {!sidebarCollapsed && <span className="font-medium">Admin Dashboard</span>}
+            </button>
+          </div>
+        )}
+
         {/* Version tag */}
         {!sidebarCollapsed && (
           <div className="px-4 py-2 text-center">
@@ -539,8 +560,12 @@ function App() {
         <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">M2M Assistant</h2>
-              <p className="text-xs text-slate-400">Ask questions about your M2M ERP data in plain English</p>
+              <h2 className="text-xl font-bold text-slate-800">
+                {viewMode === 'admin' ? 'Admin Dashboard' : 'M2M Assistant'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {viewMode === 'admin' ? 'View all user sessions and SQL queries' : 'Ask questions about your M2M ERP data in plain English'}
+              </p>
             </div>
             {userCompanies.length > 1 && (
               <div className="flex bg-slate-100 rounded-lg p-1">
@@ -569,76 +594,87 @@ function App() {
           <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-1 rounded">Powered by Gemini</span>
         </header>
 
-        {/* Chat area */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center view-transition">
-              <div className="w-16 h-16 mb-4">
-                <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain opacity-20" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-400 mb-2">What would you like to know?</h3>
-              <p className="text-sm text-slate-400 max-w-md mb-8">
-                Ask me anything about M2M data — sales orders, jobs, inventory, purchase orders, customers, and more.
-              </p>
-              <div className="grid grid-cols-2 gap-3 max-w-lg">
-                {[
-                  'Show me all open sales orders',
-                  'What jobs are active right now?',
-                  'List inventory items with zero on hand',
-                  'Show purchase orders due this month',
-                ].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
-                    className="text-left p-3 bg-white rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-mac-accent hover:text-mac-accent transition-all"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-4xl mx-auto space-y-4">
-              {messages.map((msg) => (
-                <div key={msg.id}>
-                  <ChatMessage message={msg} logo={activeCompany.logo} />
-                  {msg.role === 'assistant' && !msg.loading && !msg.error && msg.rows && msg.columns && (
-                    <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} />
-                  )}
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </div>
+        {/* Admin View */}
+        {viewMode === 'admin' && isAdmin && (
+          <AdminView
+            chatSessionsUrl={CHAT_SESSIONS_URL}
+            chatMessagesUrl={CHAT_MESSAGES_URL}
+            currentUser={currentUser || ''}
+          />
+        )}
 
-        {/* Input area — hidden when viewing another user's chat in admin mode */}
-        {!(adminMode && activeSessionId && sessions.find(s => s.id === activeSessionId)?.user_email && sessions.find(s => s.id === activeSessionId)?.user_email !== currentUser) && (
-        <div className="border-t border-slate-200 bg-white px-6 py-4">
-          <div className="max-w-4xl mx-auto flex gap-3">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask about M2M data... (Enter to send, Shift+Enter for new line)"
-              rows={1}
-              className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none resize-none text-sm"
-              style={{ minHeight: '48px', maxHeight: '120px' }}
-              disabled={isLoading}
-            />
-            <button
-              onClick={handleSend}
-              disabled={isLoading || !input.trim()}
-              className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-xl text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-              Send
-            </button>
-          </div>
-        </div>
+        {/* Chat area */}
+        {viewMode === 'chat' && (
+          <>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center view-transition">
+                  <div className="w-16 h-16 mb-4">
+                    <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain opacity-20" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-400 mb-2">What would you like to know?</h3>
+                  <p className="text-sm text-slate-400 max-w-md mb-8">
+                    Ask me anything about M2M data — sales orders, jobs, inventory, purchase orders, customers, and more.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 max-w-lg">
+                    {[
+                      'Show me all open sales orders',
+                      'What jobs are active right now?',
+                      'List inventory items with zero on hand',
+                      'Show purchase orders due this month',
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
+                        className="text-left p-3 bg-white rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-mac-accent hover:text-mac-accent transition-all"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-4xl mx-auto space-y-4">
+                  {messages.map((msg) => (
+                    <div key={msg.id}>
+                      <ChatMessage message={msg} logo={activeCompany.logo} />
+                      {msg.role === 'assistant' && !msg.loading && !msg.error && msg.rows && msg.columns && (
+                        <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} />
+                      )}
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+
+            {/* Input area */}
+            <div className="border-t border-slate-200 bg-white px-6 py-4">
+              <div className="max-w-4xl mx-auto flex gap-3">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask about M2M data... (Enter to send, Shift+Enter for new line)"
+                  rows={1}
+                  className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none resize-none text-sm"
+                  style={{ minHeight: '48px', maxHeight: '120px' }}
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={isLoading || !input.trim()}
+                  className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-xl text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  Send
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </main>
     </div>
