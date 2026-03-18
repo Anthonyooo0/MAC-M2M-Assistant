@@ -37,7 +37,12 @@ The COMPLETE database schema is provided below. It lists every table (## TABLENA
 QUERY RULES:
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
 2. Always use TOP 500 to limit results unless the user asks for a count/aggregate.
-3. M2M uses fixed-width CHAR fields — always use RTRIM() when displaying or comparing text values.
+3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name. Users do not know internal field names like FSONO or FCOMPANY. Use the description from the schema as a guide.
+   Examples: RTRIM(FSONO) AS "Sales Order", RTRIM(FCOMPANY) AS "Company", FORDERQTY AS "Order Qty", FORDDATE AS "Order Date"
+   - Every column in every SELECT must have an AS alias with a friendly name.
+   - Use double quotes around aliases that contain spaces.
+   - For aggregates: COUNT(*) AS "Total Count", SUM(FORDERQTY) AS "Total Qty"
+4. M2M uses fixed-width CHAR fields — always use RTRIM() when displaying or comparing text values.
 4. Use proper JOIN syntax when linking tables.
 5. When searching text, use LIKE with wildcards: WHERE RTRIM(fcompany) LIKE '%search%'
 6. Dates of 1899-12-31 or 1900-01-01 mean "not set" — filter these out when showing dates.
