@@ -127,13 +127,27 @@ function parseGeminiResponse(geminiData) {
   };
 }
 
-function validateSqlSafety(sqlQuery) {
-  // Strip leading SQL comments before checking first keyword
-  const strippedSql = sqlQuery
+function cleanSqlQuery(sqlQuery) {
+  // Strip SQL comments
+  let cleaned = sqlQuery
     .replace(/^\s*--[^\n]*\n/gm, '')
-    .replace(/^\s*\/\*[\s\S]*?\*\/\s*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
     .trim();
-  const firstWord = (strippedSql.split(/\s+/)[0] || '').toUpperCase();
+
+  // If it doesn't start with SELECT/WITH, try to extract the SELECT statement from it
+  const firstWord = (cleaned.split(/\s+/)[0] || '').toUpperCase();
+  if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
+    // Try to find a SELECT or WITH statement embedded in the response
+    const selectMatch = cleaned.match(/\b(SELECT\s[\s\S]+)/i) || cleaned.match(/\b(WITH\s[\s\S]+)/i);
+    if (selectMatch) {
+      cleaned = selectMatch[1].trim();
+    }
+  }
+  return cleaned;
+}
+
+function validateSqlSafety(sqlQuery) {
+  const firstWord = (sqlQuery.split(/\s+/)[0] || '').toUpperCase();
 
   if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
     return { ok: false, reason: 'Only SELECT queries are allowed.' };
@@ -251,6 +265,11 @@ module.exports = async function (context, req) {
 
     let { explanation, sqlQuery } = parseGeminiResponse(geminiData);
 
+    // Clean SQL: strip comments, extract SELECT if wrapped in other statements
+    if (sqlQuery) {
+      sqlQuery = cleanSqlQuery(sqlQuery);
+    }
+
     // If no SQL query, just return the explanation (conversational response)
     if (!sqlQuery) {
       context.res = {
@@ -351,7 +370,8 @@ module.exports = async function (context, req) {
 
       const retryParsed = parseGeminiResponse(retryGeminiData);
       explanation = retryParsed.explanation;
-      const retrySqlQuery = retryParsed.sqlQuery;
+      let retrySqlQuery = retryParsed.sqlQuery;
+      if (retrySqlQuery) retrySqlQuery = cleanSqlQuery(retrySqlQuery);
 
       if (!retrySqlQuery) {
         // Model responded with explanation-only on retry — return it
