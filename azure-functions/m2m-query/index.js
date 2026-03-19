@@ -206,6 +206,8 @@ module.exports = async function (context, req) {
   let pool = null;
   let sqlQuery = '';
   let explanation = '';
+  let actualDb = '';
+  let actualServer = '';
 
   try {
     const { message, history } = req.body || {};
@@ -338,7 +340,9 @@ module.exports = async function (context, req) {
 
     // Debug: log which database we're actually connected to
     const dbCheck = await pool.request().query('SELECT DB_NAME() AS currentDb, @@SERVERNAME AS serverName');
-    context.log.info(`[m2m-query] Actual DB: ${dbCheck.recordset[0].currentDb}, Server: ${dbCheck.recordset[0].serverName}`);
+    actualDb = dbCheck.recordset[0].currentDb;
+    actualServer = dbCheck.recordset[0].serverName;
+    context.log.info(`[m2m-query] Actual DB: ${actualDb}, Server: ${actualServer}`);
 
     // -----------------------------------------------------------------------
     // Execute SQL — with one silent retry on invalid column name errors
@@ -440,7 +444,7 @@ module.exports = async function (context, req) {
       status: 500,
       headers: CORS,
       body: JSON.stringify({
-        error: `${err.message || String(err)} [server=${(req.body||{}).database || 'default'}]`,
+        error: `${err.message || String(err)} [connectedTo=${actualDb || 'unknown'}@${actualServer || 'unknown'}]`,
         sql: sqlQuery || '',
         explanation: explanation || '',
       }),
