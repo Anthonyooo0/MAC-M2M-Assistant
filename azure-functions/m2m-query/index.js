@@ -204,6 +204,8 @@ module.exports = async function (context, req) {
   };
 
   let pool = null;
+  let sqlQuery = '';
+  let explanation = '';
 
   try {
     const { message, history } = req.body || {};
@@ -285,7 +287,7 @@ module.exports = async function (context, req) {
       return;
     }
 
-    let { explanation, sqlQuery } = parseGeminiResponse(geminiData);
+    ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
 
     // Clean SQL: strip comments, extract SELECT if wrapped in other statements
     if (sqlQuery) {
@@ -478,7 +480,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err) }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '' }),
     };
   } finally {
     if (pool) {
