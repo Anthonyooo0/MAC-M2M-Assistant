@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-// Load the full M2M schema at startup
-const schemaPath = path.join(__dirname, '..', 'm2m-schema.txt');
+// Load the slim M2M schema (core tables only) at startup
+const schemaPath = path.join(__dirname, '..', 'm2m-schema-slim.txt');
 let M2M_SCHEMA = '';
 try {
   M2M_SCHEMA = fs.readFileSync(schemaPath, 'utf-8');

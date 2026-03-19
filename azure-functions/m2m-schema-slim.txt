@@ -1,0 +1,3105 @@
+# M2M Schema — Core Tables Only
+# Generated from m2m-schema.txt, filtered to ~100 actively-used tables
+# Source: tables we use.csv (row counts from production m2mdata99)
+
+## ACTIVITY — ACTIVITY MASTER
+  NUMBER (Character 10) — ACTIVITY NUMBER
+  SUBJECT (Character 254)
+  TYPECODE (Character 10)
+  FCUSTNO (Character 6) — CUSTMOR NUMBER
+  DUEDATE (Date/Time 0)
+  CONTACTNUM (Character 6) — CONTACT NUMBER
+  OWNERUSER (Character 30) — OWNER
+  ENTERBYUSER (Character 30) — ENTER BY
+  ISCOMPLETE (Character 1)
+  DESCRIPTION (Character 500)
+  CREATEDDATE (Date/Time 0)
+  MODIFIEDDATE (Date/Time 0)
+  TYPEICON (Character 2)
+  DUEICON (Character 2)
+  FCFROMNO (Character 20) — FROM NUBER
+  FCFROMTYPE (Character 15) — FROM TYPE
+  FLEDITED (Logica 1) — Is in Edit Mode
+
+## APDIST — ACCOUNTS PAYABLE JOURNAL
+  FCCASHNUM (Character 20) — FCCASHNUM Cash Receipt/Payment Key
+  FCCURID (Character 3) — TRANS CURRENCY Transaction Currency
+  FCFACTOR (Numeric 22) — CURRENCY FACTOR Currency Conversion Factor
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion factor from Functional to Euro
+  FNEUROAMT (Currency 8) — EURO AMOUNT
+  FNTXNAMT (Currency 8) — TXN AMOUNT
+  FCACCTNUM (Character 25) — ACCOUNT NUMBER GL Account No This is == glmast.fcacctnum for the account to which the fnamount is
+  FCCASHID (Character 35) — PAYMENT ID REF Key To Source Document If fctype=='P', this is a 'payment' record
+  FCINVOICE (Character 20) — INVOICE Invoice Number
+  FCSTATUS (Character 1) — STATUS Status Code Status :
+  FCTIME_TS (Date/Time 8) — DATE/TIME Date & Time Record Created Date & Time record created, use timer() function to display in
+  FCTYPE (Character 1) — TYPE TYPE OF RECORD, 'P'-PAYMENT, 'I'-INVOICE 'P' - Payment, 'I' Invoice, 'O' Out of Balance
+  FCUSERID (Character 4) — USER ID User Id Who Created The Record
+  FDDATE (Date 8) — POSTING DATE Post To The General Ledger Date Record Is To Post To The General Journal
+  FNAMOUNT (Currency 8) — AMOUNT Amount amount to be posted to fcacctum balance in glitem
+
+## APITEM — AP LINE ITEMS
+  FSHIPNO (Character 10) — Shipper No.
+  FSHIPITEMNO (Character 10) — Shipper Item No.
+  FCSONO (Character 10) — SO Number
+  FINUMBER (Character 3) — SO Item No
+  FRELEASE (Character 3) — Job Order No SO Release
+  FCJOBNO (Character 20) — Job Order No
+  FRECEIVER (Character 10) — RECEIVER No.
+  FRECVITEMNO (Character 10) — Receiver Item No.
+  FPONO (Character 10) — PO No.
+  FPOITEMNO (Character 3) — PO Item No.
+  FPORELSNO (Character 3) — PO Release No.
+  FIXCSTRECV (Numeric 17) — Fixed cost FROM rece Fixed cost FROM receiver
+  FFIXCOST (Numeric 19) — FIXED COST
+  FFIXCOSTTXN (Numeric 19) — FIXED COST TXN
+  FAPP_BY (Character 3) — APPROVED BY Initials Of Approving Authority (person Who Author
+  FAPP_DT (Date 8) — DATE APPROVED Date Item Was Approved To No Longer Be On 'hold'
+  FCCREDIT (Character 25) — GL CREDIT Gl Account No For Credit Side
+  FCDEBIT (Character 25) — GL DEBIT Gl No For Debit Side
+  FCINVKEY (Character 26) — INVOICE KEY Parent Key (= Upper(fvendno) + Upper(fcinvoice)
+  FCPOCAT (Character 8) — PO CATEGORY Po Category (poitem.fcategory)
+  FCPRODCL (Character 4) — PROD CLASS Product Class (inmast.fprodcl)
+  FCSOJOKEY (Character 20) — SO/JO KEY Key To Somast/jomast (poitem.fsokey Or Poitem.fjok
+  FCSOURCE (Character 1) — SOURCE Source 'R' Receiver, 'R' Shipper, 'P' Purchase Ord Source Code is:
+  FCSTATUS (Character 1) — STATUS Line Item Status, If 'h' Item Is 'out Of Tolerance Blank for "normal" status
+  FCTYPE (Character 1) — TYPE Type Of Item - Blank = Gds/svcs, 'T' Tax, 'F' Frt blank = goods & services
+  FINVQTY (Numeric 16) — INVOICED QUANTITY Quantity Invoiced (always Stocking Uom)
+  FITEMNO (Character 6) — LINE ITEM Invoice Line Item Number Specifies the "line item" of this detail
+  FLISVUOM (Logica 1) — VENDOR U/M Is Vendor U/M The One Specified On This Invoice
+  FMDESCR (Memo 4) — PART DESCRIPTION Part Description Memo Stocking Part Description
+  FMEASURE (Character 3) — U/M Stocking Unit Of Measure 1. For items invoiced from a purchase order, the item description
+  FMNOTES (Memo 4) — NOTES Notes / Remarks Concerning This Line Item Any notes, remarks &/or extended item description may appear here.
+  FNDISAMT (Currency 8) — DISCOUNT AMT Discount Amount This amount is is equal to the unit price (fnUnit) times the quantity
+  FNDISCRATE (Numeric 6) — DISC PCT Line Item Discount Percentage
+  FNEXPCOST (Numeric 16) — EXPECTED UNIT PRICE Expected Unit Price (stocking Uom) NOTE: This is the DISCOUNTED unit price from the assoicated
+  FNUNIT (Numeric 16) — UNIT PRICE Unit Price Of This Item (stocking U/M) Unit Cost (undiscounted) of this line item per this invoice[uses
+  FPARTNO (Character 25) — PART NUMBER Part Number (stocking) If a standard item, is foreign key to inventory part master
+  FPOKEY (Character 16) — PO KEY Foreign Key To Poitem Table IN WINDOWS:
+  FPRICE (Currency 8) — EXTENDED AMOUNT Ext Amount = Unit Price * Qty Invoiced Less Item D Extended amount due for this item. It is calculated as follows:
+  FRECVKEY (Character 13) — RECEIVER KEY Foreign Key To Receiver (rcitem.freceiver+fitemno) Key to the Receiver Item Table (rcitem)
+  FREV (Character 3) — REV Part Number Revision Note: If Part No is not in inmast (not 'std' or 'stocking'), then this field
+  FVCONVFACT (Numeric 10) — INV UOM PER VEN U/M Inventory U/M Per Vendor U/M Conversion Factor
+  FVMEASURE (Character 5) — VENDOR UOM Vendor U/M
+  FVPARTNO (Character 25) — VENDOR PART NO
+  FVPTDES (Memo 4) — PART DESCR Vendor Part Description
+  FVQTYINV (Numeric 16) — VENDOR QTY Qty Invoiced (Vendor U/M)
+  FVUCOST (Numeric 16) — VENDOR UNIT PRICE Unit Price In Vendor Units Of Measure
+  FCSHIPKEY (Character 16) — SHIP ITEM KEY Key to Shitem Table If Fcsource=='S', Then this is the shitem.fshipno + shitem.fitemno
+  FEUROPRICE (Currency 8) — EURO EXTENDED PRICE Euro Extended Amount
+  FNEURDISAMT (Currency 8) — EURO DISCT AMT Euro Discount Amount
+  FNEUROUNIT (Numeric 16) — EURO UNIT PRICE Euro Unit Price Of This Item (stocking U/M)
+  FNEXPEURCOST (Numeric 16) — EURO EXP UNIT PRICE Euro Expected Unit Price (stocking Uom)
+  FNEXPTXNCOST (Numeric 16) — TXN EXP UNIT PRICE TXN Expected Unit Price (stocking Uom)
+  FNTXNDISAMT (Currency 8) — TXN DISCOUNT AMT TXN Discount Amount
+  FNTXNUNIT (Numeric 16) — TXN UNIT PRICE TXN Unit Price Of This Item (stocking U/M)
+  FTXNPRICE (Currency 8) — TXN EXTENDED AMOUNT
+  FVUEUROCOST (Numeric 16) — EURO VEND UNIT PRICE Euro Unit Price in Vendor Units of Measure
+  FVUTXNCOST (Numeric 16) — TXN VEND UNIT PRICE TXN Unit Price in Vendor U/M
+  FLJRDIF (Logica 1) — JURISDICTION DIFFERS
+  FCTAXITEMNO (Character 6) — FCTAXITEMNO Item Taxed
+  FLISTAXABL (Logica 1) — TAXABLE Item Taxable
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev User Defined Revision Number
+  FCTAXCODE (Character 10) — APPROVED BY Approved By individual.
+
+## APMAST — VENDOR INVOICE MASTER RECORD
+  FDTAXPOINT (Date 8) — TAX POINT DATE
+  FLPREMCV (Logica 1) — FLPREMCV Pre-Multi-Currency
+  FLDUECHNG (Logica 1)
+  FAPPEURPAY (Currency 8) — EURO PAYMT APPROVED Euro Amount approved for next payment
+  FAPPTXNPAY (Currency 8) — TXN PAYMT APPROVED Txn Amount approved for next payment
+  FDEURODATE (Date 8) — EURO FCTR AS OF DATE Euro Factor as of Date
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion factor from functional to Euro
+  FCURRPAID (Character 1) — CURRENCY APPROVED Currency for which Payment was approved in '' or 'F' for functional, 'T' for TXN and 'E' for Euro -- Symbol is only
+  FEURADJAMT (Currency 8) — EURO APPLIED ADJ Total Adjustment Amount Taken
+  FEURAPADJ (Currency 8) — EURO APPROVED ADJ Euro Amount Approved for Adjustment
+  FEURAPDIS (Currency 8) — EURO APPROVED DISCT Euro Amount approved for Discount
+  FEURDISTK (Currency 8) — EURO DISCT TAKEN Euro Amount of Discount already applied
+  FEUROPAID (Currency 8) — EURO AMT PAID Euro Amount Paid
+  FTXNADJAMT (Currency 8) — TXN APPLIED ADJ TXN Amount of Applied Adj
+  FTXNAPADJ (Currency 8) — TXN APPROVED ADJ TXN Amount of Approved Adjustment
+  FTXNAPDIS (Currency 8) — TXN APPROVED DISCT TXN Amount of Discount Approved
+  FTXNDISTK (Currency 8) — TXN DISCOUNT TAKEN TXN Amount of Discount already applied
+  FTXNPAID (Currency 8) — TXN AMOUNT PAID TXN Amount Paid on the Invoice
+  FLEURPAYMT (Currency 8) — EURO LAST PAYMENT Euro Amount of the Last Payment
+  FLTXNPAYMT (Currency 8) — TXN LAST PAYMENT TXN Amount of the Last Payment
+  FDVOIDDATE (Date 8) — VOID DATE
+  FADJAMT (Currency 8) — APPLIED ADJUSTMENTS Total Adjustment Amount Taken Cumulative total of 'adjustments' taken on all payments made on this
+  FAPPPAY (Currency 8) — PAYMENT APPROVED Amount approved for next payment FAPPPAY is the payment (CASH AMOUNT) to be applied to an
+  FCCHECKREF (Character 20) — CHECK REFERENCE Check Reference If Paid Cod Or Cash If this is a Debit Memo, the Check Reference MAY contain the
+  FCCITY (Character 20) — CITY Remit To City
+  FCCOMPANY (Character 35) — COMPANY REMIT TO COMPANY NAME
+  FCCOUNTRY (Character 25) — COUNTRY Remit to Country
+  FCCURID (Character 3) — CURRENCY ID Invoice Transaction Currency Foreign key to utcurr table == country/currency ID of any Alternate
+  FCFACTOR (Numeric 22) — CONVERSION FACTOR Conversion Factor If Alt Currency Specified Expression used to convert from the apmast.fccurid currency to this
+  FCINVOICE (Character 20) — INVOICE NUMBER Invoice Number was 'finvnum' and only 10 characters in length
+  FCSOURCE (Character 1) — SOURCE Source Document Code 'R' - receiver
+  FCSTATE (Character 20) — STATE Remit To State
+  FCSTATUS (Character 1) — STATUS Status Code Invoice Status Code:
+  FCTERMSID (Character 4) — TERMS Payment Terms Code (foreign Key To Utterms)
+  FCZIP (Character 10) — ZIP CODE Remit To Postal Code
+  FDEBIT (Currency 8) — DEBIT AMT APPLIED Open Debit Amount Applied
+  FDFACTDATE (Date 8) — FACTOR AS OF DATE Factor As of Date Date alternate conversion factor was determined
+  FDISCAMT (Currency 8) — OFFERED CASH DISC Pay Cash Discount Amount Offered
+  FDISCDATE (Date 8) — DISC DATE Date Beyond Which Discount No Longer Applies
+  FDISCTAKE (Currency 8) — APPLIED CASH DISC Total Cash Discount Amount Taken Cumulative total of any 'cash discounts' taken on all payments made
+  FDUEDATE (Date 8) — DUE DATE DATE FULL INVOICE IS DUE AND PAYABLE
+  FFREIGHT (Currency 8) — SHIPPING / FREIGHT Charges For Inbound Freight / Shipping Shipping & Handling charge [incoming freight expense]
+  FGLDISDATE (Date 8) — DISTRIBUTION DATE Date this Amount Distributed to the GL Distribution Date for the General Ledger (this is date amounts are to
+  FINVDATE (Date 8) — INVOICE DATE Date This Invoice Created Date of invoice printed on the Vendor Invoice [payment terms
+  FINVTYPE (Character 2) — INVOICE TYPE Type Of Invoice 'N' - Normal (usually affects Inventory)
+  FLISPRINT (Logica 1) — PRINTED FLAG Debit Memo has been Printed
+  FLPAYDATE (Date 8) — DATE LAST PAID
+  FLPAYMENT (Currency 8) — LAST PAYMENT AMT Last Payment Amount
+  FLPOSTNOW (Logica 1) — POST @ CONFIRM Post @ time Confirm the Invoice If csgenl.fpostap=='I', this is always set to .T.,
+  FMNOTES (Memo 4) — NOTES Notes Pertaining To This Particular Invoice
+  FMSTREET (Memo 4) — STREET Remit To Street Address
+  FNAMOUNT (Currency 8) — TOTAL DUE Total Amount Due & Payable Total amount of this invoice including all line items + shipping + sales
+  FNAPPADJ (Currency 8) — TO APPLY ADJUSTMENT Adjustment Amount To Apply Adjustment amount applied at Approve for payment. Once the check
+  FNAPPDIS (Currency 8) — TO APPLY DISCOUNT Discount Amount to Apply Discount amount to applied at Approve for payment. Once the
+  FNCREDITS (Currency 8) — CREDITS/ADJUSTMENTS Applied Credits/adjustments To The Invoice Amount
+  FNCUREX (Currency 8) — CURRENCY GAIN/LOSS Currency Gain/Loss Accumulator for the net default currency gain/loss due to changes in
+  FNGOODSAMT (Currency 8) — GOODS/SVCS Total Amount For Goods & Services
+  FNONDISC (Currency 8) — NON DISC AMT Non Discount Amount FNONDISC is the amount of the invoice total(FPURAMT) not eligible
+  FNPAYTYPE (4) — PAY TYPE Pay Type 1 = Terms, 2= Cod, 3 = Cash Note, source document, this is usually a character field, where '3' =
+  FPAID (Currency 8) — AMT PAID ON INVOICE Amount Paid On Invoice
+  FPONO (Character 10) — PURCHASE ORDER Purchase Order No FPONO must have an entry whenever an invoice is created from a
+  FRECEIVER (Character 10) — RECEIVER Receiver Number FRECEIVER must have an entry whenever an invoice is created
+  FRETURN (Character 1) — PREVIOUS STATUS Invoice Status before Invoice 'Held'
+  FRMPONO (Character 10) — RETURN PO Return Purchase Order Number FRMPONO must have an entry whenever an invoice is created for
+  FTAXAMT (Currency 8) — SALES TAX AMOUNT Sales Tax Total Amount Due Sales Tax amount of this invoice
+  FURGENCY (4) — PAYMENT CODE Payment Urgency Code Initially, the payment urgency for an invoice is taken from the vendor
+  FVENDNO (Character 6) — VENDOR NO Vendor Number Foreign key to apvend Vendor Master Table
+  FLEFTISPRINT (Logica 0) — Remit Advice Printed Remittance Advice Printed This Check box is used to indicate whether the Remittance Advice for
+  FNPAYMODE (0) — Payment Mode Payment Mode Payment mode indicates mode to settle AP Invoice vendor payments.
+
+## APTAX — FINANCIAL - COMPLEX TAX CODES
+  FCINVOICE (Character 20) — INVOICE Invoice Numberr
+  FVENDNO (Character 6) — VENDOR NO Vendor Number
+  FITEMNO (Character 6) — ITEM NO Item Number
+  FCJRDICT (Character 10) — JURISDICTION NAME
+  FNRATE (Numeric 6) — TAX RATE
+  FCTAXCODE (Character 10) — TAX CODE
+  FNORDER (4) — ORDER Tax Code Order
+
+## APVENDX — VENDOR MASTER
+  fcsubstatus (Character 1) — User Defined Status
+  FLEFTVEND (Logica 0) — EFT Vendor EFT Vendor Checking this field will enable the Vendor for settling the AP Invoices
+  FNREMDELIVERY (0) — RemitDeliveryMethod Remittance Delivery Method This field indicates the default communication mode of 'Remittance
+  FVREMADVMAIL (Character 60) — Remit Advice Email Remittance Advice Email For Remittance delivery method - 'Email', specify the email address
+  FVREMADVFAX (Character 20) — RemittanceAdviceFax Remittance Advice Fax For Remittance delivery method - 'Fax', specify the fax ID to send the
+  F1099 (Logica 1) — SEND 1099? Send A 1099 Form was 'Y'es, 'N'o, now True/False
+  FBUYER (Character 3) — INTERNAL BUYER CODE Our Internal Buyer Code
+  FCACCTNUM (Character 25) — GL ACCOUNT Default GL Account Whenever you process a Vendor Invoice & the items are 'non-
+  FCCURID (Character 3) — Vendor Default TXN C Vendor Default TXN Currency LINK TO UTCURR.DBF FOR COUNTRY NAME
+  FCCUSNO (Character 20) — CUST NUM Their Number For Our Business
+  FCDEFSHPTO (Character 6) — SEND PO TO KEY Default Send PO To Key (syaddr) Default Send PO To Address Key (syaddr table)
+  FCFNAME (Character 15) — NAME OF CONTACT First Name Of Contact
+  FCITY (Character 20) — CITY
+  FCOMPANY (Character 35) — COMPANY Company Name
+  FCONTACT (Character 20) — LAST NAME CONTACT Contact Person Last Name
+  FCOUNTRY (Character 25) — COUNTRY
+  FCSHIPVIA (Character 20) — SHIP VIA
+  FCSTATUS (Character 1) — VENDOR STATUS Vendor status, shown on customer service form
+  FCTERMS (Character 4) — PAYMENT TERMS ID
+  FCUSER1 (Character 40) — USER CHAR FIELD 1 User Character Field #1
+  FCUSER2 (Character 40) — USER CHAR FIELD 2 User Character Field #2
+  FCUSER3 (Character 40) — USER CHAR FIELD 3 User Character Field #3
+  FDRAMT (Currency 8) — DEBIT AMOUNT
+  FDSINCE (Date 8) — VENDOR SINCE DATE
+  FDUSER1 (Date 8) — USER DATE FIELD 1 User Date Field #1
+  FFAX (Character 20) — FAX NUM Fax Number
+  FISO9000 (Logica 1) — ISO 9000 SUPPLIER Qualified As Iso 9000 Supplier
+  FLIMIT (Currency 8) — CREDIT LIMIT Our Credit Limit With Them
+  FLLONGDIST (Logica 1) — USE LONG DISTANCE Use Long Distance to Call
+  FMSTREET (Memo 4) — STREET Street Address
+  FMUSER1 (Memo 4) — USER MEMO 1 User Memo #1
+  FNMINAMT (Currency 8) — MIM ORDER AMOUNT Minimum Order Amount
+  FNUSER1 (Numeric 16) — USER NUM FIELD 1 User Numeric Field #1
+  FNUSER2 (Numeric 16) — USER NUM FIELD 2 User Numeric Field #2
+  FPHONE (Character 20) — PHONE NUM Phone Number
+  FPREPAID (Currency 8) — PREPAYMENT AMOUNT Prepayment Total Amount
+  FSALESTAX (Numeric 6) — SALES TAX RATE
+  FSTATE (Character 20) — STATE/PROVINCE
+  FSTATUS (Character 1) — STATUS Status 't' Temp, 'p' Permanent P-Permanent T-Temporary
+  FURGENCY (4) — URGENCY CODE Payment Urgency Code 1 = Fastest To 8 Slowest Integer value from 1 to 9
+  FVENDNO (Character 6) — VENDOR Vendor Number
+  FVTYPE (Character 2) — VENDOR TYPE Vendor Type (cspopup)
+  FZIP (Character 10) — ZIP CODE Postal / Zip Code
+  FLISTAXABL (Logica 1) — TAXABLE Taxable Vendor
+  FCEMAIL (Character 60) — FCEMAIL Contact's E-mail Address
+  FDISTTYPE (Character 10) — Distribution Distribution type to support Zetadocs
+
+## ARCOM — AR Commissions
+  FCINVOICE (Character 20) — INV NUM Invoice Number
+  FINVITEM (Character 6) — AR ITEM AR Item Number
+  FSONO (Character 10) — SALES ORDER Sales Order No
+  FRELEASE (Character 3) — Release
+  FINUMBER (Character 3) — Item Number
+  FSALESPN (Character 3) — Salesperson
+  FNRATE (Numeric 8) — Commission Rate
+  FLRATE2 (Logica 1) — Using Rate 2 Using Rate 2?
+
+## ARDIST — ACCOUNTS RECEIVABLE JOURNAL
+  FCCASHNUM (Character 20) — CASH NUM CASH ID
+  FCCURID (Character 3) — TRANS CURRENCY Transaction Currency
+  FCFACTOR (Numeric 22) — CURRENCY FACTOR Currency Conversion Factor
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion Factor from Functional to Euro
+  FNEUROAMT (Currency 8) — EURO AMOUNT
+  FNTXNAMT (Currency 8) — TXN AMOUNT
+  FCACCTNUM (Character 25) — GL ACCT NO Gl Account Number foreign key to glmast table
+  FCCASHID (Character 35) — SOURCE ID Record Key to Source Document ***
+  FCREFCLASS (Character 1) — CLASS 'R' - Cash Receipt, 'I' - Invoice Class: (used to indicate source table where fcrefid is to be found)
+  FCREFNAME (Character 4) — SOURCE JOURNAL Ref Source Name will identify the source journal
+  FCSTATUS (Character 1) — STATUS 'U' - Unposted, 'P' - Posted to GL Status :
+  FCTIME_TS (Date/Time 8) — DATE/TIME STAMP Date & Time Stamp Of When Record Was Created Date & Time record was created (use function timer() to convert to
+  FCUSERID (Character 4) — USER ID Id Of User Who Created Record
+  FDDATE (Date 8) — GL EFF DATE GL Effective Date
+  FNAMOUNT (Currency 8) — AMOUNT Amount amount of transaction for fcacctum glmast record
+
+## ARITEM — AR LINE ITEMS
+  FCRMAKEY (Character 18) — RMA KEY
+  FCSONO (Character 10) — SO Number
+  FINUMBER (Character 3) — SO Item No
+  FRELEASE (Character 3) — SO Release
+  FRECEIVER (Character 10) — RECEIVER No.
+  FRECVITEMNO (Character 10) — Receiver Item No.
+  FNRESTOCK (Currency 0) — RESTOCK FEE. RESTOCK FEE
+  FBKORDQTY (Numeric 14) — B/O QTY Qty Back Ordered This field is never used.
+  FCINVOICE (Character 20) — INVOICE NUMBER Invoice No Key to parent armast.fcinvoice
+  FCOST (Currency 8) — AVG UNIT COST Ave Unit Cost
+  FCTAXCODE (Character 10) — SALES TAX CODE
+  FCTYPE (Character 1) — TYPE Type of Item 'S' - stock,
+  FCUSERLINE (Character 10) — LINE ITEM User Definable Line Item Number If from a Sales Order, this will be the Sales Order Item
+  FCUSTNO (Character 6) — CUSTOMER NUMBER Customer Number foreign key to slcdpm table
+  FDISCAMT (Currency 8) — DISCOUNT AMOUNT Discount Amount (per Unit Invoiced)
+  FDISRATE (Numeric 6) — DISCOUNT RATE Discount Rate (Percentage)
+  FINCACC (Character 25) — DEBIT G/L GL Account For Debit (usually Accounts Receivable
+  FITEM (Character 6) — LINE ITEM System Assigned Invoice Line Item NOTE: System always assigns this number, but user only 'sees' the
+  FLCOMM (Logica 1) — COMMISSIONS APPLY This Line Item Is Subject To Commissions
+  FLISTAXABL (Logica 1) — TAXABLE
+  FMDESCRIPT (Memo 4) — DESCRIPTION
+  FMEASURE (Character 3) — U/M Unit of Measure (Stocking)
+  FORDQTY (Numeric 14) — ORDER QTY Order Qty Qty Order from SO Item
+  FPARTNO (Character 25) — PART NUMBER
+  FPRICE (Numeric 16) — UNIT PRICE Unit Price If from a Sales Order, this is the 'net' unit price charged to the
+  FPRODCL (Character 4) — PRODUCT CLASS Product Class This class normally determines the GL account to use on the
+  FRECVKEY (Character 13) — RECEIVER KEY Receiver Key = Rcitem.freceiver+ Fcitem.fitemno - FRECVKEY = rcitem.freceiver+rcitem.fitemno
+  FREV (Character 3) — REV Part Number Revision If this partno is 'non-std' or not stocked, frev=='NS '
+  FSALESACC (Character 25) — SALES G/L GL Account For Sales (credit Side)
+  FSHIPKEY (Character 16) — SHIPPER KEY Key to Shipper Detail FSHIPKEY == UPPER(shitem.fshipno+shitem.fitemno)
+  FSHIPQTY (Numeric 14) — QTY INVOICED Qty Invoiced This normally should be same as the qty shipped on the
+  FSOKEY (Character 16) — SALES KEY Key To Sorels Table ==UPPER(sorels.fsono+sorels.finumber+sorels.frelease) == same
+  FSOLDBY (Character 3) — SALESPERSON Salesperson Foreign key to slspns table (== slspns.fsalespn)
+  FTOTPRICE (Currency 8) — EXTENDED PRICE Price * Invoiced Qty Less Discounts aritem.fprice*aritem.fdisrate*0.01*aritem.fshipqty
+  FTXNPRICE (Numeric 16) — UNIT PRIXE TXN Unit Price in the TXN Currency
+  FTOTTXNPRICE (Currency 8) — NET PRICE TXN Net Price in the TXN Currency
+  FDISCTXNAMT (Currency 8) — ITEM DISC TXN Item Discount Amount in the TXN Currency
+  FEUROPRICE (Numeric 16) — UNIT PRICE TRANS Unit Price in the Transaction Currency
+  FDISCEURAMT (Currency 8) — ITEM DISC EURO Item Discount Amount in the Euro Curr
+  FTOTEURPRICE (Currency 8) — ITEM PRICE EURO Total Item Price in the Euro Currency
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FPBFINAL (Logica 0) — Final PB Final Progress Billing If this item invoices the last PB item for the related so release, then
+  FPBITEM (Character 3) — PB Item Progress Billing Item If not empty, then this is a PB invoice item. When concatenated with
+  FNCOMPCT (Numeric 7) — Commission Rate Sales Commission Percent
+  FLJRDIF (Logica 1) — JURISDICTION DIFFERS
+  FSHIPNO (Character 10) — Shipper No.
+  FSHIPITEMNO (Character 10) — Shipper Item No.
+
+## ARMAST — INVOICE HEADER - CUSTOMER INVOICES
+  FDTAXPOINT (Date 8) — TAX POINT DATE
+  FCCONTKEY (Character 10) — Contract Code Contract Key
+  FLCONTRACT (Logica 0) — Contract Invoice Specifies whether invoice is based on a contract.
+  FLDIFMSG (Logica 0) — EDITED TERMS MESSAGE User edited the Invoice default terms message
+  FLDUECHNG (Logica 0) — Due Date Edited
+  FDVOIDDATE (Date 8) — VOID DATE
+  FLPREMCV (Logica 1) — FLPREMCV Pre-Multi-Currency
+  FDEURODATE (Date 8) — EURO AS OF DATE Euro Currency Factor As of Date
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion Factor from Fnctl to Euro
+  FSALCOMPCT (Numeric 7) — SALES COMMISSION
+  FBCITY (Character 20) — BILL TO CITY
+  FBCOMPANY (Character 35) — BILL TO COMPANY
+  FBCOUNTRY (Character 25) — BILL TO COUNTRY
+  FBSTATE (Character 20) — BILL TO STATE
+  FBZIP (Character 10) — BILL TO POSTAL CODE
+  FCCITY (Character 20) — SOLD TO CITY
+  FCCOMPANY (Character 35) — SOLD TO COMPANY
+  FCCOUNTRY (Character 25) — SOLD TO COUNTRY
+  FCCURID (Character 3) — ALTERNATE CURRENCY I Invoice Transaction Currency
+  FCFACTOR (Numeric 22) — CONVERSION FACTOR Conversion Factor This field was previously a character expression, but now is a
+  FCINVOICE (Character 20) — INVOICE NUMBER
+  FCSOURCE (Character 1) — SOURCE Source Document type 'S' - shipper, 'O' - sales order, 'R' - receiver, 'C' - customer, 'I' -
+  FCSTATE (Character 20) — SOLD TO STATE
+  FCSTATUS (Character 1) — STATUS Invoice Status 'N' - New, unconfirmed (no postings to ardist yet)
+  FCTERMSID (Character 4) — TERMS ID
+  FCTIME_TS (Date/Time 8) — DATE/TIME STAMP Date/time Stamp at time record created
+  FCUSTNO (Character 6) — CUSTOMER NUMBER CUSTOMER NUMBER This is apvend.fvendno if armast.finvtype=='V' [Created from a
+  FCZIP (Character 10) — ZIP CODE Sold To Postal Code
+  FDFACTDATE (Date 8) — AS OF FACTDATE Alternate Currency Factor As of Date
+  FDGLDATE (Date 8) — POST TO GL GL Post Date This should normally be same as finvdate
+  FDUEDATE (Date 8) — DUE DATE Due Date Date this invoice is to be paid in full
+  FFOB (Character 20) — FOB Freight On Board Point Point of Origin used to determine applicable Freight charges & point
+  FFREIGHT (Currency 8) — FREIGHT TOTAL
+  FINVDATE (Date 8) — INVOICE DATE
+  FINVTYPE (Character 1) — INVOICE TYPE Type of Invoice 'N' - normal,
+  FLISCOD (Logica 1) — IS C.O.D. Terms are C.O.D. - Cash Upon Delivery
+  FLISHAND (Logica 1) — HAND WRITTEN Is Hand Written Invoice If True
+  FLISPRINT (Logica 1) — PRINTED FLAG
+  FLPOSTNOW (Logica 1) — POST NOW Post to GL during change status If csgenl.fpostar=='I', this is always set to .T.,
+  FMBSTREET (Memo 4) — BILL TO STREET
+  FMNOTES (Memo 4) — INVOICE NOTES Extended Notes If generated from a Shipper &/or Sales Order this will contain the
+  FMREMARKS (Memo 4) — REMARKS Short 'invoice Remarks' Text
+  FMSTREET (Memo 4) — SOLD TO STREET
+  FMTERMSMSG (Memo 4) — TERMS MESSAGE Prompt Pay/terms Message To Print At End Of Invoic prompt pay/terms message to print at end of invoice (i.e. normally
+  FNAMOUNT (Currency 8) — INVOICE AMOUNT Invoice Amount This is Net (Total) amount due for all line items. It is =
+  FNCREDITS (Currency 8) — CREDITS Credits For Advanced Prepayments credits for advanced prepayments
+  FNCUREX (Currency 8) — CURR EXCH GAIN/LOSS Currency Exchange Gain/Loss Accumulator for the net default currency gain/loss due to changes in
+  FNFINCHG (Currency 8) — FINANCE CHARGES Cumulative Finance Charges Total, all finance charge line items, this invoice to date
+  FNGOODSAMT (Currency 8) — GOODS TOTAL Total For Goods & Services
+  FNINVDISRT (Numeric 10) — DISCOUNT RATE Invoice Discount Rate
+  FNPAYTYPE (4) — HOW PAID Pay Type 1='Terms', 2 = COD, 3= Cash
+  FNTOTALWT (Numeric 11) — WEIGHT Total Shipping Weight Of This Order
+  FNUMBER (Character 6) — SOURCE KEY Key To Source Document key to source document If single Shipper, will be shmast.fshipno, if
+  FPAIDREF (Character 20) — CHECK NUMBER Check Number If Paid In Cash, Or Check No Of Last Check Number if paid in cash, or check No of last payment against
+  FPONO (Character 20) — CUSTOMER'S PO Customer's Purchase Order taken from the Sales Order (if any)
+  FRETRNDATE (Date 8) — RETURN DATE Last Date Customer Returned Goods, This Invoice
+  FSALESPN (Character 3) — SALESPERSON
+  FSHIPDATE (Date 8) — DATE SHIPPED
+  FSHIPVIA (Character 10) — SHIP VIA
+  FSONO (Character 10) — SALES ORDER
+  FTAXAMT (Currency 8) — SALES TAX TOTAL
+  FTAXCODE (Character 3) — SALES TAX CODE
+  FBILLADDR (Character 6) — Bill To Address
+
+## ARTAX — FINANCIAL - COMPLEX TAX CODES
+  FCINVOICE (Character 20) — INVOICE Invoice Number
+  FITEM (Character 6) — ITEM NO Item Number
+  FCJRDICT (Character 10) — JURISDICTION NAME
+  FNRATE (Numeric 6) — TAX RATE
+  FCTAXCODE (Character 10) — TAX CODE
+  FNORDER (4) — ORDER Tax Code Order Number
+
+## BIN
+  FCBIN (Character 14) — Bin
+  FCBINDESC (Character 30) — Desciption Description
+  FCFACILITY (Character 20) — Facility
+  FCLOC (Character 14) — Location
+
+## BOLITEM — Bill of Lading Item
+  FLSHIPMENT (Logica 1) — FLSHIPMENT Shipment (Partial/Full)
+  FCPONO (Character 20) — FMPONO Purchase Orders that this BOL is for
+  FCSHIPNO (Character 10) — FMSHPNO Shippers that this BOL is for
+  FNPACK (Character 10) — FNPACK Packing/Handling Units
+  FNWEIGHT2 (Numeric 11) — FNWEIGHT2 Weight from Item Master
+  FCBOLNO (Character 20) — FCBOLNO Bill of Lading Number
+  FCITEMNO (Character 3) — FCITEMNO Item Number
+  FCCLASS (Character 10) — FCCLASS Freight Class
+  FCNMFCDESC (Memo 4) — FCNMFCDESC NMFC Description
+  FNUNITS (Numeric 11) — FNUNITS Units
+  FNWEIGHT (Numeric 11) — FNWEIGHT Weight
+  FNCUBE (Numeric 11) — FNCUBE Cube
+  FLHZDMTRL (Logica 1) — FLHZDMTRL Hazardous Material
+
+## BOLMAST — Bill of Lading Master
+  FLSHIPMENT (Logica 1) — FLSHIPMENT Shipment (Partial/Full)
+  FMCOMMENT (Memo 4) — FMCOMMENT Comment
+  FLPREPAID (Logica 1) — FLPREPAID Prepaid
+  FNFREIGHT (Numeric 16) — FNFREIGHT Freight
+  FMRECEIVED (Memo 4) — FMRECEIVED Received Memo
+  FLCALC (Logica 1) — FLCALC Shipper or Item Master Weight Used
+  FCPER (Character 15) — FCPER Per weight measurement
+  FNVALUE (Numeric 16) — FNVALUE Value per measurement of items
+  FNCOLLECT (Numeric 16) — FNCOLLECT Collect Amount
+  FLCHARGE (Logica 1) — FLCHARGE Charge Shipper or Consignee
+  FCSHIPNO (Character 10) — FSHIPNO Taken From Sales Order, Shiplist For A Part
+  FNNUMPRINTED (Numeric 3) — FNNUMPRINTED Number of times printed
+  FCBOLNO (Character 20) — FCBOLNO Bill of Lading Number
+  FCCARRIER (Character 10) — FCCARRIER Carrier
+  FCPRONO (Character 35) — FCPRONO Pro No
+  FDSHPDATE (Date 8) — FDSHPDATE Ship Date
+  FLPRINTED (Logica 1) — FNNUMPRINTED Printed?
+  FCSHPPOINT (Character 10) — FCVENDSHPPOINT Vendor Ship Point
+  FCAPPTNO (Character 8) — FCAPPTNO Appointment Number
+  FCTRLRNO (Character 8) — FCTRLRNO Carrier Trailer Number
+  FCSEALNO (Character 8) — FCSEALNO Seal Number
+  FTAPPT (Date/Time 8) — FDAPPTDATE Appointment Date
+  FTARRIVAL (Date/Time 8) — FDARRIVALDATE Arrival Date
+  FTLEAVE (Date/Time 8) — FDLEAVEDATE Leave Date
+
+## CLIPIN — Custom table
+  FSHIPNO (Character 6)
+  FCTRACKNO (Character 30)
+  FNWEIGHT (Numeric 16)
+  FNCOST (Numeric 17)
+  FCSTATUS (Character 1)
+  FDSHIPDATE (Date 8)
+  FLPROCESS (Logica 1)
+  FCERROR (Memo 4)
+  IDENTITY_COL (4) — IDENTITY_COLUMN
+
+## CLIPOUT — Custom table
+  FCSHIPNO (Character 10)
+  FCSHIPLINE (Character 6)
+  FCSHIPKEY (Character 12)
+  FCCUSTPONO (Character 20)
+  FCCOMPANY (Character 35)
+  FCFNAME (Character 15)
+  FCLNAME (Character 20)
+  FCADDR1 (Character 35)
+  FCADDR2 (Character 35)
+  FCADDR3 (Character 35)
+  FCADDR4 (Character 35)
+  FCCITY (Character 20)
+  FCSTATE (Character 20)
+  FCZIP (Character 10)
+  FCCOUNTRY (Character 25)
+  FCPHONE (Character 20)
+  FLHAZMAT (Logica 1)
+  FCSONO (Character 10)
+  FCNUMBER (Character 6)
+  FCSHIPVIA (Character 20)
+  FNSHIPCODE (4)
+  FACCTNO (Character 20)
+  FLSERVICES (Logica 1)
+  FLADULTSIG (Logica 1)
+  FCSTATUS (Character 1)
+  FCEMAILADD (Character 60)
+  FNLENGTH (Numeric 17)
+  FNWIDTH (Numeric 17)
+  FNHEIGHT (Numeric 17)
+  FNWEIGHT (Numeric 17)
+  FCUPSNO (Character 20)
+  FCFEDEXNO (Character 20)
+  FCLTLNO (Character 20)
+  FCSHIPFROM (Character 35)
+  FNITEMQTY (Numeric 17)
+  IDENTITY_COL (4) — IDENTITY_COLUMN
+
+## COMMPAY — Commissions Payable
+  FCARINV (Character 20) — AR INVOICE
+  FITEM (Character 6) — AR ITEM AR Invoice Item
+  FSOREL (Character 3) — SO RELEASE
+  FPARTNO (Character 25) — PART NO Part Number
+  FMDESCRIPT (Memo 0) — PART DESC
+  FREV (Character 3) — PART REV Part Revision
+  FAC (Character 20) — FACILITY
+  FCSTATUS (Character 1) — STATUS
+  FCDESC (Character 50) — ADJ DESC Adjustment Description
+  FCPRODCL (Character 4) — PROD CLASS Product Class
+  FDARPOST (Date/Time 0) — ARINV POST DT AR Invoice Post Date
+  FNAMOUNT (Currency 0) — AMOUNT AR Item Amount
+  FSONO (Character 10) — SALES ORDER
+  FCUSTNO (Character 6) — CUST NO Customer Number
+  FSHIPTOADDR (Character 6) — SHP TO ADDR Ship To Address
+  FSALESPN (Character 3) — SLSPN ID Sales Person ID
+  FCTERR (Character 10) — TERRITORY Sales Territory
+  FCVENDOR (Character 6) — VENDOR
+  FCINVOICE (Character 20) — AP INVOICE
+  FNCALCCOMM (Currency 0) — COMM AMT Commission Amt
+  FNRATE (Numeric 8) — COMM RATE Commission Rate
+
+## CSCURR — Currency Accounts
+  FCASHACC (Character 25) — CASH ACCOUNT Currency Cash Account
+  FCCURID (Character 3) — CURRENCY ID
+  FGNLSACC (Character 25) — GAIN/LOSS ACCT Currency Gain/Loss Account
+
+## CSPOPUP — POPUP LISTS
+  FCPOPACCES (Character 1) — POPUP ACCESS Popup Access 'Y' - User can change the contents of the popup
+  FCPOPKEY (Character 20) — POPUP KEY
+  FCPOPTEXT (Character 80) — DISPLAY VALUE
+  FCPOPVAL (Character 10) — STORED VALUE
+  FNORDER (Numeric 3) — DISPLAY ORDER
+
+## EXPLORER — Explorer
+  FCEXPR (Character 254)
+  FCINITIALS (Character 3) — INITIALS
+  FCLABEL (Character 30) — LABEL
+  FCNODETYPE (Character 10) — Node Type
+  FCTYPE (Character 1) — TYPE
+  FIHI (4) — High
+  FILO (4) — Low
+  FIORDER (4) — Order
+  FLINVTHERM (Logica 1)
+
+## GLCSHI — Cash Receipt/Payment Distribution
+  FCBANKID (Character 6) — Unique Bank ID Bank ID Unique Bank ID.
+  FNREFID (4) — REFERENCE ID Reference ID Used for AP -- GLCHECKS.fnRefId
+  FNPAYDSCT (Currency 8) — PAYMT CURR CASH AMT Paymt Currency Cash Payment Terms Disct Amt Appld
+  FNPYADJAMT (Currency 8) — PAYMT CURR ADJ Paymt Currency Amt of Any Non-Cash Adj Applied
+  FNPYCSHAMT (Currency 8) — PAYMT CURR CASH AMT Paymt Curr Amt in Cash Appld/Pd On This Invoice
+  FNEURADJAMT (Currency 8) — EURO ADJUSTMENT Euro Amount Of Any Non-cash Adjustment Applied
+  FNEURCSHAMT (Currency 8) — EURO CASH AMT Euro Amount In Cash Applied/paid On This Invoice
+  FNEURDSCT (Currency 8) — EURO DISCOUNT Euro Cash Payment Terms Disct Amt Applied (taken)
+  FNGAINLOSS (Currency 8) — GAIN/LOSS AMOUNT Gain/Loss Amount in Functional Currency
+  FNTXNADJAMT (Currency 8) — TXN ADJUSTMENT TXN Amt of Any Non-Cash Adj Applied
+  FNTXNCSHAMT (Currency 8) — TXN CASH AMT TXN Amount In Cash Applied/paid On This Invoice
+  FNTXNDSCT (Currency 8) — TXN DISCOUNT TXN Cash Payment Terms Disct Amt Applied (taken)
+  FCCASHID (Character 35) — PARENT ID Key To Glcshm Parent (== Glcshm.fcpayclass + Upper Equal to glcshm.fcpayclass + UPPER(glcshm.fcnameid) + UPPER
+  FCCASHNUM (Character 20) — CASH KEY Cash Receipt/Payment Key System generated key for glcshm (parent record). Use this key in all
+  FCCHECKA (Character 25) — Bank Name Bank Name Foreign key to apchac.fcAcctNo field (used for A/P only)
+  FCINVOICE (Character 20) — INVOICE NO Invoice Number if fcpayclass = 'R', is a Cash Receipt
+  FCNAMEID (Character 6) — VEND/CUST NO Vendor/Customer Number
+  FCPAYCLASS (Character 1) — PAY CLASS Pay Class, 'R' for A/R, 'P' for A/P
+  FCREFERENC (Character 20) — CHECK NO Check No Reference (glcshm.fcrefernc) if AP, this is STR(glchecks.fnNumber) + STR(glchecks.fnRefId),
+  FCSTATUS (Character 1) — STATUS Status 'V' indicates that this transaction was voided
+  FCTYPE (Character 1) — TYPE If 'B', This Is A 'back-out' Record (either Check if 'B' is a back-out record (same for both A/R & A/P), otherwise is
+  FDPAIDDATE (Date 8) — DATE ISSUED Date Check Was Issued
+  FNADJAMT (Currency 8) — ADJUSTMENT Amount Of Any Non-cash Adjustment Applied
+  FNCASHAMT (Currency 8) — CASH AMOUNT Amount In Cash Applied/paid On This Invoice
+  FNDISCOUNT (Currency 8) — DISCOUNT Cash Payment Terms Discount Amount Applied (taken)
+  FNNUMBER (4) — CHECK NO CHECK NUMBER(AP CHECK NO ONLY) Foreign key to glchecks.fnNumber when this is a cash payment (AP)
+
+## GLCSHM — Cash Receipt/Payment
+  FCACCTNUM (Character 25) — ACCOUNT NO ACCOUNT NUMBER THIS WAS POSTED TO
+  FCCASHNUM (Character 20) — CASH ID Unique Record Key System generated key. Use this key in all joins of glcshm/glcshi to
+  FCCHECKA (Character 25) — CHECK ACCOUNT Bank Name
+  FCCURID (Character 3) — CURRENCY ID Transaction Currency If not empty, this is key to utcurr record for the source currency used
+  FCFACTOR (Numeric 22) — CONVERSION RATE Numeric Expression (when Evaluated) Valid FoxPro Numeric expression (stored as Character) which when
+  FCNAMEID (Character 6) — CUST/VENDOR NO CUSTOMER OR VENDOR NO If fcpayclass = 'R', is slcdpm.fcustno, if fcpayclass = 'P', is
+  FCPAIDBY (Character 1) — PAID BY How Payment Was Made/rendered. Source Is Cspopup i.e., typically,
+  FCPAYCLASS (Character 1) — CLASS 'R' - A/R (receipt), 'P' A/P (payment) 'R' = A/R (receipts)
+  FCREFERENC (Character 20) — CHECK NO/REF Check Number Or Reference IF AP, This is STR(glchecks.fnNumber), if AR it is customer's check
+  FCSTATUS (Character 1) — STATUS Status Code 'S,U,M,P or V' 'S' Started (not distributed yet)
+  FCTYPE (Character 1) — TYPE Type of Cash Receipt/Payment 'A' A/R Cash Receipt
+  FDFACTDATE (Date 8) — CURR DATE Date Curr Conversion Factor Applied
+  FDPAIDDATE (Date 8) — DEPOSIT/ISSUE DATE DATE CHECK DEPOSIT-AR, DATE PRINT-AP
+  FMDETAIL (Memo 4) — NOTES Notes, Comments Relating To This Payment
+  FNAMOUNT (Currency 8) — AMOUNT Check Amount (in The Default Currency)
+  FNNUMBER (4) — CHECK NUMBER Check Number for Payments Foreign Key to glchecks.fnNumber
+  FDEURODATE (Date 8) — EURO AS OF DATE Euro Factor As of Date
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion Factor from Fnctl to Euro
+  FNEUROAMT (Currency 8) — EURO CHECK AMT Euro Check Amount
+  FNTXNAMT (Currency 8) — TXN CHECK AMOUNT
+  FCCASHACC (Character 25) — CASH ACCT NO Cash Account Number
+  FCGNLSACC (Character 25) — GAIN/LOSS ACCT NO Gain/Loss Account No
+  FNREFID (4) — REFER ID REFERENCE
+  FCBANKID (Character 6) — Unique Bank ID Bank ID Unique Bank ID.
+
+## GLHEAD — GL CATEGORIES
+  FCACCTNUM (Character 25) — ACCOUNT
+  FCCLASS (Character 1) — CLASS Class ("D" - Debt, "C" - Credit, or blank if Header or Dept/Loc/Div type
+  FCCODE (Character 1) — CATEGORY Category Category of account:
+  FCDESCR (Character 40) — DESCRIPTION
+  FCFORMAT (Character 35) — ACCOUNT Account Establishes the format expression used to display the G/L account
+  FLCONSOL (Logica 1) — CONSOLIDATE ? Consolidate ? If True, use this account for accross-company reporting
+
+## GLITEM — GL ACCOUNT BALANCES
+  FCACCTNUM (Character 25) — ACCOUNT NO Account Number This is the glmast.fcacctnum for this balance record (the parent)
+  FCCLASS (Character 1) — CLASS Class : 'o' - Opening, 'd' - Date , 'b' - Budget B Class :
+  FCDESCR (Character 20) — DESCRIPTION Description Description -unique for this account + type + date
+  FCTIME_TS (Date/Time 8) — DATE/TIME Date & Time Stamp Of When Record Was Originally Cr Date & time record created
+  FCUSERID (Character 4) — USER ID User Id Of Person Creating Record User id who created the record
+  FDDATE (Date 8) — DATE Date Associated With This Balance Amount Date
+  FNAMOUNT (Currency 8) — AMOUNT Amount Amount
+
+## GLJEITEM — Journal Entry Item
+  FCENTRY (Character 10) — JE NUMBER Journal Entry Number
+  FDDATE (Date 8) — DATE Transaction Date
+  FNORDER (Numeric 4) — ORDER Order in which journal entry item was entered
+  FCACCTNO (Character 25) — ACCOUNT NO GL Account Number
+  FCTRSDES (Character 30) — DESCRIPTION Transaction Description
+  FNDEBIT (Numeric 16) — DEBIT Debit Amount
+  FNCREDIT (Numeric 16) — CREDIT Credit Amount
+
+## GLJEMAST — Journal Entry Master
+  FLRECUR (Logica 1) — RECURRING ENTRY? .T. if this is a recurring journal entry, .F. othe
+  FCENTRY (Character 10) — JE NUMBER Journal Entry Number
+  FDDATE (Date 8) — Posting Date
+  FLREVERSE (Logica 1) — AUTOREVERSE? .T. if this journal entry is autoreverse
+  FCSTATUS (Character 1) — STATUS "S" - started, "P" - posted
+  FLREVENTRY (Logica 1) — REVERSING? .T. if reversing part of autoreverse entry.
+
+## GLMAST — GL CHART OF ACCOUNTS
+  FCACTCAT (Character 1) — Category of Activity Category of Activity Character value is 'O' for Operating activities, 'I' for Investing and 'F'
+  FLCASH (Logica 0) — Cash and Equivalent Cash and Cash Equivalent If checked this account will be used to verify the Cash Flow
+  FLREVLCURR (Logica 1) — REVAL CURR FACTOR Revaluate at Current Factor
+  FCACCTNUM (Character 25) — ACCOUNT NUMBER Unique Account Number User defined unique number (or character string) to help them
+  FCCLASS (Character 1) — CLASS 'C' - Credit, 'D' - Debit, blank If 'C', normal balance is Credit
+  FCCODE (Character 1) — CATEGORY Account Category Relates back to glhead & determines default "Class" (i.e. Debit or
+  FCDESCR (Character 40) — DESCRIPTION
+  FCPARENTID (Character 25) — PARENT G/L NO. GL Account No of Parent glmast.fcacctum for this account's "parent" in this same table, glmast
+  FCTYPE (Character 3) — TYPE User Defined 'type' From Cspopup User defined "type" to help in creating supplemental reports which
+  FLCONSOL (Logica 1) — CONSOLIDATE Use In Company Consolidation Reporting
+  FLFUNDS (Logica 1) — FUNDS INDICATOR Funds Indicator If an Asset or Liab & this is True, this is a 'CURRENT' Asset or
+  FLINACTIVE (Logica 1) — INACTIVE ACCT Inactive Account if True If this flag is True, system will not allow future transactions to occur
+  FMNOTE (Memo 4) — NOTES Accounting Notes Place here any "notes" regarding this balance you wish to have
+  FNORDER (Numeric 5) — PRINT ORDER Order In Which 'sub-accounts' May Appear On Printe Used to specify the order in which "sub-accounts" may appear on
+
+## GLRPTI — GL REPORT TEMPLATE LINE ITEMS
+  FCACCTNUM (Character 25) — GL ACCOUNT ACCOUNT NUMBER
+  FCBAND (Character 8) — BAND CODE System Assigned 'band' Code Used To Group Rows For
+  FCCLASS (Character 1) — CLASS Class 'd' - Debit, 'c' - Credit = Positive Balance D - Debit is == + number
+  FCCODE (Character 1) — CATEGORY Gl Account Category
+  FCDESCR (Character 40) — DESCRIPTION Description (row Description To Print On Report)
+  FCPARENT (Character 25) — PARENT
+  FCPCTWHAT (Character 1) — PCT OF WHAT % Of 'r'evenues, Report 't'otal, 'g'roup Only, 'e' 'R' - of Total Revenues
+  FCREPORT (Character 10) — REPORT KEY Report Key (parent Id To Glrptm)
+  FCTYPE (Character 1) — TYPE OF LINE 'D' - Detail, 'H' - Header, 'T' - Total, 'C' - Cal D - Detail Row
+  FCUNITS (Character 10) — UNITS OF MEASURE Units Of Measure When Fcclass Is Blank
+  FLFUNDS (Logica 1) — FUNDS INDICATOR Source/Use of Funds indicator If Expense, Source or Use, If Asset Current vs Fixed/Other, If
+  FLLEXCLUDE (Logica 1) — EXCLUDE FROM TOTALS Exclude This Row From This Band's Totals
+  FLSHOWDET (Logica 1) — SHOW DETAIL Show Detail Lines If True, print an indented list of included account balances & this line
+  FLSHOWPCT (Logica 1) — SHOW PCT COLUMN Show Percentage Column
+  FMCALC (Memo 4) — CALCULATION Foxpro Expression For Calculation Of A 'report Var This will be for 'advanced user/consultant' to create a 'special'
+  FMLAACCTS (Memo 4) — ACCOUNT ARRAY Array [laaccts] Of Gl Accounts Included In This Li laAccts is a 4 dimensional array, with column 1 containing the GL
+  FNINDENT (4) — INDENTATION Indent This Line This Number Of Spaces
+  FNROW (4) — ROW NUMBER Row Number In Report This is a 'relative' row number & may or may not be the actual line
+
+## GLRPTM — GL REPORT TEMPLATE LINE ITEM DETAIL
+  FCCOLUMN (Character 2) — COLUMN TYPE Column Type - 'm' Monthly/period, 'q' - Quarterly M - Monthly/Period (JAN FEB ...)
+  FCCREATE (Character 3) — CREATED BY Initials Of Person Who Created The Report
+  FCREPORT (Character 10) — REPORT KEY Primary Key - This Report
+  FCSUBTITLE (Character 60) — REPORT SUB-TITLE
+  FCTITLE (Character 40) — REPORT TITLE
+  FCTYPE (Character 1) — TYPE OF REPORT Type Of Report - B - Balance Sheet, I - Income Sta B - BALANCE SHEET
+  FDASOF (Date 8) — AS OF Date This Report Created / Last Maintained
+  FLBUDGET (Logica 1) — INCLUDE BUDGET Include Budget (corresponding Period(s) Budget Amo
+  FLHISTORY (Logica 1) — INCLUDE HISTORY Include History (corresponding Period(s) Last Year
+  FLISCONSOL (Logica 1) — CONSOLIDATED RPT Consolidated Report (Multi-Company)
+  FLSURPRESS (Logica 1) — SUPPRESS PCNT COL Suppress all Percent Columns
+  FMCOMP (Memo 4) — COMPANY ARRAY Array of Company Nos to include Contains a 2 dimensional array 'laComp' where col 1 is the 2 digit
+  FMDESCR (Memo 4) — DESCRIPTION Report Description
+  FMFILTER (Memo 4) — FILTER Valid Foxpro Filter Expression This will take the form of 'glmast.fctype $ "CGS,HEA" AND
+  FNNEGNO (4) — NEGATIVE NOS Display method for Negative Numbers Integer value : (1) == (999.99) (2) = -999.99, (3) = 999.99 CR
+  FNROUND (4) — ROUNDING METHOD Rounding Method (Hundreds, Thou, etc) Integer Value (1) = no rounding, (2) = units, (3) hundreds, (4)
+
+## GLRULE — GL RULES & PERIODS
+  FCBASIS (Character 1) — ACCOUNTING BASIS Accounting Basis 'a' - Accrual, 'c' - Cash [future future implementation. Currently, only "accrual" basis is used
+  FCNAME (Character 20) — ACCOUNTING YEAR Name For The Accounting Year Unique "name" for this accounting year. For example, FY 1995 or FY
+  FCSTATUS (Character 1) — STATUS 'o' Open , 'c' Closed
+  FDEND (Date 8) — TO DATE Last Date Of This Accounting Period Period includes this date which is last date of this period
+  FDSTART (Date 8) — FROM DATE First Date Of This Accounting Period Period includes this date which is the first date of this period
+  FLISADJUST (Logica 1) — ALLOW ADJUSTMENTS Allow Adjustments To Closed Periods (future Use) Future implementation
+  FLISAUDIT (Logica 1) — AUDIT JOURNAL If True, Enforce Audit Of Journal (future Use) Future implementation
+  FNNUMBER (4) — PERIOD Period Number Accounting Period number (1 through the number of periods they
+  FREVAL (Logica 1) — REVALUATED Accounting Period has been revaluated
+  FNFRXYR (Numeric 4) — FRX YEAR
+
+## GLTRAN — GENERAL JOURNAL
+  FLREVERSE (Logica 1) — REVERSE
+  FCCURID (Character 3) — CURRENCY ID Transaction Currency
+  FCFACTOR (Numeric 22) — CURRENCY FACTOR Currency Conversion Factor
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion Factor from Functional to Euro
+  FEUROTRSAMT (Currency 8) — EURO TRANSACTION AMT
+  FTXNTRSAMT (Currency 8) — TXN AMT OF TRANSACTI TXN Amount of Transaction
+  FCACCTNUM (Character 25) — ACCOUNT NUMBER General Ledger Account Number Foreign Key to glmast table
+  FCREFCLASS (Character 2) — CLASS Sub Journal Abbreviation Class :
+  FCTIME_TS (Date/Time 8) — TIME STAMP Date & Time This Record Created Date/Time stamp of when record was created. Use timer() function to
+  FCUSERID (Character 4) — USER ID User Id Of Person Creating The Record User Id who created this record
+  FDDATE (Date 8) — GL PERIOD DATE DATE OF TRANSACTION Using this date, can go to GLRULE table to get GL Acct Period
+  FMCOCONS (Memo 4)
+  FTRSAMT (Currency 8) — AMOUNT Amount Of The Transaction
+  FTRSDATE (Date 8) — TRANSACTION DATE Date Of The Transaction Actual Date which Transaction was made
+  FTRSDES (Character 30) — DESCRIPTION Description of the Entry If gltran.fcRefClass=='JE'
+  FTRSREF (Character 10) — REFERENCE REFERENCE ID IF gltran.fcRefClass=='JE'
+
+## INBOMM — BOM MASTER
+  FCDESC (Character 35) — Description Part Description
+  FACILITYID (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCPARTREV (Character 3) — REV Part Revision
+  FDLASTREV (Date 8) — LAST REV Date of Last Revision
+  FNBOMMAX (Numeric 3) — MAX COMP Max No. of components - Phantoms only
+  FNBOMMIN (Numeric 3) — MIN COMP Min no. of components - Phantoms only
+  FPARTNO (Character 25) — PART NO
+
+## INBOMS — STD BILLS OF MATL
+  FBOMMEMO (Memo 4) — MEMO Bom-level Memo
+  FCOMPONENT (Character 25) — COMPONENT PART NO COMPONENT PART NUMBER
+  FEND_EF_DT (Date 8) — END EFF DATE Effectivity End Date
+  FITEM (Character 6) — ITEM NO Bom Item Number
+  FLEXTEND (Logica 1) — EXTEND? Extend This Item's Qty by the Parent Qty 'Y' or ' " - extend
+  FLTOOLING (Logica 1) — TOOLING? Is this a Tooling Item?
+  FMEMOEXIST (Character 1) — MEMO EXIST Does A Bom-level Memo Exist ? ('y' = Yes)
+  FPARENT (Character 25) — PARENT PART NO Parent Part No.
+  FQTY (Numeric 14) — QUANTITY
+  FREQD (Character 1) — REQD? Flag If This Component Is Required - For Opt Bom
+  FST_EF_DT (Date 8) — START EFF DATE Effectivity Start Date
+  FCOMPREV (Character 3) — COMPONENT REVISION
+  FPARENTREV (Character 3) — PARENT REVISION Parent Part Revision
+  CFACILITYID (Character 20) — Component Fac Component Facility
+  FCOMPUDREV (Character 3) — Comp User Def Rev Component User Defined Revision
+  FCPARUDREV (Character 3) — Parent User Def Rev Parent User Defined Revision
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  PFACILITYID (Character 20) — Facility
+  FNOPERNO (Numeric 4) — OPER NO NEEDED AT Routing Operation Number where material is needed
+  FLFSSVC (Logica 1) — FLFSSVC Mark Components as Serviceable for Field Service
+
+## INCROS — PART CROSS REFERENCE LIST
+  CROSSFAC (Character 20) — Cross Ref Facility Cross Reference Facility
+  FAC (Character 20) — Facility
+  FCROSSUDRV (Character 3) — Cross User Def Rev Cross Ref User Defined Rev
+  FCUDREV (Character 3) — User Defined Rev
+  FCPARTREV (Character 3) — INVENTORY PART REV Inventory Part Revision
+  FCROSSREV (Character 3) — CROSS PART REV Cross Reference Part Revision
+  FCROSSPART (Character 25) — CUSTOMER PART NO Cross Reference Part Number
+  FCTYPE (Character 1) — REFERENCE TYPE Type Of Cross Reference This Part Is For:C - Cust 'S' - Internal substitute part.
+  FNUMBER (Character 6) — IDENTIFIER If Fctype = 'c' , This Is The Customer NumberIf F Only used when fctype = 'C'
+  FPARTNO (Character 25) — PART NO Inventory Part Number
+
+## INGRPC — GROUP CODES
+  FGC_DESC (Character 65) — DESCRIPTION
+  FGC_NUMBER (Character 6) — NUMBER
+  FPC_DESC (Character 65) — GRP CODE DESCRIPTION Group Code Description
+  SC01 (Numeric 6) — SC01 Used By Tilton Engineering Only This is the discount % to be used on orders for
+  SC02 (Numeric 6) — SC02 Used By Tilton Engineering Only
+  SC03 (Numeric 6) — SC03 Used By Tilton Engineering Only
+  SC04 (Numeric 6) — SC04 Used By Tilton Engineering Only
+  SC05 (Numeric 6) — SC05 Used By Tilton Engineering Only
+  SC06 (Numeric 6) — SC06 Used By Tilton Engineering Only
+  SC07 (Numeric 6) — SC07 Used By Tilton Engineering Only
+  SC08 (Numeric 6) — SC08 Used By Tilton Engineering Only
+  SC09 (Numeric 6) — SC09 Used By Tilton Engineering Only
+  SC10 (Numeric 6) — SC10 Used By Tilton Engineering Only
+  SC11 (Numeric 6) — SC11 Used By Tilton Engineering Only
+  SC12 (Numeric 6) — SC12 Used By Tilton Engineering Only
+  SC13 (Numeric 6) — SC13 Used By Tilton Engineering Only
+  SC14 (Numeric 6) — SC14 Used By Tilton Engineering Only
+  SC15 (Numeric 6) — SC15 Used By Tilton Engineering Only
+  SC16 (Numeric 6) — SC16 Used By Tilton Engineering Only
+  SC17 (Numeric 6) — SC17 Used By Tilton Engineering Only
+  SC18 (Numeric 6) — SC18 Used By Tilton Engineering Only
+  SC19 (Numeric 6) — SC19 Used By Tilton Engineering Only
+  SC20 (Numeric 6) — SC20 Used By Tilton Engineering Only
+  SC21 (Numeric 6) — SC21 Used By Tilton Engineering Only
+  SC22 (Numeric 6) — SC22 Used By Tilton Engineering Only
+  SC23 (Numeric 6) — SC23 Used By Tilton Engineering Only
+  SC24 (Numeric 6) — SC24 Used By Tilton Engineering Only
+  SC25 (Numeric 6) — SC25 Used By Tilton Engineering Only
+  SC26 (Numeric 6) — SC26 Used By Tilton Engineering Only
+  SC27 (Numeric 6) — SC27 Used By Tilton Engineering Only
+  SC28 (Numeric 6) — SC28 Used By Tilton Engineering Only
+  SC29 (Numeric 6) — SC29 Used By Tilton Engineering Only
+  SC30 (Numeric 6) — SC30 Used By Tilton Engineering Only
+  SC31 (Numeric 6) — SC31 Used By Tilton Engineering Only
+  SC32 (Numeric 6) — SC32 Used By Tilton Engineering Only
+
+## inmast_ext
+  CUSERNAME (Character 10) — Created By
+  CMODNAME (Character 10) — Modified Last By
+  DTCREATED (Date/Time 0) — Date
+  DTMODIFIED (Character 50) — Date
+  DESCRIPTIONBROWSE (Memo 0)
+
+## INMASTX — ITEM MASTER
+  F2COSTCODE (Character 1) — 2ND COSTS CODE 2nd Cost's Code - 'f' - Fixed Or 'r', ' ' - Rolled
+  F2DISPLCST (Numeric 16) — 2ND LAB COSTS U/M 2nd Labor Cost - Per Cost U/M
+  F2DISPMCST (Numeric 16) — 2ND MATL COSTS U/M 2nd Matl Cost - Per Cost U/M
+  F2DISPOCST (Numeric 16) — 2ND OVHD COSTS U/M 2nd Ovhd Cost - Per Cost U/M
+  F2DISPTCST (Numeric 16) — 2ND COSTS U/M 2nd Cost Field - Per Cost Unit Of Measure
+  F2LABCOST (Numeric 16) — 2ND LAB COSTS INV 2nd Labor Cost - Per Inv U/M
+  F2MATLCOST (Numeric 16) — 2ND MATL COSTS INV 2nd Matl Cost - Per Inv U/M
+  F2OVHDCOST (Numeric 16) — 2ND OVHD COSTS INV 2nd Ovhd Cost - Per Inv UOM
+  F2TOTCOST (Numeric 16) — 2ND TOTAL COSTS INV 2nd Total Cost - Per Inv U/M average costing method
+  FABCCODE (Character 1) — ABC CODE Valuation code for the part 'A', 'B', 'C'
+  FAVGCOST (Numeric 16) — AVG COST INV U/M Average Cost - Per Inv U/M
+  FBIN1 (Character 14) — DEFAULT BIN
+  FBULKISSUE (Character 1) — BULK ISSUE? Floor Stock or Bulk Issue
+  FBUYER (Character 3) — PLANNER
+  FCALC_LEAD (Character 1) — F/R LEAD TIME 'f' Or 'r' To Fix Or Roll Lead Time From Routings
+  FCBACKFLSH (Character 1) — BACKFLUSH? 'Y' - backflush this part
+  FCCADFILE1 (Character 80) — CAD FILE 1
+  FCCADFILE2 (Character 80) — CAD FILE 2 CAD FILE
+  FCCADFILE3 (Character 80) — CAD FILE 3
+  FCDNCFILE (Character 80) — CDNC FILE DNC FILE
+  FCLOTEXT (Character 1) — LOT EXTENT Extent of lot control for this part's components 'N' - No components are lot controlled
+  FCNTS (Numeric 2) — CNTS PER YEAR Number Of Inventory Counts Per Year
+  FCOMMENT (Memo 4) — COMMENT Comments
+  FCOPYMEMO (Character 1) — COPY MEMO? Copy Memo Into Quote/s.o. Item Desc Or Boms? ' ' OR 'N' - DON'T AUTOMATICALLY COPY THE MEMO
+  FCOSTCODE (Character 1) — COSTS CODE 'R', ' ' - Roll Costs From Cost Bom Or 'F' -fixed
+  FCPURCHASE (Character 1) — BUY OR MAKE 'Y' If Stock Item Is Purchased, 'N' If Made
+  FCSTPERINV (Numeric 11) — CONVERSION FACTOR Conv factor from Vendor U/M to Inv U/M To convert:
+  FCUSRCHR1 (Character 20) — THIS FIELD User Defined Character Field #1
+  FCUSRCHR2 (Character 40) — USER DEFINED CHAR 2 User Defined Character Field #2
+  FCUSRCHR3 (Character 40) — USER DEFINED CHAR 3 User Defined Character Field #3
+  FDESCRIPT (Character 35) — DESCRIPTION Part Description
+  FDISPLCOST (Numeric 16) — STD LAB COSTS U/M Std Labor Cost - Per Cost U/M
+  FDISPMCOST (Numeric 16) — STD MATL COSTS U/M Std Matl Cost - Per Cost U/M
+  FDISPOCOST (Numeric 16) — STD OVHD COSTS U/M Std Ovhd Costs - Per Cost U/M
+  FDISPPRICE (Numeric 16) — PRICE Price - User's Actual Input, Per Unit
+  FDISPTCOST (Numeric 16) — TOTAL COSTS Total Cost - Per Cost UOM
+  FDRAWNO (Character 25) — DRAWING NUMBER
+  FDRAWSIZE (Character 2) — DRAW SIZE Drawing Size
+  FDUSRDATE1 (Date 8) — USER DEFINED DAT 1 User Defined Date Field #1
+  FENDQTY1 (Numeric 14) — MTH 1 END QTY EOM Qty On Hand (includes Qty in Insp) For Month 1
+  FENDQTY10 (Numeric 16) — MTH 10 END QTY
+  FENDQTY11 (Numeric 16) — MTH 11 END QTY
+  FENDQTY12 (Numeric 16) — MTH 12 END QTY
+  FENDQTY2 (Numeric 16) — MTH 2 END QTY
+  FENDQTY3 (Numeric 16) — MTH 3 END QTY
+  FENDQTY4 (Numeric 16) — MTH 4 END QTY
+  FENDQTY5 (Numeric 16) — MTH 5 END QTY
+  FENDQTY6 (Numeric 16) — MTH 6 END QTY
+  FENDQTY7 (Numeric 16) — MTH 7 END QTY
+  FENDQTY8 (Numeric 16) — MTH 8 END QTY
+  FENDQTY9 (Numeric 16) — MTH 9 END QTY
+  FGROUP (Character 6) — GR CD Group Code
+  FINSPECT (Character 1) — INSP REQD? Inspection Req'd - Y Or N
+  FLABCOST (Numeric 16) — STD LAB COSTS INV Std Labor Cost - Per Inv U/M
+  FLASTCOST (Numeric 16) — LAST UNIT COST Last Actual Cost - Per Inv U/M
+  FLASTEOC (Character 25) — LAST ECO NO Last Eoc Number
+  FLCT (Date 8) — LAST INV COUNT Date Of Last Inventory Count
+  FLEADTIME (Numeric 6) — LEAD TIME ORDER LEADTIME FOR BUY ITEMS - IN DAYS
+  FLEXPREQD (Logica 1) — EXP DT REQD Component requires an expiration date
+  FLLOTREQD (Logica 1) — LOT CONTROL REQ'D Part requires lot control
+  FLOCATE1 (Character 14) — LOCATION 1 Location Number 1
+  FMATLCOST (Numeric 16) — STD MATL COSTS INVS Std Matl Cost - Per Inv U/M
+  FMEASURE (Character 3) — U/M Inventory Unit Of Measure
+  FMEASURE2 (Character 3) — COST U/M Cost Unit Of Measure
+  FMUSRMEMO1 (Character 4000) — USER DEFINED MEM 1 User Defined Memo Field #1
+  FNUSRCUR1 (Numeric 16) — USER DEFINED CURR 1 PART DESCRIPTION EXTENDED
+  FNUSRQTY1 (Numeric 14) — USER DEFINED QTY 1 User Defined Qty Field #1
+  FNWEIGHT (Numeric 9) — WEIGHT Weight Of Part Per Inmast.fmeasure
+  FOVHDCOST (Numeric 16) — STD OVHD COSTS INV Std Ovhd Cost - Per Inv U/M
+  FPARTNO (Character 25) — PART NUMBER Inventory Part Number
+  FPRICE (Numeric 16) — UNIT PRICE Price - Per Inv U/M
+  FPRODCL (Character 4) — PC Product Class
+  FREORDQTY (Numeric 14) — REORDER QTY Reorder Quantity
+  FREV (Character 3) — REV Part Revision
+  FREVDT (Date 8) — REV DATE Revision Date
+  FROLLEDUP (Character 1) — COST ROLLUP FLG Used In Cost Roll-up 'Y' - THE COST FOR THIS PART HAS BEEN ROLLED UP
+  FSAFETY (Numeric 14) — SAFETY STOCK Part Safety Stock
+  FSCHECODE (Character 6) — PRICE SCHD CODE Price Schedule Code
+  FSOURCE (Character 1) — SRC Source - Make, Buy, Stock, or Phantom
+  FSTDCOST (Numeric 16) — STD UNIT COST Standard Cost
+  FSTDMEMO (Memo 4) — STD ITEM MEMO Standard Item Memo
+  FTAXABLE (Logica 1) — TAXABLE? 'Y' if part is taxable
+  FUPRODTIME (Numeric 8) — PROD TIME UNITS Unit Of Production Time For Parts W/ Routings
+  FYIELD (Numeric 7) — YIELD FACTOR
+  FDLASTPC (Date 8)
+  FCSTSCODE (Character 1) — STATUS
+  FLCHGPND (Logica 1)
+  FSCHEDTYPE (Character 1) — SCHED TYPE SHEDULE TYPE
+  FDDCREFDAT (Date/Time 8)
+  FLDCTRACKE (Logica 1)
+  FNDCDUTY (Numeric 16) — Duty Costs
+  FNDCFREIGH (Numeric 16) — Freight Costs
+  FNDCMISC (Numeric 16) — Misc Costs
+  FNDCTAX (Numeric 16) — Tax
+  FCRATEDISC (Character 1)
+  FLCONSTRNT (Logica 1)
+  FLISTAXABL (Logica 1) — FLISTAXABL Taxable Item
+  FLAPLPART (Logica 1) — FLAPLPART APL Part Indicator
+  FLFANPART (Logica 1) — FLFANPART FAN Part Indicator
+  FNFANAGLVL (Numeric 5) — FNFANAGLVL FAN Revision Aggregate
+  FCJRDICT (Character 10) — FCJRDICT Jurisdiction Name
+  FCPLNCLASS (Character 1) — FCPLNCLASS Advanced Planning Class
+  FCCLASS (Character 12) — FCCLASS Freight Class that this item belongs to.
+  FAC (Character 20) — Resident facility
+  FCUDREV (Character 3) — User Defined Rev
+  FIDIMS (0) — DIMS Dims.
+  FLUSEUDREV (Logica 0) — Use User Defined Rev Use User Defined Revision
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNLNDTOMFG (Numeric 16)
+  FNPONHAND (Numeric 16)
+  ITCFIXED (Numeric 17)
+  ITCUNIT (Numeric 17) — Transport Cost Inter-Facility Transport Cost
+  SFAC (Character 20) — Source Facility
+  FIPCSONHD (0)
+  FLFSRTN (Logica 1) — FLFSRTN Mark Components as Returnable for Field Service
+  FLSENDSLX (Logica 1) — FLSENDSLX Is this part flagged to be sent to SalesLogix
+  FCSLXPROD (Character 12) — FCSLXPROD SalesLogix Product ID to which this part is linked
+  FLLATEFACT (Logica 1) — Synchronizer Use Only
+  FLSOBUF (Logica 1) — Synchronizer Use Only
+  FLPURBUF (Logica 1) — Synchronizer Use Only
+  FLHOLDSTOC (Logica 1) — Synchronizer Use Only
+  MANUALPLAN (Logica 1) — Requires manual planning
+  FNHOLDSTOC (Numeric 4) — Synchronizer Use Only
+  SCHEDDATE (Date 8) — The schedule date of Safety Stock demand (if exist
+  FLOCBFDEF (Character 14) — Back Flush Default Location
+  FBINBFDEF (Character 14) — Back Flush Default Bin
+  DOCKTIME (Numeric 2) — Synchronizer Use Only
+  FNIFTTIME (Numeric 8) — Inter Facility Transport Time
+  FLCNSTRPUR (Character 1) — MATERIAL CONSTRAINT
+
+## INONHD — INVENTORY ON HAND
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FPARTREV (Character 3) — REV Part Revision
+  FBINNO (Character 14) — BIN NO Bin
+  FEXPDATE (Date 8) — LOT EXPIRES ON Lot Expires On This Date
+  FLOCATION (Character 14) — LOCATION
+  FLOT (Character 50) — LOT IDENTIFICATION
+  FONHAND (Numeric 14) — QTY ON-HAND Quantity At This Location/bin
+  FPARTNO (Character 25) — PART NO Part Number
+
+## INPROD — PRODUCT CLASSES
+  FCOGSLAB (Character 25) — CGS - LABOR COGS - LABOR
+  FCOGSMATL (Character 25) — CGS - MATERIAL COGS - MATERIAL
+  FCOGSOTHR (Character 25) — CGS - OTHER COGS - OTHER
+  FCOGSOVHD (Character 25) — CGS - O/H COGS - O/h
+  FINVACC (Character 25) — INVENTORY Inventory [Finished Goods] IF THIS FIELD IS BLANK THEN CMS->FINVACC CONTAINS
+  FLABACC (Character 25) — LABOR ACCOUNT Labor Account [WIP]
+  FLABRVARAC (Character 25) — LABOR VARIANCE Labor Variance [Actual vs Est]
+  FMATLACC (Character 25) — MAT'L ACCOUNT Mat'l Account [WIP]
+  FMATLVARAC (Character 25) — MATL VARIANCE Matl Variance [Actual vs Est]
+  FOTHRACC (Character 25) — OTHER COSTS ACCOUNT Other Costs Account [WIP]
+  FOTHRVARAC (Character 25) — OTHER VARIANCE Other Variance [Actual vs Est]
+  FOVHDACC (Character 25) — O/H ACCOUNT O/H Account [WIP]
+  FOVHDVARAC (Character 25) — O/H VARIANCE O/H Variance [Actual vs Est]
+  FPC_DESC (Character 55) — DESCRIPTION
+  FPC_NAME (Character 12) — PRODUCT CLASS NAME
+  FPC_NUMBER (Character 4) — O/H VARIANCE Product Class Code (primary Key)
+  FPURCVARAC (Character 25) — PURCHASE VARIANCE Purchase Variance Price Variance account to store difference between what PO
+  FREVALACC (Character 25) — RE-VALUATION
+  FREVENUE (Character 25) — REVENUE / SALES
+  FSCHECODE (Character 6) — SCHEDULE CODE
+  FAC (Character 20) — Facility
+  FINTRACC (Character 25) — WIP In-Transit Acct WIP In-Transit Account
+  FINVTRANS (Character 25) — Inv In-Transit Acct Inventory In-Transit Account
+  FCINVADJ (Character 25)
+  FSCHEDTYPE (Character 1) — SCHED TYPE
+  FCOGSCOMMS (Character 25) — COMM ACCT Sales Commission Acct
+  FSALESRET (Character 25) — Sales Returns Sales Returns Sales Returns Account
+
+## INRTGC — STANDARD ROUTING
+  FCPARTREV (Character 3) — REV Part Revision
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FBATCH01 (Numeric 6) — JOBS OPEN 1 # Of Jobs Opened In January That Used This Routing THE FIELDS : FBATCH
+  FBATCH02 (Numeric 6) — JOBS OPEN 2 BATCH 2
+  FBATCH03 (Numeric 6) — JOBS OPEN 3 BATCH 3
+  FBATCH04 (Numeric 6) — JOBS OPEN 4 BATCH 4
+  FBATCH05 (Numeric 6) — JOBS OPEN 5 BATCH 5
+  FBATCH06 (Numeric 6) — JOBS OPEN 6 BATCH 6
+  FBATCH07 (Numeric 6) — JOBS OPEN 7 BATCH 7
+  FBATCH08 (Numeric 6) — JOBS OPEN 8 BATCH 8
+  FBATCH09 (Numeric 6) — JOBS OPEN 9 BATCH 9
+  FBATCH10 (Numeric 6) — JOBS OPEN 10 BATCH 10
+  FBATCH11 (Numeric 6) — JOBS OPEN 11 BATCH 11
+  FBATCH12 (Numeric 6) — JOBS OPEN 12 BATCH 12
+  FFIXCOST (Numeric 16) — SUB COST Subcontract Fixed Cost
+  FLABCOST (Numeric 16) — LABR COST Accumulated Production Labor Cost TOTAL LABOR COST = FLABCOST + FSETUPLABC
+  FMAX01 (Numeric 14) — MAX QTY 1 Maximum Batch Quantity In January
+  FMAX02 (Numeric 14) — MAX QTY 2 MAX 2
+  FMAX03 (Numeric 14) — MAX QTY 3 MAX 3
+  FMAX04 (Numeric 14) — MAX QTY 4 MAX 4
+  FMAX05 (Numeric 14) — MAX QTY 5 MAX 5
+  FMAX06 (Numeric 14) — MAX QTY 6 MAX 6
+  FMAX07 (Numeric 14) — MAX QTY 7 MAX 7
+  FMAX08 (Numeric 14) — MAX QTY 8 MAX 8
+  FMAX09 (Numeric 14) — MAX QTY 9 MAX 9
+  FMAX10 (Numeric 14) — MAX QTY 10 MAX 10
+  FMAX11 (Numeric 14) — MAX QTY 11 MAX 11
+  FMAX12 (Numeric 14) — MAX QTY 12 MAX 12
+  FOTHRCOST (Numeric 16) — ACCUM COST Accumulated Other Cost
+  FOVRHDCOS (Numeric 16) — ACCUM OVHD COST Accumulated Production Overhead Cost TOTAL OVERHEAD COST = FOVRHDCOS + FSETUPOVRC
+  FPARTNO (Character 25) — PART NO Part No/name
+  FQTY01 (Numeric 14) — TOTAL QTY 1 Quantity For All Batches/this Routing In January
+  FQTY02 (Numeric 14) — TOTAL QTY 2 QTY 2
+  FQTY03 (Numeric 14) — TOTAL QTY 3 QTY 3
+  FQTY04 (Numeric 14) — TOTAL QTY 4 QTY 4
+  FQTY05 (Numeric 14) — TOTAL QTY 5 QTY 5
+  FQTY06 (Numeric 14) — TOTAL QTY 6 QTY 6
+  FQTY07 (Numeric 14) — TOTAL QTY 7 QTY 7
+  FQTY08 (Numeric 14) — TOTAL QTY 8 QTY 8
+  FQTY09 (Numeric 14) — TOTAL QTY 9 QTY 9
+  FQTY10 (Numeric 14) — TOTAL QTY 10 QTY 10
+  FQTY11 (Numeric 14) — TOTAL QTY 11 QTY 11
+  FQTY12 (Numeric 14) — TOTAL QTY 12 QTY 12
+  FREV_DATE (Date 8) — LAST REV DATE Last Revision Date
+  FSETUPLABC (Numeric 16) — TOT SETUP LABR Accumulated Setup Labor Cost
+  FSETUPOVRC (Numeric 16) — TOT SETUP OVHD Accumulated Setup Overhead Cost
+  FSETUPTIME (Numeric 13) — ACCUM SETUP TIME Accumulated Setup Time
+  FSPQ (Numeric 14) — STD PROCESS QTY
+  FSTDRTG (Character 1) — SRCE COST FLAG Flag For The Source Of Costs R - STANDARD ROUTING
+  FSUBCOST (Numeric 16) — ACCUM SUB COST Acc Sub-contract Cost (not Include Fixed Cost) TOTAL SUB-CONTRACT COST = FSUBCOST + FFIXCOST
+  FTOTTIME (Numeric 13) — ACCUM PROCESS TIME Accumulated Processing Time TOTAL HRS = FTOTTIME + FSETUPTIME
+
+## INRTGS — STANDARD ROUTING OPERATIONS
+  FCCHARCODE (Character 10) — CHARACTERICTICS Characterictics Code
+  FCPARTREV (Character 3) — REV Part Revision
+  FLLOTREQD (Logica 1) — LOT REQUIRED LOT REQUIRED?
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNSIMULOPS (2) — Simultaneous Ops Simultaneous Operations
+  FYIELD (Numeric 12) — FYIELD Yield Percentage for Advanced Planning
+  FCHNGRATES (Character 1) — CHNG RATES Change Lab & Ovhd Rates During Cost Roll-up 'N' - DON'T CHANGE THE RATES
+  FCSTDDESC (Character 4) — STD DESC CODE Std Operation Description Code From Inopds
+  FELPSTIME (Numeric 11) — SUB ELAPSE TIME Sub-contract Elapsed Time
+  FFIXCOST (Numeric 16) — SUB FIX COST Sub-contract Fix Cost
+  FLSCHEDULE (Logica 1) — SCHEDULE? .t. = Schedule This Operation, .f. - Don't
+  FMOVETIME (Numeric 7) — MOVE TIME Material Move Time
+  FOPERMEMO (Memo 4) — OPER MEMO Memo Field For An Extended Operation Description
+  FOPERNO (Numeric 4) — OPER NO
+  FOPERQTY (Numeric 14) — OPER QTY
+  FOTHRCOST (Numeric 16) — OTHR COST
+  FPARTNO (Character 25) — PART NO Part Number
+  FPRO_ID (Character 7) — WORK CNTR ID
+  FSETUPTIME (Numeric 6) — SETUP TIME Work Center Setup Time
+  FSUBCOST (Numeric 16) — TOT SUB COST Total Sub-contract Cost
+  FULABCOST (Numeric 6) — UNIT LAB COST Work Center Labor Cost Per Unit Time
+  FUOVRHDCOS (Numeric 6) — OVRHD COST Work Center Overhead Cost Per Unit Time
+  FUPRODTIME (Numeric 15) — PROD TIME Production Time For Each Unit Item
+  FUSUBCOST (Numeric 16) — SUB COST Unit Sub-contract Cost
+  FSETYIELD (Numeric 8) — SETUP YIELD Setup yield for an operation
+  CYCLEUNITS (Numeric 13) — X830DRTG
+  UNITSIZE (Numeric 13) — X830DRTG
+  FLBFLABOR (Logica 1) — Selective Labor Back Selective Labor Backflushing
+
+## INTRAN — INVENTORY TRANSACTIONS
+  FUSERINFO (Character 35) — USER INFO
+  FCSONO (Character 10) — SO Number
+  FINUMBER (Character 3) — SO Item No
+  FRELEASE (Character 3) — SO Release
+  FACCNO (Character 25) — SCRAP ACCT NO Scrap GL Account Number
+  FCODE (Character 4) — INSP CODE
+  FCOMMENT (Memo 4) — COMMENTS Comment
+  FCOST (Numeric 16) — COST/UNIT Unit Cost
+  FCTIME_TS (Date/Time 8) — DATE/TIME OF ENTRY Date/Time the entry was created
+  FDATE (Date 8) — POSTING DATE Posting Date for the GL
+  FFROMBIN (Character 14) — FROM BIN Bin Of Part Being Brought In
+  FFROMEXPDT (Date 8) — FROM EXP DT From Expiration Date
+  FFROMJOB (Character 10) — FROM JOB From Job Order Number
+  FFROMLOC (Character 14) — FROM LOC From Location
+  FFROMLOT (Character 50) — FROM LOT NO From Lot Number
+  FINSPECT (Character 3) — INSPECT BY Inspected By
+  FLABOR (Numeric 16) — UNIT LABOR Unit Labor Cost of the Transaction
+  FMATL (Numeric 16) — UNIT MATL Unit Material Cost of the Transaction
+  FNNEWONHD (Numeric 16) — NEW ON HAND New On Hand Balance (after transaction)
+  FNUMBER (Numeric 6) — NUMBER Computer Generated Sequence Code
+  FOVRHD (Numeric 16) — UNIT O/H Unit Overhead Cost of the Transaction
+  FPARTNO (Character 25) — PART NO Part Number
+  FQTY (Numeric 14) — QUANTITY
+  FTOBIN (Character 14) — TO BIN
+  FTOEXPDT (Date 8) — TO EXP DT To Expiration Date
+  FTOJOB (Character 20) — TO JOB To Job Order Number
+  FTOLOC (Character 14) — TO LOC To Location
+  FTOLOT (Character 50) — TO LOT NO To Lot Number
+  FTOSO (Character 16) — TO SO To Sales Order Number FORMAT: XXXXXX XXX XXX
+  FTYPE (Character 1) — TRANS TYPE Tran Type T = TRANSFERS
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FFROMFAC (Character 20) — From Facility
+  FIORIGUM (0) — ORIG UM the orig um
+  FIUM1 (0) — UM1 um 1
+  FIUM2 (0) — UM2 um 2
+  FIUM3 (0) — UM um3
+  FIUM4 (0) — UM um4
+  FIUM5 (0) — UM um5
+  FIUNITCNT (0) — UNIT CNT unit cnt.
+  FNORIGQTY (Numeric 17) — ORIG QTY Entered Qty
+  FNQTY1 (Numeric 17) — QTY 1 Qty of 1
+  FNQTY2 (Numeric 17) — QTY 2 Qty of 2
+  FNQTY3 (Numeric 17) — QTY 3 Qty of 3
+  FNQTY4 (Numeric 17) — QTY 4 Qty of 4
+  FNQTY5 (Numeric 17) — QTY 5 Qty of 5
+  FTOFAC (Character 20) — To Facility
+  FCPARTREV (Character 3) — REV Part Revision
+
+## INVCUR — Item Master CURRENT Revision Specifying Table
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCPARTNO (Character 25) — PART NO PART NUMBER
+  FCPARTREV (Character 3) — PART REVISION
+  FLANYCUR (Logica 1)
+
+## INVEND — INVENTORY VENDORS
+  FPARTREV (Character 3) — REV Part Revision
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCJRDICT (Character 10) — FCJRDICT Jurisdiction Name
+  FCLASTPONO (Character 10) — LAST PO NO Last Po Issued For This Part No
+  FPARTNO (Character 25) — PART NUMBER Stocking (inmast) Part Number
+  FPRIORITY (Character 1) — PRIORITY Priority Of This Vendor Compared To Other Vendors
+  FVCOMMENT (Memo 4) — COMMENT Comments
+  FVCONVFACT (Numeric 11) — CONV FACT Converstion Faction Of Their U/M To Ours Stocking UOM (inmast.fmeasure) = "EA" & Qty = 10
+  FVENDNO (Character 6) — VEND NO Vendor Number
+  FVLASTPC (Numeric 16) — LAST COST Last Cost Per Unit (fvmeasure)
+  FVLASTPD (Date 8) — DATE LAST PURCH Date Of Last Invoice, This Item
+  FVLASTPQ (Numeric 14) — LAST PURCH QTY Quantity Last Purchased (fvmeasure)
+  FVLEADTIME (Numeric 6) — VENDOR LEADTIME VENDOR LEAD TIME - IN DAYS
+  FVMEASURE (Character 3) — VENDOR U/M Vendors Unit Of Measure For This Part
+  FVPARTNO (Character 25) — VENDOR PART NO Vendor's Part Number
+  FVPTDES (Character 35) — VEND PART DESC Vendor's Part Description
+
+## INVSTH — Inv Master Status Change History
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCNEWVAL (Character 1) — NEW VALUE
+  FCOLDVAL (Character 1) — OLD VALUE
+  FCPARTNO (Character 25) — PART NO PART NUMBER
+  FCPARTREV (Character 3) — PART REV PART REVISION
+  FCUSER (Character 30) — USER
+  FMCMNTS (Memo 4) — COMMENTS
+  FTDATE (Date/Time 8) — DATE
+
+## INWORK — WORK CENTERS
+  FLCONSTRNT (Logica 1)
+  FNAVGWKHRS (Numeric 5)
+  FAC (Character 20) — Facility
+  FCSTDORMAX (Character 8)
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNLOADCAPC (Numeric 6)
+  FCCOMMENTS (Character 54) — COMMENTS
+  FCPRO_ID (Character 7) — WORK CNTR ID
+  FCPRO_NAME (Character 16) — WORK CNTR NAME
+  FDEPT (Character 4) — DEPT
+  FLABCOST (Numeric 6) — LABR COST Unit labor cost
+  FLSCHEDULE (Logica 1) — SCHEDULE?
+  FNAVGQUE (Numeric 6) — AVG QUEUE TIME Average queue time - generated by scheduling
+  FNMAX1 (2) — MAX OPERS/1 Max simultaneous operations for shift 1
+  FNMAX2 (2) — MAX OPERS/2 Max simultaneous operations for shift 2
+  FNMAX3 (2) — MAX OPERS/3 Max simultaneous operations for shift 3
+  FNMAXQUE (Numeric 6) — MAX QUEUE TIME Max queue time generated by scheduling
+  FNPCTUTIL (Numeric 5) — PERCENT UTIL Percent utilization - generated by scheduling
+  FNPQUE (Numeric 6)
+  FNQUEALLOW (Numeric 7) — QUEUE ALLOW Queue allowance
+  FNSTD1 (2) — STD OPERS/1 Std simultaneous operations for shift 1
+  FNSTD2 (2) — STD OPERS/2 Std simultaneous operations for shift 2
+  FNSTD3 (2) — STD OPERS/3 Std simultaneous operations for shift 3
+  FNSTD_PROD (Numeric 10) — STD PROD TIME Std unit production time
+  FNSTD_SET (Numeric 6) — STD SETUP TIME
+  FNSUMDUR (Numeric 8) — DURATION
+  FOVRHDCOST (Numeric 6) — OVHD COST Std Overhead cost per hour
+  FSCHEDULED (Character 1) — SCHEDULED? Used by scheduling
+  FSPANDAYS (Numeric 4) — SPAN DAYS Span of days this WC is used in scheduling
+  FCGROUP (Character 10) — Calendar Group
+  FRACSIMOPS (Logica 1) — Is Fractional Work C Is Fractional Work Center
+  FLALTSET (Logica 1) — Is Work Center Parti ?Partitioned
+  TIMEFENCE (Numeric 11) — Scheduling time fenc Scheduling time fence
+  QUEUEHRS (Numeric 9) — The actual WIP Queue (in hours) in front of the wo
+  CONSTBUFF (Numeric 5) — The constraint buffer (in hours) defined for the w
+  RESGROUP (Character 15) — Resource Group
+  CYCLEUNITS (Numeric 13) — X830DRTG
+  SIMOPSTYPE (Character 10) — Synchronizer Use Only
+  SIZE (Numeric 13) — Synchronizer Use Only
+  CANBREAK (Logica 1) — Synchronizer Use Only
+  SIZEUM (Character 3) — Synchronizer Use Only
+  FLBFLABOR (Logica 1) — Selective Labor Back Selective Labor Backflushing
+
+## JOCBOM — JOB ORDER CASUAL BOM
+  FBOMDESC (Character 130) — BOM DESC Description of BOM part
+  FBOMQTY (Numeric 16) — BOM QTY BOM Quantity
+  FINUMBER (Character 3) — ITEM NUMBER Internal Item Number
+  FJOBNO (Character 20) — JOB NO Job Order Number
+  FMATLCOST (Numeric 20) — MATL COST Material Cost for BOM Item
+  FNEED_DT (Date 8) — NEED_DT Date Part Is Needed
+  FRESPONSE (Character 1) — RESPONSE Assigned Responsibility For Delivery Of Part
+  FSEQNO (Character 3) — SEQ NO BOM Sequence Number
+
+## JODBOM — Job Order Detailed BOM
+  FACTQTY (Numeric 14) — ACT QTY Actual (not Rounded) Ftotqty
+  FBOMDESC (Character 65) — BOM DESC Description Of B.o.m. Part
+  FBOMINUM (Character 4) — BOM LINK Internal key used to link BOM
+  FBOMLCOST (Numeric 13) — LABR COST Total labor cost for all RTG opers for this part
+  FBOMMEAS (Character 3) — PART U/M Inventory Part Unit of Measure
+  FBOMOCOST (Numeric 13) — BOM COST Total O/H Cost for All Operations
+  FBOMPART (Character 25) — BOM PART Part In A Bill Of Material
+  FBOMREC (Numeric 6) — SO BOM NO Location In Sales Order B.o.m.
+  FBOMREV (Character 3) — BOM REV Revision No of BOM Part
+  FBOMSOURCE (Character 1) — SOURCE
+  FBOOK (Numeric 14) — QTY COMMIT BOM Stock Parts Reserved Quantity
+  FCLOTEXT (Character 1) — EXTENT OF LOT CONTRL Extent of Lot control 'N' - No components are lot controlled
+  FFIXCOST (Numeric 16) — FIX COST Fixed Cost Total
+  FINUMBER (Character 3) — ITEM NUMBER
+  FITEM (Character 6) — BOM ITEM NO Item Number On Bill For Part
+  FJOBNO (Character 20) — JOB NO Job Order Number
+  FLABCOST (Numeric 16) — LABOR COST Unit Labor Cost
+  FLABSETCOS (Numeric 16) — LABR SET COST Set Up Cost
+  FLASTOPER (Numeric 4) — LAST OPER Last Operation No
+  FLEXTEND (Logica 1) — EXT QTY FLG Should This Part's Unit Qty Be Extended By Its Par
+  FLLOTREQD (Logica 1) — LOT CONTROL REQ'D Lot Control is req'd for this part
+  FLTOOLING (Logica 1) — TOOL FLG Is This Part A 'tooling' Type Part?
+  FMATLCOST (Numeric 16) — MATL COST Unit Material Cost
+  FNEED_DT (Date 8) — NEED_DT Date Part Is Needed
+  FNRETPOQTY (Numeric 14) — P.O. RETURN QTY Qty on Return P.O.s
+  FNUMOPERS (Numeric 4) — NUM OPS Number of Operators
+  FOTHRCOST (Numeric 16) — OTHR COST Unit Other Costs
+  FOVRHDCOST (Numeric 16) — OVRHD COST Unit OverHead Costs
+  FOVRHDSETC (Numeric 16) — OVRHD SET COST LOT REQUIRED?
+  FPARENT (Character 25) — PARENT Part That B.o.m. Has Been Created For
+  FPONO (Character 10) — PO NO Purchase Order Number
+  FPOQTY (Numeric 14) — PO QTY Purchased Quantity
+  FQTYTOPURC (Numeric 14) — QTY TO PURCH Quantity Which Needs To Be Purchased
+  FQTY_ISS (Numeric 14) — QTY_ISS Qty Of Reserved That Has Been Issued From Stock
+  FRESPONSE (Character 1) — RESPONSE Assigned Responsibility For Delivery Of Part C = CUSTOMER/ P = PURCHASING/ M = MANUFACTURING
+  FSTDMEMO (Memo 4) — STD MEMO Item Memo
+  FSUBCOST (Numeric 16) — SUB COST Sub Contract Costs
+  FSUB_JOB (Character 20) — SUB_JOB If Bomsource = 'm', This Is The Sub Job Created
+  FSUB_REL (Logica 1) — SUB_REL FLG Has Job In Fsub_job Been Released
+  FTOTPTIME (Numeric 8) — TOT PROD TIME Total Production Hours
+  FTOTQTY (Numeric 14) — TOT QTY BOM Quantity For A Part
+  FTOTSTIME (Numeric 8) — TOT SET TIME Total Set Up Hours
+  FTRANSINV (Numeric 14) — TRANS QTY Purchased Qty Transferred Back To Inventory
+  FVENDNO (Character 6) — VENDOR NO Vendor Number
+  FNOPERNO (Numeric 4) — OPER NO NEEDED AT Routing Operation Number where material is needed
+  FORIGQTY (Numeric 15) — ORIG QTY BOM quantity for a part
+  SCHEDDATE (Date 8) — The schedule date of Safety Stock demand (if exist
+  CFAC (Character 20) — Facility
+  FCBOMUDREV (Character 3) — User Defined Rev User Defined Revision
+  FCPARUDREV (Character 3) — User Defined Rev User Defined Revision
+  FIISSDPCS (0) — ISSUED issued pieces
+  FIPOPIECES (0) — PO PIECES pur pieces
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNQTYLND (Numeric 17) — QTY LOANED qty loaned to manufacturing
+  FPNEED_DT (Date/Time 0) — Need Date
+  PFAC (Character 20) — Facility
+  FPARENTREV (Character 3) — PARENT REV Parent Revision
+  FNISOQTY (Numeric 15) — ISO Quantity
+  FREQD (Character 1) — REQD? Flag If This Component Is Required - For Opt Bom
+
+## JODRTG — Job Order Detailed RTG
+  FAC (Character 20) — Facility
+  FLSAVEPREC (Logica 0) — Synchronizer Use Synchronizer Use Only
+  FLUSESETUP (Logica 0) — Synchronizer Use Synchronizer Use Only
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNLATESTRT (Numeric 10) — Synchronizer Use Synchronizer Use Only
+  FNMACHINE (Numeric 3) — Synchronizer Use Synchronizer Use Only
+  FCSCHDPCT (Character 1) — % CMPL BASED ON Calculating Percent Complete on a job operation Used by scheduling in the calculating for Percent Complete.'U' or ' '
+  FLFREEZE (Logica 1) — FROZEN IN SCH Indicates whether Op is frozen in the Sch.
+  FCCHARCODE (Character 10) — CHARACTERISTICS Characterictics Code
+  FNSIMULOPS (2) — SIMULTANEOUS OPS Simultaneous operations consumed by operation
+  FLLOTREQD (Logica 1) — LOT REQUIRED
+  FDPLANSTDT (Date 8) — PLANNED OPER START D Planned Operation Start Date based on Release Date
+  FACTSCHDFN (Date 8) — ACT SCH FIN Actual Sched Finish Dt Based Upon Current Sched
+  FACTSCHDST (Date 8) — ACT SCH ST DT Actual Scheduled Strt Dt Based Upon Current Sched
+  FBOMINUM (Character 4) — BOM LINK Internal Number For Link To Bom
+  FCHNGRATES (Character 1) — CHG RATES Should The Labor & Ovhd Rates Be Modified ' ' OR 'Y' - O.K. TO COPY IN NEW LABOR AND
+  FCOMP_DATE (Date 8) — LST OP COMP DT Last Time Any Qty Was Completed For This Operation
+  FCSTAT (Character 1) — STATUS Status Of Operation In Scheduling
+  FDDUE_DATE (Date 8) — DUE DT Due Date Of The Job In Mm/dd/yy
+  FDESCNUM (Character 4) — STD RTG DESC Number Of Std Routing Description If One Is Used. THIS PRINTS OUT ON MEARS CUSTOMIZED FLOOR
+  FDREL_DATE (Date 8) — DELAY DT Delay The Start Of This Task Until This Date
+  FELPSTIME (Numeric 7) — ELAPSED TIME Days of Subcontract Process Time
+  FFIXCOST (Numeric 16) — SUB FIX COST Sub-Contract Fix Cost
+  FFLUSHED (Character 1) — BCKFLSHD? Flag Indicating This Item Was Used For Backflush
+  FINUMBER (Character 3) — ITEM NUMBER Internal Item Number
+  FJOBNO (Character 20) — JOB NO Job Order Number
+  FLASTLAB (Date/Time 8) — LST LAB ENTRY Last Date And Time Of Labor Entry
+  FLEAD_STIM (Numeric 7) — LEAD SETUP TIME Actual Lead Person Setup Time - In Hours
+  FLEAD_TIM (Numeric 7) — L/T Actual Lead Person Prod Time - In Hours
+  FLSCHEDULE (Logica 1) — SCHEDULE Schedule?
+  FMOVETIME (Numeric 7) — MOVE TIME
+  FNDELAY (Numeric 6) — QUEUE ANAL FLG Saved For Task-queuing Analysis(strt_time-que_time
+  FNDUE_TIME (Numeric 6) — DUE DATE (MIN) Due Date Of Job In Minutes From Calendar Start
+  FNEED_DT (Date 8) — SUB NEED DT Date Sub-Contract Operation Is Needed
+  FNLFLUSHQTY (Numeric 14) — LBACKFLUSH QTY Quantity backflushed for this operation
+  FNNEXT_EVT (Numeric 6) — NXT EVNT FLG Time Next Event (st Or Fin) Occurs For This Task
+  FNPCT_COMP (Numeric 4) — PCT COMP Percent Complete For The Operation
+  FNQTY_COMP (Numeric 14) — QTY COMP Quantity Completed
+  FNQTY_MOVE (Numeric 14) — QTY MOVE FGS Qty Moved To Finish Goods (internal For Stock)
+  FNQTY_TOGO (Numeric 14) — QTY TO GO Quantity To Go
+  FNQUE_TIME (Numeric 6) — QUEUE TIME (MIN) Time In Min The Oper Had To Wait To Start
+  FNREL_TIME (Numeric 6) — REL TIME (MIN) Release Date In Minutes From Start Of Calendar
+  FNRETPOQTY (Numeric 16) — PO RETURN QTY Qty on Return P.O.s
+  FNSHFT (Numeric 6) — SHIFT CALC Shift # Used To Convert Minutes To Shift #
+  FNSH_DATE (Date/Time 8) — FNSH DT Finish Date Time{12/31/1995 08:00}
+  FNSH_TIME (Numeric 6) — FNSH TIME (MIN) Finish Time In Minutes
+  FNSTRTTIME (Numeric 6) — ST TIME (MIN) Start Time In Minutes
+  FOPERMEMO (Memo 4) — OP MEMO Operation Memo
+  FOPERNO (Numeric 4) — OP NO Operation Number
+  FOPERQTY (Numeric 14) — TOTAL OP QTY Total Operation Qty
+  FOPER_STRT (Character 1) — BC OP ST When Clocking-onto Job From Bc, Denotes Oper Start
+  FOTHRCOST (Numeric 16) — OTHER COST
+  FPONO (Character 10) — PO NO Purchase Order Number
+  FPOQTY (Numeric 16) — PO QTY Sub-Contract Purchase Order Quantity
+  FPROD_TIM (Numeric 7) — ACT PROD TIME (HRS) Actual Prod Time Applied To This Oper - In Hours
+  FPROD_VAL (Numeric 16) — LABOR COST Production Time Applied * Cost Of Labor FPROD_VAL + FSETUPVAL REPLACES ACTL_VAL IN
+  FPRO_ID (Character 7) — W/C ID Work Center Id
+  FRESPONSE (Character 1) — RESPONSE Assigned Responsibility - Sub-Contract 'C' = Customer
+  FSETUPTIME (Numeric 6) — EST SETUP (HRS) Estimated Setup Time - In Hours
+  FSETUP_TIM (Numeric 7) — ACT SETUP Actual Setup Time Applied To This Oper - In Hours
+  FSETUP_VAL (Numeric 16) — SETUP COST Setup Time Applied * Labor Cost
+  FSHIPMT (Character 1) — COMPLETE? Ready For Shipment
+  FSOURCE (Character 1) — SOURCE
+  FSPLIT (Logica 1) — SPLIT FLG .t. If The Operation Been Split, .f. If Not
+  FSTRTDATE (Date/Time 8) — ST TIME Start Date Time
+  FSUBCONT (Character 1) — SUB-CONTRACT Ready For Sub-contract
+  FTDUEDATE (Date 8) — WHAT-IF DUE DT Temp Due_date - Used In What-if Scheduling
+  FTFNSHDATE (Character 15) — WHAT-IF FNSH DT Temp Fnsh_date - Used In What-if Scheduling
+  FTFNSHTIME (Numeric 6) — WHAT-IF FNSH TM Temp Fnsh_time - Used In What If Scheduling
+  FTIMETOGO (Numeric 9) — TIME REM Time Remaining On The Job In Hours COMPUTED AND USED WHEN SCHEDULING
+  FTOT_APP (Numeric 14) — QTY PASS INSP Tot Qty For Operation That Have Passed Inspection
+  FTOT_REW (Numeric 14) — QTY REWORK Qty Inspected & Sent To Rework
+  FTOT_SCR (Numeric 14) — QTY SCRAP Qty Inspected & Sent To Scrap
+  FTQUETIME (Numeric 6) — WHAT-IF QUEUE Temp Que Time - Used In What-if Scheduling
+  FTRELDATE (Date 8) — WHAT-IF REL DT Temp Rel_date - Used In What-if Scheduling
+  FTSTRTDATE (Character 15) — WHAT-IF ST DT Temp Strt_date - Used In What-if Scheduling
+  FTSTRTTIME (Numeric 6) — WHAT-IF ST TM Temp Strt_time - Used In What-if Scheduling
+  FULABCOST (Numeric 16) — UNIT LABR COST Labor Cost per Unit
+  FUOVRHDCOS (Numeric 16) — UNIT OVHD COST Overhead Cost per Unit
+  FUPRODTIME (Numeric 15) — EST PROD HRS Estimated Unit Production Time - In Hours
+  FUSUBCOST (Numeric 16) — UNIT SUB COST Unit Sub-contract Cost
+  FVENDNO (Character 6) — VENDOR NO Vendor Number
+  CYCLEUNITS (Numeric 13) — X830DRTG
+  UNITSIZE (Numeric 13) — X830DRTG
+  USEBUFFER (Logica 1) — True if the operation runs on a buffered work cent
+  NEXTBUFFOP (Numeric 4) — Number of next operation in case the next operatio
+  BUFFERSTRT (Date 8) — The operation buffer start (Date & Time)
+  BUFFEREND (Date 8) — The operation buffer end (Date & Time)
+  ARRIVETIME (Date 8) — The time when the operation arrived to the queue
+  LATESTRTDT (Date/Time 8) — Late Start date
+
+## JOITEM — JOB ORDER ITEMS
+  FNDBRMOD (1) — Modified by Synchronizer?
+  FBOOK (Numeric 14) — STOCK QTY
+  FBQTY (Numeric 14) — BUY QTY
+  FCOST_EST (Numeric 16) — COST_EST Estimate Of Internal Job Cost From Sales Order
+  FCUSTPART (Character 25) — CUST PART NO Customer Part Number
+  FCUSTPTREV (Character 3) — CUST PART REV Customer Part Revision
+  FDELIVERY (Memo 0) — DELIVERY Delivery Notes
+  FDESC (Memo 4) — ITEM DESC Item Description Memo
+  FDESCMEMO (Memo 4) — DESC MEMO
+  FDUEDATE (Date 8) — DUE DATE
+  FGROUP (Character 6) — GROUP Group Code
+  FHOUR_EST (Numeric 8) — HOUR_EST Estimate Of Internal Hours For Job
+  FINUMBER (Character 3) — SO ITEM NUMBER Sales Order Item Number
+  FITEM (Character 3) — ITEM
+  FJOB (Logica 1) — JOB ?
+  FJOBNO (Character 20) — JOB NUMBER
+  FKEY (Character 3) — KEY Fscrntype+frelease From Sales Order Item
+  FLSHIPDATE (Date 8) — LST SHIP DATE Date Of Last Shipment
+  FMEASURE (Character 3) — U/M
+  FMQTY (Numeric 14) — MAKE QTY
+  FMULTIPLE (Character 1) — MULTIPLE ?
+  FORDERQTY (Numeric 14) — ORDER QTY
+  FPARTNO (Character 25) — PART NO Part Number
+  FPARTREV (Character 3) — REV Part Revision
+  FPARTYLD1 (Numeric 7) — PART YLD ?
+  FPRODCL (Character 4) — PROD CL Product Class
+  FRTGQTY (Numeric 16) — RTG QTY ?
+  FSHIPQTY (Numeric 14) — SHIP QTY Quantity Shipped FSHIPQTY IS UPDATED WHENEVER A SHIPMENT IS
+  FSONO (Character 10) — SO NO
+  FSOURCE (Character 1) — SOURCE
+  FSTANDPART (Logica 1) — STD PART FLAG Logical - Is This Part In The Item Master ?
+  FSTATUS (Character 1) — STATUS Job Status?
+  FULABCOST1 (Numeric 6) — LABOR COST Unit Labor Cost For Item
+  FUPRICE (Numeric 16) — PRICE ?
+  FIDOSHPQTY (Numeric 15) — IDO Ship Qty
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+
+## JOLBCK — Job Order Labor Backflush
+  FAC (Character 20) — Facility
+  FCJOBNO (Character 20) — JOB NO Job Order Number
+  FCPRO_ID (Character 7) — WORK CENTER
+  FCTRANS_ID (Character 10) — TRANSACTION ID Transaction Id - Surrogate Key (Internal)
+  FDDATE (Date 8) — LABOR BCKFLSH DATE Date Labor Backflush was done
+  FNOPERNO (Numeric 4) — OPERATION NO Operation Number
+  FNPRODHRS (Numeric 10) — PROD HRS Production Hours
+  FNSETHRS (Numeric 10) — SETUP HRS Setup Hours
+  FNULABCOST (Numeric 6) — LABOR UNIT COST
+  FNUOVHDCOST (Numeric 6) — OVHD COST/UNIT Overhead Cost/Unit
+
+## JOMAST — JOB ORDER MASTER
+  FACTSCHDFN (Date 8) — SCHD FIN DATE Actual Sched Finish Dt Based Upon Current Sched
+  FACTSCHDST (Date 8) — SCHD STRT DATE Actual Scheduled Strt Dt Based Upon Current Sched
+  FACT_REL (Date 8) — REL DATE Actual Release Date
+  FASSY_COMP (Numeric 2) — NO ASSY COMP Number Of Assemblies Completed
+  FASSY_REQ (Numeric 4) — NO ASSY REQ ASSEMBLY REQUIRED?
+  FBILLJOB (Character 8) — BILL REWRK JOB Job To Bill On Internal Rework/replace
+  FBOMINUM (Character 4) — SO LVL FROM BOM Sales Order Level To Copy From On Detail Bom
+  FBOMREC (Numeric 6) — PARENT BOM Parent Record For B.o.m. From Sales Order
+  FCAS_BOM (Logica 1) — CASUAL BOM Existance Of Casual Bom
+  FCCADFILE1 (Character 80) — CAD FILE 1 User Defined CAD Field #1
+  FCCADFILE2 (Character 80) — CAD FILE 2 User Defined CAD Field #2
+  FCCADFILE3 (Character 80) — CAD FILE 3 User Defined CAD Field #3
+  FCDNCFILE (Character 80) — CDNC FILE DNC FILE
+  FCKEYFIELD (Character 20) — UPDATING FIELD Updating Field Currently In Use
+  FCLOTEXT (Character 1) — EXTENT OF LOT CONTRL Extent of Lot Control 'N' - No components are lot controlled
+  FCOMPANY (Character 35) — COMPANY
+  FCOMP_SCHL (Logica 1) — JOB SCHD Job has been Scheduled
+  FCONFIRM (Logica 1) — CONFIRMED Logical - Have All Necessary Entries Been Made JOB MUST BE CONFIRMED BEFORE RELEASE TO FLOOR
+  FCUSRCHR1 (Character 20) — USER DEFINED CHAR 1 User Defined Character Field #1
+  FCUSRCHR2 (Character 40) — USER DEFINED CHAR 2 User Defined Character Field #2
+  FCUSRCHR3 (Character 40) — USER DEFINED CHAR 3 User Defined Character Field #3
+  FCUS_ID (Character 6) — CUSTOMER ID Customer ID Number
+  FDDUEDTIME (Numeric 6) — DUE DATE (MINUTES) Due Date Of Job In Minutes From Calendar Start
+  FDDUE_DATE (Date 8) — DUE DATE
+  FDESC (Logica 1) — JOB DESC ? Existence Of Job Description Record
+  FDESCRIPT (Character 70) — JOB PART DESC
+  FDET_BOM (Logica 1) — DETAILED BOM Existence Of A Detailed BOM
+  FDET_RTG (Logica 1) — DETAILED ROUTING Existence Of Detailed Routing
+  FDFNSHDATE (Date 8) — FINISH DATE Fnsh_date
+  FDORGDUEDT (Date 8) — ORIGINAL DUE DATE Original job due date
+  FDSTART (Date 8) — ENTER DATE Date Job Was Entered Into System
+  FDUSRDATE1 (Date 8) — USER DEFINED DATE 1 User Defined Date Field #1
+  FFST_JOB (Logica 1) — FIRST JOB ? Is This The First Job For This Item/release
+  FGLACCT (Character 25) — ACCOUNT NO Foreign Key To Glmast Table. Used To Determine Bil
+  FHOLD_BY (Character 23) — HLD/CAN/CLS BY ? Person Who Entered The Hold/cancel/close
+  FHOLD_DT (Date 8) — DATE HLD/CAN/CLS Date Of Hold/cancel/close Deending On Fstatus
+  FITEMS (Numeric 3) — ITEMS ON JOB Total Items On The Job Order
+  FITYPE (Character 1) — TYPE INTERNAL JOB Type Of Internal Job Order 1 = STOCK 2 = INTERNAL USE
+  FJOBNO (Character 20) — JOB Job Order Number
+  FJOB_MEM (Memo 4) — DESC HLD/CAN/CLS Description Of Job Hold/resume/cancel/close Orders
+  FJOB_NAME (Character 86) — ORDER NAME Job Order Name
+  FKEY (Character 6) — KEY Sorels.finumber+sorels.frelease Internal Number + Release ???
+  FLASTLAB (Date 8) — LAST LABOR ENTRY Date Of Last Labor Entry
+  FLLOTREQD (Logica 1) — LOT CONTROL REQ'D Lot control is req'd for this part
+  FLRESYNC (Logica 1) — RESYNC JOB Does this job need to be resyncd?
+  FMATLPCNT (Numeric 3) — MATL PCNT Percentage Of Materials In For Job
+  FMEASURE (Character 3) — U/M FOR PART Unit Of Measure For Job Part
+  FMETHOD (Character 1) — METHOD Method which this JO was added.
+  FMULTIPLE (Logica 1) — MULTIPLE ITEMS ? Logical - Is This A Multiple Item Job
+  FMUSERMEMO (Memo 4) — USER MEMO User Defined Memo Field
+  FNASSY_COM (Numeric 3) — ASSY COMPL Assemblies Completed
+  FNASSY_REQ (Numeric 3) — CMPL BEFORE Numer Of Jobs Which Must Be Completed Before This
+  FNFNSHTIME (Numeric 6) — FINISH TIME Fnsh_time
+  FNLASTOPNO (Numeric 4) — LAST OPERATION Last Operation on This Job
+  FNONTIME (Numeric 1) — PCNT ON TIME Is This Job On Time To Calc % On Time
+  FNPCT_COMP (Numeric 5) — PCNT CMPL
+  FNPCT_IDLE (Numeric 5) — PCNT IDLE TIME Percent Idle Used For Reports
+  FNREL_TIME (Numeric 6) — RELEASE DT (MINUTES) Release Dt In Min From Start Of Calendar
+  FNSHFT (Numeric 6) — SHIFT (MINUTES) Shift # Used To Convert Minutes To Shift #
+  FNUSRCUR1 (Numeric 16) — USER DEFINED CUR 1 User Defined Currency Field #1
+  FNUSRQTY1 (Numeric 14) — USER DEFINED QTY 1 User Defined Qty Field #1
+  FOPEN_DT (Date 8) — OPEN DATE
+  FPARTDESC (Character 40) — PART DESC Part Description
+  FPARTNO (Character 25) — PART NO
+  FPARTREV (Character 3) — REV Revision Number Of Job Part
+  FPICK_DT (Date 8) — LAST PICK LIST_ Last Date Pick List Is Printed
+  FPICK_ST (Logica 1) — PICK_LIST Pick list has been Printed If field is .T. Pick List has been printed.
+  FPO_COMP (Character 1) — PO CMPL ? Y/n -- Flag For Completion Of Purchase Order
+  FPRIORITY (Character 11) — SCHD PRIORITY Scheduling Priority Of This Job
+  FPROCESSBY (Character 12) — PROCESS BY Routing Processed By (mears Custom)
+  FPRODCL (Character 4) — PRODUCT CLASS
+  FPRO_PLAN (Logica 1) — PROC PLAN Existance Of Production Plan
+  FQUANTITY (Numeric 14) — MAKE QUANTITY Current Make Quantity For Job Order
+  FREL_DT (Date 8) — RELEASE DATE
+  FREMTIME (Numeric 6) — TIME REMAINING Time Remaining To Complete Job
+  FRESPONSE (Character 1) — RESPONSIBLE PARTY Responsible Party For Job Materials ONLY USED WHEN THERE IS NO BOM
+  FRESU_BY (Character 19) — RESUME CONF BY Person Confirming The Resume
+  FRESU_DT (Date 8) — RESUME DATE Date Of Resume Order
+  FROUTING (Numeric 16) — ROUTED HOURS
+  FR_DT (Date 8) — ROUTING REV DATE Routing Revision Date (mears Custom)
+  FR_REV (Character 2) — ROUTING REV Routing Revision (mears Custom)
+  FR_TYPE (Character 1) — ROUTING TYPE Routing Type (mears Custom)
+  FSCHBEFJOB (Character 20) — SCHD IN FRONT OF Job To Schedule Current Job In Front Of-scheduling
+  FSCHDFLAG (Character 1) — SCHD FLAG Scheduling Flag 'A' - SCHEDULE AS SOON AS POSSIBLE
+  FSCHDPRIOR (Character 1) — SCHD PRIORITY Scheduling Priority Of The Job '1' - '9'
+  FSCHRESDT (Date 8) — SCHD RESUME DATE Resume Date Of The Job - Used In Scheduling IF THE JOB HAS BEEN STARTED AND IS SUSPENDED
+  FSIGN_OFF (Logica 1) — PURCH SIGN OFF If Purchasing Has Respons., Indicates Signed Off
+  FSONO (Character 10) — SO Sales Order
+  FSPLIT (Logica 1) — JOB SPLIT ? .t. If Job Has Been Split, .f. Otherwise
+  FSPLITFROM (Character 20) — JOB SPLIT FROM If Populated, The Job That This Job Was Split From Format is:
+  FSPLITINFO (Character 12) — SPLIT MISC INFO Misc. Info. Saved During Job Splitting This field is only populated if this job has been
+  FSTANDPART (Logica 1) — STANDARD PART ? Logical - Is This A Standard Part ?
+  FSTARTED (Logica 1) — WORK STARTED ? .t. If Any Work Has Been Done On The Job
+  FSTATUS (Character 10) — STATUS Status STARTED
+  FSTRT_DATE (Date 8) — START DATE
+  FSTRT_TIME (Numeric 6) — START TIME
+  FSUB_FROM (Character 20) — PARENT JOB If Sub-job, This Is Job That Created It
+  FSUB_REL (Logica 1) — REL SUB-JOBS Have Any Sub-jobs Below Been Released?
+  FSUMMARY (Logica 1) — JOB COST SUMMARY Existance Of Job Cost Summary Record
+  FTDUEDATE (Date 8) — WHAT-IF DUE DATE Temporary Due Date Used In What-if Scheduling
+  FTFNSHDATE (Character 15) — WHAT-IF FINISH DATE Temporary Finish Date Used In What If Scheduling
+  FTFNSHTIME (Numeric 6) — WHAT-IF FINISH TIME Temporary Finish Time Used In What-if Scheduling
+  FTOT_ASSY (Numeric 4) — JOBS + SUB-JOBS Total Number Of (jobs + Sub-jobs) For Current Job
+  FTRAVE_DT (Date 8) — TRAVELER DATE Last Date Traveler Is Printed
+  FTRAVE_ST (Logica 1) — PRINT PICK LIST ? IF .T. ; pick list needs printed or reprinted If field is .T. traveler has been printed.
+  FTRELDT (Date 8) — WHAT-IF REL DATE Temporary Release Date Used In What-if Scheduling
+  FTSCHRESDT (Date 8) — WHAT-IF SCHD DATE Temporary Field For Fschresdt Used In What-if Schd IF THE JOB HAS BEEN STARTED AND IS SUSPENDED
+  FTSTRTDATE (Character 15) — WHAT-IF START DATE Temporary Start Date Used In What-if Scheduling
+  FTSTRTTIME (Numeric 6) — WHAT-IF START TIME Temporary Start Time Used In What-if Scheduling
+  FTYPE (Character 1) — JOB TYPE Job Type - (i) Internal (c) Customer (t) Template
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FDMNDRANK (Numeric 1) — Synchronizer Use Synchronizer Use Only
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  IDONO (Character 10) — IDO Number
+  SFAC (Character 20) — Source Facility
+  FLQUICK (Logica 1) — QUICK JOB This Job was added by QCKJO
+  FLFREEZE (Logica 1) — FROZEN IN SCH Indicates whether job is frozen in the Sch.
+  FLCHGPND (Logica 1) — FLCHGPND Change Pending
+  FLLASTECO (Character 25) — FLLASTECO Last Eco Number
+  FLISAPL (Logica 1) — FLISAPL Advanced Planning Job
+  USEBUFFER (Logica 1) — True if the operation runs on a buffered work cent
+  BUFFERSTRT (Date 8) — The job buffer start (Date & Time)
+  BUFFEREND (Date 8) — The job buffer end (Date & Time)
+  DEMANDCAT (Character 1) — The demand category that the job supports
+  FYIELD (Numeric 15) — Yield Factor
+  FSETYIELD (Numeric 8) — Setup yield for an operation
+  FIRMED (Logica 1) — Firmed Flag
+
+## JOPACT — JOB ORDER PRICE SUMMARY
+  FADDEDLSTI (Numeric 6) — ADD LEAD SETUP TIME Lead Setup Time Added During Labor Hrs Entry
+  FADDEDLTIM (Numeric 6) — ADD LEAD TIME Lead Prod Time Added During Labor Hrs Entry
+  FADDEDOCOS (Numeric 16) — O/H COSTS (LE) O/h Costs Added During Labor Hrs Entry
+  FADDEDPCOS (Numeric 16) — PRODUCTION COSTS (LE Production Costs Added During Labor Hrs Entry
+  FADDEDPTIM (Numeric 9) — TOTAL PROD TIME ADD Total Prod. Time Added During Labor Hrs Entry
+  FADDEDSCOS (Numeric 16) — SET-UP COST (LE) Set-up Costs Added During Labor Hrs Entry
+  FADDEDSTIM (Numeric 6) — SET-UP TIME (LE) Set-up Time Added During Labor Hrs Entry
+  FINUMBER (Character 3) — FINUMBER ITEM NUMBER
+  FJOBNO (Character 20) — JOB NUMBER Job Number (foreign Key To Jomast)
+  FLABACT (Numeric 16) — DIRECT LABOR Actual Direct Labor Cost Total
+  FLABINV (Numeric 16) — EST LABOR COSTS Estimated Direct Labor Costs
+  FLAST_ENT (Date 8) — AS OF DATE Date Of Last Cost Entry Transaction (i.e. 'as Of'
+  FMATLACT (Numeric 16) — DIRECT MATERIAL Actual Direct Material Cost Total
+  FMATLINV (Numeric 16) — EST MATL COSTS Estimated Direct Material Costs
+  FOTHRACT (Numeric 16) — OTHER COSTS Actual Direct Other Cost Total
+  FOTHRINV (Numeric 16) — EST OTHER COSTS Estimated Other Costs
+  FOVHDACT (Numeric 16) — ACT O/H COSTS Actual Direct O/h Cost Total
+  FOVHDINV (Numeric 16) — EST O/H COSTS Estimated O/h Costs
+  FPMEMO (Memo 4) — PRICE SUMMARY Price Summary Memo *RE: rpwip.prg Work In Process Report
+  FRTGSETUPA (Numeric 16) — ACT SETUP COSTS Actual Set-up Cost Total (from Routing)
+  FSETUPACT (Numeric 16) — SET-UP LABOR COSTS Actual Set-up Labor Costs
+  FSUBACT (Numeric 16) — SUB-CONTRACT COSTS Actual Sub-contracting Cost Total
+  FSUBINV (Numeric 16) — EST SUB-CONTRACT COS Estimated Subcontracting Costs
+  FTOOLACT (Numeric 16) — TOOLING COST Actual Tooling Cost Total
+  FTOTLSTIME (Numeric 13) — LEAD SETUP HOURS Total Lead Person Set-up hours
+  FTOTLTIME (Numeric 13) — LEAD PROD HOURS Total Lead Person Direct Labor Hours
+  FTOTPTIME (Numeric 13) — TOTAL PROD HOURS Total Direct Labor Hours (Lead + Non-Lead)
+  FTOTSTIME (Numeric 6) — SET-UP HOURS Total Set-up Hours (Lead + Non-Lead)
+
+## JOPEST — JOB ORDER PRICE SUMMARY
+  FBUY_ITM (Numeric 5) — FBUY_ITM # Of Items Assigned To Purchasing
+  FCUS_ITM (Numeric 5) — FCUS_ITM # Of Items Assigned To Customer
+  FFIXCOST (Numeric 16) — FFIXCOST Fix Costs From Routing
+  FINOPER (Numeric 4) — FINOPER # Of In-house Operations
+  FINUMBER (Character 3) — FINUMBER ITEM NUMBER
+  FJOBNO (Character 20) — FJOBNO Referenced Job Number
+  FLABCOST (Numeric 16) — FLABCOST Labor Costs (from Routing)
+  FLASTOPER (Numeric 4) — LAST OPERATION Last Operation on Routing Use to find the last operation on the routing, to get qty complete.
+  FLDHRS (Numeric 13) — FLDHRS # Of Hours Lead Time
+  FMAK_ITM (Numeric 5) — FMAK_ITM # Of Items Assigned To Manufacturing
+  FMATLCOST (Numeric 16) — FMATLCOST Material Costs (from Routing)
+  FMOVEHRS (Numeric 7) — FMOVEHRS # Hours Move Time
+  FNO_BOM (Logica 1) — FNO_BOM When True,costs Are From S.o. & Should Be Replaced
+  FNO_RTG (Logica 1) — FNO_RTG When True,costs Are From S.o. & Should Be Replaced
+  FNUMOPERS (Numeric 4) — FNUMOPERS # Of Total Operations
+  FOTHRCOST (Numeric 16) — FOTHRCOST Other Cost (editable Field)
+  FOVHDCOST (Numeric 16) — FOVHDCOST Overhead Costs (from Routing)
+  FOVHDSC (Numeric 16) — FOVHDSC Overhead Set Cost From Routing
+  FPRODHRS (Numeric 13) — FPRODHRS # Hours Production Time
+  FSETUPCOST (Numeric 16) — FSETUPCOST Setup Cost From Routing
+  FSETUPHRS (Numeric 6) — FSETUPHRS # Of Hours Setup Time
+  FSTK_ITM (Numeric 5) — FSTK_ITM # Of Items Assigned To Stock
+  FSUBCOST (Numeric 16) — FSUBCOST Sub-contract Cost (from Routing)
+  FSUBHRS (Numeric 4) — FSUBHRS # Of Sub-contract Days
+  FSUBOPER (Numeric 3) — FSUBOPER # Of Sub-contract Operations
+  FTOOLCOST (Numeric 16) — FTOOLCOST Tooling Cost (editable Field)
+
+## JOQMAST — MASTER JOB ORDER QUEUE
+  FCABCCD (Character 1) — ABC CODE
+  FCCOMPNA (Character 35)
+  FCDOCREV (Character 2) — DOC REV
+  FCGRPCOD (Character 6) — GRP CD
+  FCJONUM (Character 20) — JOB NO
+  FCJOOPNO (Character 4) — JOB OP NO
+  FCMEASURE (Character 3) — MEASURE
+  FCORDERACT (Character 1) — ORDER ACT
+  FCPARTNO (Character 25) — PART NO
+  FCPLANNER (Character 3) — PLANNER
+  FCPONUM (Character 10) — PO NO
+  FCPRDCLS (Character 4) — PRODUCT CLASS
+  FCQSOURCE (Character 1) — QUEUE SRC
+  FCREV (Character 3) — REV Part Revision
+  FCSOITM (Character 3) — SO ITEM
+  FCSONUM (Character 10) — SO NO
+  FCSORLS (Character 3) — SO REL
+  FCSOURCE (Character 5) — SOURCE
+  FCSTATUS (Character 10) — STATUS
+  FCSUPDEM (Character 6) — SUP/DEM
+  FCVENDNA (Character 35) — VENDOR
+  FCVENDNO (Character 6) — VENDOR NO
+  FDTXNDATE (Date 8)
+  FLAUTOCR (Logica 1) — AUTO CREATE FLG
+  FLMASTER (Logica 1) — MASTER
+  FMDESC (Memo 4) — DESC
+  FNBALQTY (Numeric 16) — BAL QTY
+  FNTXNQTY (Numeric 16)
+  FNUCOST (Numeric 16) — UNIT COST
+  FCIDONO (Character 10) — IDO Number
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+
+## LOCATION
+  FCCITY (Character 20) — City
+  FCCOUNTRY (Character 25) — Country
+  FCEMAIL (Character 128) — E-Mail Address
+  FCFACILITY (Character 20) — Facility
+  FCFAX (Character 20) — Fax Number
+  FCFNAME (Character 15) — First Name
+  FCINSPECT (Character 1) — Inspection Location Inspection Location 'Y' for inspection location and 'N' for non-inspection location
+  FCLNAME (Character 20) — Last Name
+  FCMRPEXCL (Character 1)
+  FCPHONE (Character 20) — Phone Number
+  FCSTATE (Character 20) — State
+  FCZIP (Character 10) — Zip
+  FLOCATION (Character 14) — Location
+  FLOCDESC (Character 30) — Description
+  FMSTREET (Memo 0) — Street Address
+
+## POCATG — PUR CATEGORIES
+  FCATEGORY (Character 8) — CATEGORY Category Key SHOULD BE DESCRIPTIVE OF PURCHASING PROCESS
+  FDESC (Character 30) — DESCRIPTION Description Of The Purchase Category
+  FGLACCT (Character 25) — GL ACCOUNT NO Gl Expense / Inventory Account Number foreign key == glmast.fcacctnum
+  FAC (Character 20) — Facility
+
+## POITEM — PURCHASE ORDER ITEMS
+  DOCKTIME (Numeric 2) — Synchronizer Use Only
+  PURCHBUF (Numeric 2) — Synchronizer Use Only
+  FINAL (Logica 1) — Synchronizer Use Only
+  AVAILDATE (Date 8) — Synchronizer Use Only
+  BLANKETPO (1) — Whether Item is Blan Whether Item is Blanket PO or Not
+  PLACEDATE (Date 8) — PO Place Date
+  SCHEDDATE (Date 8) — The schedule date of Safety Stock demand (if exist
+  FBKORDQTY (Numeric 14) — QTY ON BACK ORDER Quantity On Back Order
+  FCATEGORY (Character 8) — PURCHASE CATEGORY
+  FCOMMENTS (Memo 4) — COMMENTS
+  FCORGCATEG (Character 27) — ORIGINAL CATEGORY Original PO Category of a returned item IF LEFT,2 = 'JO' then the Job keys are in the field
+  FDATESHIP (Date 8) — DATE QTY RET SHIPPED Date Qty Returned Shipped
+  FDEBITMEMO (Character 1) — DEBIT MEMO Y/N
+  FDESCRIPT (Memo 4) — PART DESCRIPTION
+  FDISCOUNT (Numeric 4) — DISCOUNT PERCENTAGE
+  FINSPCODE (Character 4) — INSPECTION CODE
+  FINSPECT (Character 1) — INSPECTION FLAG
+  FINVQTY (Numeric 14) — QTY INVOICED Quantity Invoiced To Date [stocking Uom]
+  FITEMNO (Character 3) — LINE ITEM NO Line Item Number
+  FJOITM (Character 6) — J.O. ITEM Job Order item no Links back to JODBOM.fBOMINum
+  FJOKEY (Character 20) — J.O. KEY Job Order Key FJOBNO FROM PMJDB .OR.
+  FJOOPNO (Numeric 4) — OPERATION NO Job Order Routing Operation Number
+  FLCOST (Numeric 16) — LIST COST List Cost of part before discount Per Stocking unit of Measure from Item Master. Prior to Version 1.3
+  FLEADTIME (Numeric 4) — LEAD TIME IN DAYS LEAD TIME IN DAYS (INMAST)
+  FLSTCOST (Numeric 16) — LAST COST Last Cost (inmast)
+  FLSTPDATE (Date 8) — LAST PROMISE DATE
+  FLSTSDATE (Date 8) — DATE ITEMS SHIPPED Date Items Were Last Shipped
+  FMEASURE (Character 3) — UNIT OF MEASURE Stocking Unit Of Measure
+  FMULTIRLS (Character 1) — MULTIPLE REL FLAG Multiple Release Item Flag Y/N - Y:multiple releases required
+  FNEXTRELS (Numeric 3) — NEXT RELEASE NO Next Release Number
+  FNORGUCOST (Numeric 16) — ORIGINAL UNIT COST Unit cost of the item on the original rcvr
+  FNQTYDM (Numeric 14) — QTY DEBITED Quantity Debited
+  FORDQTY (Numeric 14) — QTY ORDERED Quantity Ordered
+  FORGPDATE (Date 8) — ORIG PROMISE DATE Original Promise Date
+  FPARENTPO (Character 10) — PARENT P.O. NO Parent Po Number Of Returned Goods
+  FPARTNO (Character 25) — PART NO Part Number
+  FPONO (Character 10) — P.O. NO Purchase Order Number
+  FPRINTMEMO (Character 1) — PRINT ITEM MEMO Y/N Print Item Memo (y/n)
+  FQTYLTOL (Numeric 5) — LOWER QTY TOLERANCE Lower Quantity Tolerance
+  FQTYSHIPR (Numeric 14) — QTY SHIPPED FOR RET Qty Shipped For Return
+  FQTYUTOL (Numeric 5) — UPPER QTY TOLERANCE Upper Quantity Tolerance
+  FRCPDATE (Date 8) — DATE ITEMS RECEIVED
+  FRCPQTY (Numeric 14) — QTY OF ITEMS RCVD Quantity Of Items Received
+  FRECEIVER (Character 10) — RECEIVER NO OF GOODS Receiver Number Of Goods To Be Returned
+  FRELSNO (Character 3) — RELEASE NO Release Number 000 - MASTER RELEASE
+  FREQDATE (Date 8) — DATE ITEM REQUESTED Date Item Was Requested
+  FRETQTY (Numeric 14) — RETURN QTY Return Quantity (from Previous Po)
+  FREV (Character 3) — REV Part Revision
+  FREWORK (Character 1) — REWORK
+  FRMANO (Character 25) — RMA NO Rma Number
+  FSALESTAX (Numeric 7) — SALES TAX RATE
+  FSHPQTY (Numeric 14) — QTY OF ITM LAST SHIP Quantity Of Items Last Shipped
+  FSOITM (Character 3) — S.O. ITEM NO Sales Order Item Number
+  FSOKEY (Character 10) — S.O. ORDER NO Sales Order Number
+  FSORLS (Character 3) — S.O. RELEASE Sales Order Release Number
+  FSTANDARD (Logica 1) — STANDARD PART FLAG
+  FSTDCOST (Numeric 16) — STANDARD COST Standard Cost (inmast)
+  FTAX (Character 1) — TAXABLE FLAG
+  FUCOST (Numeric 16) — TOTAL UNIT COST Discounted Unit Cost prior to version 1.3 this was the list price from the inmast table.
+  FVCONVFACT (Numeric 10) — VEND U/M PER INV U/M Vend U/M Per Inv U/M QTY OF VENDOR UNITS/ CONV FACTOR = QTY OF INV UNITS
+  FVLEADTIME (Numeric 4) — LEAD TIME Lead Time (invend)
+  FVLSTCOST (Numeric 16) — LAST COST Last Cost (invend)
+  FVMEASURE (Character 5) — UNIT OF MEASURE Vendor Unit Of Measure
+  FVORDQTY (Numeric 14) — QTY ORDERED Quantity Ordered (invend)
+  FVPARTNO (Character 25) — PART NO Part Number (invend)
+  FVPTDES (Character 35) — PART DESCRIPTION Part Description (invend)
+  FVUCOST (Numeric 16) — VENDOR UNIT COST Discounted Unit Cost per the Vendor UOM Prior to Version 1.30 this was the list price per unit.
+  FUCOSTONLY (Numeric 16) — UNIT COST ONLY
+  FUTXNCSTON (Numeric 16) — FUTXNCSTON TXN Unit Cost Only
+  FUEURCSTON (Numeric 16) — FUEURCSTON EURO Unit Cost Only
+  FLJRDIF (Logica 1) — JURISDICTION DIFFERS
+  FAC (Character 20) — Facility
+  FCBIN (Character 14) — Bin
+  FCLOC (Character 14) — Location
+  FCUDREV (Character 3) — User Defined Rev
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FPARENTITM (Character 3)
+  FPARENTRLS (Character 3)
+  FRECVITM (Character 3)
+  FNORGEURCOST (Numeric 16) — EURO ORG UNIT COST Euro Unit cost of the item on the original rcvr
+  FNORGTXNCOST (Numeric 16) — TXN ORG UNIT COST TXN Unit cost of the item on the original rcvr
+  FUEUROCOST (Numeric 16) — EURO UNIT COST Euro Discounted Unit Cost
+  FUTXNCOST (Numeric 16) — TXN UNIT COST TXN Discounted Unit Cost
+  FVUEUROCOST (Numeric 16) — EURO UNIT COST Euro Discounted Unit Cost per the Vendor U/M
+  FVUTXNCOST (Numeric 16) — TXN UNIT COST Txn Discounted Unit Cost per the Vendor U/M
+
+## poitem_ext
+  FHLDFREL (Logica 0) — Hold For Release
+  FDELIVERTO (Character 100) — Item Deliver To
+  FREFTO (Character 100) — Ref. To
+  FPARNOLOOKUP (Character 25) — Part Number
+  FREVLOOKUP (Character 50)
+
+## POITEMAD
+  FITEMNO (Character 3)
+  FPONO (Character 6)
+  FRELSNO (Character 3)
+  FDELIVERTO (Character 100)
+  FDEL2 (Character 10)
+  ITEMDELTO (Character 20)
+  FDEL78 (Character 35)
+  ABC (Character 35)
+
+## POMAST — Purchase Order Master
+  FDEURODATE (Date 8) — EURO AS OF DATE
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion Factor from Functional to Euro
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FCTYPE (Character 1) — FCTYPE Type
+  FAUTOCLOSE (Character 1) — AUTO CLOSE P.O. Automatically Close P.O.
+  FBUYER (Character 3) — BUYER'S INITIAL
+  FCCURID (Character 3) — ALT CURRENCY PO Transaction Currency
+  FCFACTOR (Numeric 22) — CONV FACTOR Conversion Factor, Alternate Currency
+  FCFNAME (Character 15) — CHANGED BY 1ST NAME First Name
+  FCHANGEBY (Character 25) — PERSON CHANGING P.O. Person Changing Po Status
+  FCNGDATE (Date 8) — DATE P.O. STAT CHGD Date P.O. Status Changed
+  FCOMPANY (Character 35) — VENDOR/CUST NAME Vendor / Customer Name
+  FCONFIRM (Character 19) — PERSON TO CONFIRMED Person To Confirmed To
+  FCONTACT (Character 20) — LAST NAME OF CONTACT Name Of Contact Person
+  FCREATE (Date 8) — DATE P.O. CREATED Date P.o. Was Created
+  FCSHADDRKE (Character 6) — SHIP TO ADDRESS KEY Address Key (ship To)
+  FCSHCITY (Character 20) — CITY (SHIP TO)
+  FCSHCOMPAN (Character 35) — NAME (SHIP TO)
+  FCSHCOUNTR (Character 25) — COUNTRY (SHIP TO)
+  FCSHFAX (Character 20) — FAX (SHIP TO)
+  FCSHIPTO (Character 8) — SHIP TO Ship To (self, Vendor, Customer)
+  FCSHKEY (Character 6) — SHIP TO KEY Ship To Key (self, Vendor, Customer)
+  FCSHPHONE (Character 20) — PHONE (SHIP TO)
+  FCSHSTATE (Character 20) — STATE (SHIP TO)
+  FCSHZIP (Character 10) — ZIP (SHIP TO)
+  FCSNADDRKE (Character 6) — SEND TO ADDRESS KEY Address Key (send To)
+  FCSNCITY (Character 20) — CITY (SEND TO)
+  FCSNCOUNTR (Character 25) — COUNTRY (SEND TO)
+  FCSNFAX (Character 20) — FAX (SEND TO)
+  FCSNPHONE (Character 20) — PHONE (SEND TO)
+  FCSNSTATE (Character 20) — STATE (SEND TO)
+  FCSNZIP (Character 10) — ZIP (SEND TO)
+  FCUSRCHR1 (Character 20) — USER DEFINED CHAR 1 User Defined Character Field #1
+  FCUSRCHR2 (Character 40) — USER DEFINED CHAR 2 User Defined Character Field #2
+  FCUSRCHR3 (Character 40) — USER DEFINED CHAR 3 User Defined Character Field #3
+  FDCURDATE (Date 8) — FACTOR DATE Date for Alt Currency Factor
+  FDUSRDATE1 (Date 8) — USER DEFINED DATE User Defined Date Field #1
+  FFOB (Character 20) — FREIGHT ON BOARD
+  FMETHOD (Character 1) — METHOD BY WHICH P.O. Method By Which P.o. Was Created IF == '2' this is a 'Sub-contract' type of PO
+  FMPAYTYPE (Memo 4) — PAYMENT TYPE / TERMS Payment Type / Terms Comments
+  FMSHSTREET (Memo 4) — SHIP TO ST ADDRESS Street Address (ship To)
+  FMSNSTREET (Memo 4) — SEND TO ST ADDRESS Street Address (send To)
+  FMUSRMEMO1 (Memo 4) — USER DEFINED MEMO User Defined Memo Field #1
+  FNNEXTITEM (Numeric 3) — NEXT P.O. ITEM NO Next P.o. Item Number
+  FNUSRCUR1 (Currency 8) — USER DEFINED CURR
+  FNUSRQTY1 (Numeric 16) — USER DEFINED QTY User Defined Qty Field #1
+  FOLDSTATUS (Character 20) — PREVIOUS STATUS
+  FORDDATE (Date 8) — ORDER DATE
+  FORDREVDT (Date 8) — REVISION DATE
+  FORDTOT (Numeric 14) — TOTAL ORDER COST
+  FPAYTERM (Character 4) — PAYMENT TERMS KEY Payment Terms Key (to Utterms)
+  FPAYTYPE (Character 1) — PAYMENT TYPE Payment Type (cash - 1, C.o.d. - 2, Terms - 3)
+  FPOCLOSING (Memo 4) — CLOSING MEMO
+  FPONO (Character 10) — P.O. NO Purchase Order Number
+  FPOREV (Character 2) — P.O. REVISION NO Purchase Order Revesion Number
+  FPRINT (Character 1) — P.O. PRINTED FLAG Po Printed Flag
+  FREASONCNG (Memo 4) — REASON P.O. STAT CHG Reason The Po Status Was Changed
+  FREQDATE (Date 8) — REQUEST DATE
+  FREQSDT (Date 8) — REQUISITION DATE
+  FREQSNO (Character 10) — REQUISITION NUMBER Requesition Number
+  FREVTOT (Numeric 14) — TOTAL RECEIVED QTY Total Received Quantity
+  FSALESTAX (Numeric 7) — SALES TAX RATE Sales Tax Rate FSALESTAX is not a Jobtime field
+  FSHIPVIA (Character 20) — SHIPPING CHANNEL
+  FSTATUS (Character 20) — P.O. STATUS PO Status FSTATUS is a modified Jobtime field
+  FTAX (Character 1) — TAX FLAG
+  FVENDNO (Character 6) — VENDOR/CUST NO Vendor / Customer Number
+  FAC (Character 20) — Facility
+  FLPDATE (Date 0) — LAST PROMISE DATE
+
+## pomast_ext
+  FZEXPEDITE (Memo 0) — Expedite
+  FCHAR33EXT (Memo 0) — Memo 2
+
+## POMASTAD
+  FPONO (Character 6)
+  FZEXPEDIT2 (Character 35)
+  EXPEDITE (Character 35)
+  FZEPDIT2 (Character 150)
+  FZEXPEDITE (Memo 4)
+  FEXPEDIT2 (Character 150)
+  FCHAR22TES (Character 120)
+  FCHAR33EXT (Memo 4)
+  FZEXPMEMO (Memo 4)
+  FCHARMEMO (Memo 4)
+  FREFTO (Memo 4)
+
+## POQMAST — MASTER PURCHASING QUEUE
+  FONHAND (Numeric 14) — ON HAND
+  FONORDER (Numeric 14) — ON ORDER
+  FQTYINSPEC (Numeric 14) — QTY INSPECT
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCABCCD (Character 1) — ABC CODE
+  FCCOMPNA (Character 35) — VENDOR NAME
+  FCDOCREV (Character 2) — DOCUMENT REV Document Revision
+  FCGRPCOD (Character 6) — GROUP CODE
+  FCJONUM (Character 20) — JOB NUMBER JOB ORDER NUMBER
+  FCMEASURE (Character 3) — UNIT OF MEASURE
+  FCORDERACT (Character 1) — ORDER ACTION
+  FCPARTNO (Character 25) — PART NUMBER
+  FCPLANNER (Character 3) — PLANNER
+  FCPONUM (Character 6) — PO NUMBER
+  FCPRDCLS (Character 2) — PRODUCT CLASS
+  FCQSOURCE (Character 1) — QUEUE SOURCE
+  FCREV (Character 3) — REV Part Revision
+  FCSOITM (Character 3) — SO ITEM NUMBER
+  FCSONUM (Character 6) — SO NUMBER SALES ORDER NUMBER
+  FCSORLS (Character 3) — SO RELEASE
+  FCSOURCE (Character 5) — SOURCE
+  FCSUPDEM (Character 6) — SUPPLY / DEMAND
+  FCVENDNA (Character 35) — VENDOR NAME
+  FCVENDNO (Character 6) — VENDOR NUMBER
+  FDTXNDATE (Date 8) — TRANSACTION DATE
+  FLMASTER (Logica 1) — MASTER RECORD
+  FMDESC (Memo 4) — PART DESCRIPTION
+  FNBALQTY (Numeric 16) — PROJ QTY AVAIL Projected Qty Available
+  FNJOOPNO (Numeric 4) — JO OPERATION NUMBER
+  FNTXNQTY (Numeric 16) — TRANSACTION QTY
+  FNUCOST (Numeric 16) — UNIT COST
+
+## POQREC — RFQ RECORDED PRICES
+  FDESCRIPT (Character 35) — PART DESCRIPTION
+  FMEASURE (Character 3) — UNIT OF MEASURE
+  FPARTNO (Character 25) — PART NUMBER
+  FREV (Character 3) — REV Part Revision
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+
+## POREVM — PURCHASE ORDER REVISIONS
+  FAUTHORBY (Character 20) — FAUTHORBY Person Who Entered The Revision
+  FPONO (Character 10) — FPONO Purchase Order Number
+  FPOREV (Character 2) — FPOREV Revision Number
+  FPURCHCOST (Numeric 16) — FPURCHCOST Purchased Cost
+  FREVDATE (Date 8) — FREVDATE Revision Date
+  FREVMEMO (Memo 4) — FREVMEMO Description Of Revisions Made
+
+## POTAX — FINANCIAL - COMPLEX TAX CODES PURCHASE ORDERS
+  FPONO (Character 10) — PURCHASE ORDER Production Order Number
+  FINUMBER (Character 3) — ITEM NO Item Number
+  FRELSNO (Character 3) — RELEASE NO Release Number
+  FCJRDICT (Character 10) — JURISDICTION NAME
+  FCTAXCODE (Character 10) — TAX CODE
+  FNORDER (4) — ORDER Tax Code Order
+
+## QAINSP — INSPECTION CODES
+  FCODE (Character 4) — INSPECTION CODE
+  FDESC (Character 72) — DESCRIPTION
+  FLPASSINSP (Logica 1) — INSPECTION FLAG
+
+## QALOTC — Lot Control Master
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  USEINFAC (Character 20) — Use In Fac Use In Facility
+  FCPARTREV (Character 3) — REV Part Revision
+  FCUSEINREV (Character 3) — REVISION USED IN REVISION FCPARTNO WAS USED IN
+  FCMEASURE (Character 3) — MEASURE
+  FCCOMPANY (Character 35) — COMPANY Company P.O. rcvd from or shipper shipped to
+  FCDOC (Character 20) — SOURCE DOCUMENT SOURCE DOCUMENT ID fcType = 'J', links to JoMast.fJobNo
+  FCLOT (Character 50) — SOURCE LOT/SN Source Lot / SN
+  FCNUMBER (Character 6) — VENDOR OR CUST NO Vendor (if Rcvr) or Customer (if Shipper) No.
+  FCPARTNO (Character 25) — SOURCE PART NO Part Number
+  FCTYPE (Character 1) — SOURCE DOC TYPE Source document type 'J' - Job Order
+  FCUSEINDOC (Character 15) — USE IN DOCUMENT Doc the part went to fcType = 'J', links to JoMast.fJobNo
+  FCUSEINLOT (Character 50) — USE IN LOT Lot/ SN the part (fcPartNo) was used in This field being blank indicates that the fcUseInPart is available to be
+  FCUSEINPART (Character 25) — USE IN PART Part fcPartNo was used in The only time this value will be different than fcPartNo is when a part
+  FCUSEINTYPE (Character 1) — DOC TYPE Type of document fcPartNo was used in. 'J' - Job Order
+  FDDATE (Date 8) — TRAN DATE Date of the transaction This is the date the transaction was given in the system. For material
+  FNQUANTITY (Numeric 14) — LOT/SN QUANTITY Lot / Sn quantity
+  FJOBNO (Character 10) — Job No.
+  FSONO (Character 10) — SO No.
+  FINUMBER (Character 3) — SO Item No.
+  FRELEASE (Character 3) — SO Release No.
+  FRECEIVER (Character 10) — Receiver Item No. Receiver No.
+  FRECVITEMNO (Character 3) — Receiver Item No.
+  FUJOBNO (Character 20) — Used JO No.
+  FUSONO (Character 10) — Used SO No.
+  FUSOITEMNO (Character 3) — Used SO Item No.
+  FUSORELEASE (Character 3) — Used SO Release No.
+  FURECEIVER (Character 10) — Used Receiver No.
+  FURECVITEMNO (Character 3) — Used Receiver Itm No Used Receiver Item No.
+  FUSHIPNO (Character 10) — Used Shipper No.
+  FUSHIPITEMNO (Character 6) — Used Ship Item No.
+  FUSCRAP (Character 5) — Scrap
+
+## QASERL — SHIP LIST SERIAL NOs
+  FITEMNO (Character 6) — SHIP LIST ITEM Shipping List Item
+  FPARTNO (Character 25) — PART NO Part No.
+  FQTY (Numeric 14) — QTY Quantity
+  FSERNO (Character 20) — SERIAL NO Serial Number For A Part On A Ship List
+  FSHIPNO (Character 10) — SALES ORDER Taken From Sales Order, Shiplist For A Part
+  FCPARTREV (Character 3) — PART REVISION
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+
+## QTCBOM — QUOTE CASUAL BOM
+  FBOMDESC (Memo 4) — DESCRIPTION Description Of This Component
+  FINUMBER (Character 3) — ITEM NO Internal Item Number This Component Is For
+  FMATLCOST (Numeric 20) — MATERIAL COST Bulk Material Cost Of This Component
+  FQUOTENO (Character 10) — QUOTE NO Quote Number
+  FSEQNO (Character 3) — ITEM NO Component Unique Sequencing Number
+
+## QTCHNG — QUOTE CHANGE STATUS/REVISION
+  FCCHANGEBY (Character 3) — RESPONSIBLE Initials Of Person Who Entered This Change
+  FCCONTACT (Character 20) — LAST NAME Last Name Of Primary Contact Person Associated Wit
+  FCFNAME (Character 15) — FIRST NAME First Name Of Primary Contact Person Associated Wi
+  FDATE (Date 8) — DATE Date Of This Quote's Change In Status
+  FMREASON (Memo 4) — REASON Memo Describing This Change. When Status Is 'open
+  FQUOTENO (Character 10) — QUOTE NO Quote Number
+  FREVNO (Character 3) — REV NO Quote Revision Number
+  FSTATUS (Character 20) — STATUS Status This Quote Will Be Changed To. For Revisio
+
+## QTDBOM — QUOTE DETL BOM
+  FBOMDESC (Memo 4) — DESCRIPTION Part Description Of This Component
+  FBOMINUM (Character 4) — INTERNAL NO Unique Internal Item Number For This Component
+  FBOMLCOST (Numeric 20) — LABOR COST Labor Cost Of Stock Item
+  FBOMMEAS (Character 3) — U/M Unit Of Measure This Component Is Expressed In
+  FBOMOCOST (Numeric 20) — OVHD COST Overhead Cost Of Stock Item
+  FBOMPART (Character 25) — COMPONENT Part Number Of This Component
+  FBOMREV (Character 3) — COMPONENT REV Revision No Of This Component
+  FBOMSOURCE (Character 1) — SOURCE Source -(m,b,s) Of This Component
+  FCLOTEXT (Character 1)
+  FCOSTFROM (Character 6) — RFQ NO Rfq Number That Material Cost Comes From
+  FEXTQTY (Numeric 18) — QTY OF COMP Total Qty Of This Component
+  FFIXCOST (Numeric 20) — FIX COST Fixed Costs From Subcontract Operations On The Rou
+  FINUMBER (Character 3) — ITEM NUMBER Item Number This Component Is Used For
+  FITEM (Character 6) — USR DFND ITEM User Defined Item Number - Only Used If User Speci
+  FLABCOST (Numeric 20) — LABOR COST Labor Cost From The Total Routing Costs In The Det
+  FLASTOPER (Numeric 4) — LAST OPER The Next Default Operation Number To Be Assigned A
+  FLEVEL (Character 2) — NO OF PARENTS Number Of Parent Parts This Components Has
+  FLEXTEND (Logica 1) — EXTEND? If .t., The Extended Qty Will Be The Unit Qty * Ex
+  FLLOTREQD (Logica 1) — LOT REQUIRED?
+  FLTOOLING (Logica 1) — TOOLING? If .t., The Material Cost For This Component Will
+  FMATLCOST (Numeric 16) — MATERIAL COST Unit Material Cost Of This Item
+  FNONPRO (Numeric 3) — NON PROPORTIONAL The Number Of Non-proportional Operations In This
+  FNUMOPERS (Numeric 4) — NO OF OPERS Total Number Of Routing Operations For This Item.
+  FORGBOMQTY (Numeric 14) — BOM QTY Bom Qty From Std Boms
+  FOTHRCOST (Numeric 20) — OTHER COST Other Cost For This Item
+  FOVHDCOST (Numeric 20) — OVERHEAD COST Overhead Cost For This Item
+  FPARINUM (Character 4) — PARENT INTERNAL NO Internal Item Number Of This Component's Parent Pa
+  FQUOTENO (Character 10) — QUOTE NO Quote Number This Component Belongs To
+  FSETUPCOST (Numeric 20) — SETUP COST Setup Cost Of This Component
+  FSTDMEMO (Memo 4) — STD MEMO Standard Item Memo For This Component, If One Exis
+  FSUBCOST (Numeric 20) — SUB COST Sub Contract Cost Of This Component
+  FTOTPTIME (Numeric 13) — UNIT PRODUCTION TIME Unit Production Time Of This Component, Totalled F
+  FTOTQTY (Numeric 14) — UNIT QTY Unit Quantity Of This Component
+  FTOTSTIME (Numeric 13) — TOTAL SETUP TIME Total Setup Time Totalled From Setup Time Of It's
+  FUPRICE (Numeric 20) — UNIT PRICE Unit Price Of This Component
+  FVENDNO (Character 6) — VENDOR NO Vendor Number Chosen To Buy This Component From.
+  FAC (Character 20) — Facility
+  FCBOMUDREV (Character 3) — Bom's User Defined R Bom's User Defined Rev
+  FNOPERNO (Numeric 4) — OPER NO NEEDED AT Routing Operation Number where material is needed
+  FNDBRMOD (Numeric 0) — Modified by Synchronizer?
+
+## QTDRTG — QUOTE DETL RTG
+  FLLOTREQD (Logica 1) — LOT REQUIRED
+  FNDBRMOD (Numeric 0) — Modified by Synchronizer?
+  FNSIMULOPS (2) — Simultaneous Operati Simultaneous Operations
+  FBOMINUM (Character 4) — INTERNAL NO Internal Unique Number For This Component
+  FCHNGRATES (Character 1) — FCHNGRATES 'y' Or ' ' - O.k. To Reset Labr & Ovhd From Wrkctr
+  FDESCRIPT (Memo 4) — DESCRIPTION Description Of This Routing Operation
+  FELPSTIME (Numeric 7) — ELAPSED HRS Elapsed Hours For This Operation Only If It Is A S
+  FFIXCOST (Numeric 16) — FIXED COST Fixed Costs For This Operation If It Is A Subcontr
+  FINUMBER (Character 3) — ITEM NO Item Number On The Quote This Component Belongs To
+  FLSCHEDULE (Logica 1) — SCHEDULE? Will This Operation Be Scheduled?
+  FMOVETIME (Numeric 7) — MOVE TIME Move Time Between Operations I.e. Time In Which No
+  FOPERMEMO (Memo 4) — MEMO Memo Describing This Operation.
+  FOPERNO (Numeric 4) — OPERATION NO Unique Number Assigned To This Operation.
+  FOPERQTY (Numeric 18) — OPER QTY Qty For This Operation THIS QTY IS FOR ONE OF THE QUOTE ITEM ESTIMATE QTY
+  FOTHRCOST (Numeric 16) — OTHER COST Miscellaneous Costs Associated With This Operation
+  FPRO_ID (Character 7) — WORKCENTER ID Workcenter Id For This Operation
+  FQUOTENO (Character 10) — QUOTE NO Quote Number
+  FSETUPTIME (Numeric 6) — SETUP TIME Setup Time For This Operation
+  FSTDDESC (Character 4) — STD OP DESC If A Standard Operating Description Was Used For T
+  FULABCOST (Numeric 6) — UNIT LABOR COST Unit (/hr) Labor Cost
+  FUOVRHDCOS (Numeric 6) — UNIT OVERHEAD Hourly Overhead Rate - Pulled As A Default From Th
+  FUPRODTIME (Numeric 15) — UNIT PROD TIME The Amount Of Time It Takes In Hours To Produce An
+  FUSUBCOST (Numeric 16) — UNIT SUB COST Unit Subcontract Cost If This Is A Subcontract Ope
+  CYCLEUNITS (Numeric 13) — X830DRTG
+  UNITSIZE (Numeric 13) — X830DRTG
+
+## QTITEM — QUOTE LINE ITEMS
+  FCTPDATE (Date 8) — Synchronizer Use Only
+  FCTPTRANS (Date/Time 8) — Synchronizer Use Only
+  FBOMQTY (Numeric 14) — SOURCE TYPE Copied From Dos
+  FCAS_BOM (Logica 1) — CASUAL BOM? Does This Item Have A Casual Bom?
+  FCAS_RTG (Logica 1) — CASUAL ROUTING? Does This Item Have A Casual Routing?
+  FCFROMITEM (Character 3) — FROM ITEM Item Number This Item Was Copied From - Will Be Bl
+  FCFROMNO (Character 10) — FROM NO Id Number This Item Was Copied From
+  FCFROMTYPE (Character 5) — FROM TYPE Source This Item Was Copied From; Quote, So Or Job
+  FCLOTEXT (Character 1)
+  FCPRODID (Character 6) — PRODUCT ID Product ID of product used to CONFIGURE this item
+  FCUSTPART (Character 25) — CUSTOMER PART If The Customer Calls This Part By A Different Nam
+  FCUSTPTREV (Character 3) — CUST PART REV Customer Part Number Revision
+  FDELIVERY (Memo 4) — FDELIVERY NOTES ABOUT THE DELIVERY
+  FDESC (Memo 4) — DESCRIPTION
+  FDESCMEMO (Memo 4) — DESC MEMO Memo For This Part To Add Any Additional Instructi
+  FDET_BOM (Logica 1) — DETAILED BOM? Does This Item Have A Detailed Bom?
+  FDET_RTG (Logica 1) — DETAILED ROUTING? Does This Item Have A Detailed Routing?
+  FENUMBER (Character 3) — ITEM NUMBER External Item Number that the user sees
+  FESTQTY (Numeric 14) — PRIMARY ESTIMATE QTY The Default Estimate Quantity. When A Sales Order
+  FFIXACT (Numeric 20) — UNIT FIXED COSTS Unit Fixed Costs That Are A Total From Subcontract
+  FGROUP (Character 6) — GROUP CODE Group Code For This Item
+  FINUMBER (Character 3) — INTERNAL ITEM NO Internal Item Number
+  FLABACT (Numeric 20) — UNIT LABOR COST The Unit Labor Cost Totaled From Labor Costs On Al
+  FLLOTREQD (Logica 1) — LOT REQUIRED?
+  FLORDERED (Logica 1) — ORDERED? If A Sales Order Item Has Been Created From This I
+  FMATLACT (Numeric 16) — UNIT MATERIAL COST Unit Material Cost Totaled From Costs On All Bom I
+  FMEASURE (Character 3) — U/M Unit Of Measure The Quantity Is Expressed In
+  FNEXTINUM (Numeric 4) — NXT BOM ITM NO The Next Available Internal Bom Item Number For Th
+  FOTHRACT (Numeric 16) — UNIT OTHER COSTS Unit Other Costs Totalled From Other Costs On Each
+  FOVHDACT (Numeric 16) — UNIT OVHD COST Unit Overhead Costs Totalled From Overhead On All
+  FPARTNO (Character 25) — PART NO Part Number For This Item
+  FPARTREV (Character 3) — REV Part Revision Number. This Will Be 'ns' For All N
+  FPRINTMEMO (Logica 1) — PRINT MEMO? Print The Item Description Memo On The Printed Quo
+  FPRODCL (Character 4) — PRODUCT CLASS PRODUCT CLASS PRODUCT CLASS FOR THIS ITEM. THIS DETERMINES, AMO
+  FQUOTENO (Character 10) — QUOTE NO Quote Number This Item Belongs To
+  FRTGSETUPA (Numeric 16) — SETUP COST SETUP COST TOTALLED FROM SETUP COSTS OF ALL
+  FSCHECODE (Character 6) — PRICE SCHEDULE CODE Price Schedule Code For This Item ( If One Exists)
+  FSETUPACT (Numeric 16) — SETUP COST Setup costs Setup costs (total from detailed routing)
+  FSONO (Character 10) — S.O. CREATED The Last Sales Order Created From This Item
+  FSOURCE (Character 1) — SOURCE Source Of This Item:M - MakeB - BuyS - Stock
+  FSTANDPART (Logica 1) — STANDARDS? If The Bom Or Routing Has Been Changed On This Ite
+  FSUBACT (Numeric 16) — UNIT SUB COST Unit Subcontract Cost Totalled From All Base Subco
+  FTOOLACT (Numeric 16) — UNIT TOOLING COST Unit Tooling Cost Totalled From All Material Costs
+  FTOTPTIME (Numeric 16) — TOTAL PRODUCTION TIM Unit Production Time For This Item Totalled From T
+  FTOTSTIME (Numeric 16) — TOTAL SETUP TIME Total Setup Time From All Setup Times In All Detai
+  FULABCOST (Numeric 6) — UNIT LABOR COST Unit Labor Cost - Average From All Operations In D
+  FUNETPRICE (Numeric 16) — UNIT PRICE Unit Selling Price Of This Item.
+  FNDBRMOD (Character 0) — Modified by Synchronizer?
+  FUNETTXNPRIC (Numeric 16) — TXN UNIT PRICE Unit Price in the TXN Currency
+  FSCHEDTYPE (Character 1) — SCHED TYPE
+  FUNETEUROPR (Numeric 16) — UNIT PRICE EURO Unit Price in the Euro Currency
+  FLJRDIF (Logica 1) — JURISDICTION DIFFERS
+  FLISTAXABL (Logica 1) — TAXABLE Taxable Item
+  FAC (Character 20) — Facility
+  FCPBTYPE (Character 1) — Progress Billing Typ Progress Billing Type Progress Billing Type associated with this Line Item. "P" = Periodic
+  FCUDREV (Character 3) — User Defined Rev
+  ITCCOST (Numeric 17) — In Transite Cost
+  SFAC (Character 20) — Source Facility The Source Facility of the item
+
+## QTMAST — QUOTE MASTER
+  FCCONTKEY (Character 10) — Contract Code
+  FLCONTRACT (Logica 0) — Based on Contract
+  FEUROFCTR (Numeric 16) — CONVER EURO TO FUNC Conversion Factor from Euro to Functional When feurofctr has a value then fcfactor's value is only a factor from
+  FDEURODATE (Date 8) — CONVER DATE TO EURO Currency Conversion Date for the Euro Factor
+  FNDBRMOD (Memo 0) — Modified by Synchronizer?
+  FLTOTAL (Logica 1) — INC TOTS Print the totals on Quotation Document Currency name to be displayed on the check. Should be in plural.
+  FCSHIPTO (Character 6) — FCSHIPTO Address To Ship To, A Key
+  FACKDATE (Date 8) — ACK DATE Date On Which The Quote Was Confirmed Or Opened
+  FCCURID (Character 3) — CUR ID Quote Transaction Currency
+  FCFACTOR (Numeric 22) — FACTOR Currency Conversion Factor This field was previously a character field, but now is a numeric field
+  FCFNAME (Character 15) — FIRST NAME First Name Of The Contact Person
+  FCFROMNO (Character 6) — SRC OF QUOTE Id Number Of Source That This Quote Was Copied Fro
+  FCFROMTYPE (Character 5) — TYPE OF SOURCE Type Of Record This Quote Was Copied From: Quote,
+  FCITY (Character 20) — SOLD TO CITY Sold-to City From Syaddr
+  FCLOSMEMO (Memo 4) — CLOSE MEMO Standard Closing Memo For Printed Quote
+  FCOMPANY (Character 35) — COMPANY COMPANY NAME SOLD-TO COMPANY NAME FROM SYADDR
+  FCOUNTRY (Character 25) — SOLD-TO COUNTRY Sold-to Country From Syaddr
+  FCSOLDTO (Character 6) — SOLD TO KEY Sold-to Address Key For The Customer
+  FCUSRCHR1 (Character 20) — USR DFND FIELD User Defined Character Field #1
+  FCUSRCHR2 (Character 40) — USR DFND FIELD User Defined Character Field #2
+  FCUSRCHR3 (Character 40) — USR DFND FIELD User Defined Character Field #3
+  FCUSTNO (Character 6) — CUSTOMER/PROSPECT
+  FDATEDUE (Date 8) — DATE DUE QUOTE DUE DATE THE DATE IN WHICH THE QUOTE IS EXPECTED TO BE
+  FDATERECVD (Date 8) — DATE RECVD. The Date The Request For This Quote Was Received.
+  FDCURDATE (Date 8) — CUR DATE Currency Conversion Date "As of"
+  FDEXPIRED (Date 8) — EXPIRATION DATE The Date Up Until Which These Quoted Prices Will B
+  FDISRATE (Numeric 14) — DISTRIBUTION RATE
+  FDISTNO (Character 6) — DISTRIBUTOR Distributor Number FDISTNO is used to get distributor
+  FDSALESPN (Character 25) — SALESPERSON Distributor Salesperson FDSALESPN will be blank if the distributor field
+  FDUPLICATE (Logica 1) — DUPLICATE? Is This Quote A Duplicate Of Another Quote?
+  FDUSRDATE1 (Date 8) — USR DATE 1 User Defined Date Field #1
+  FESTIMATOR (Character 3) — ESTIMATOR The Person Entering The Quote
+  FFAX (Character 20) — FAX Sold-to Fax Number For This Address (from Syaddr)
+  FJOBNAME (Character 65) — QUOTE DESC A General Description Name For This Quote
+  FMSTREET (Memo 4) — STREET ADDRESS Sold-to Street Address
+  FMUSERMEMO (Memo 4) — USER MEMO User-Defined Memo Field
+  FNEXTENUM (Character 3) — NEXT EXTERNAL NO The Next External Number To Be Issued When An Item
+  FNEXTINUM (Character 3) — NEXT INTERNAL NO The Next Internal Number To Be Issued When A Quote
+  FNUSRCUR1 (Numeric 16) — USR CUR 1 User-Defined Currency field
+  FNUSRQTY1 (Numeric 14) — USR QTY 1 User Defined Qty Field #1
+  FORDPOTENT (Character 1) — ORDER POTENTIAL The Potential Of Getting An Order From This Prospe FORDPOTENT can be '1,2,3'(Excellent, Average,
+  FORDTIME (Character 1) — ORDER TIMING ANTICIPATED ORDER TIMING AMOUNT OF TIME IT WILL TAKE TO REALIZE THIS CUSTOM
+  FPAYTYPE (Character 1) — PAY TYPE
+  FPHONE (Character 20) — PHONE Sold-to Phone Number From Syaddr
+  FPRINTED (Logica 1) — PRINTED? Has This Quote Been Printed?
+  FPRINT_DT (Date 8) — PRINT DATE
+  FQUOTECOPY (Character 1) — COPY? Copy To Distributor? (y/n) FQUOTECOPY will be blank if no confirming quote
+  FQUOTEDATE (Date 8) — QUOTE DATE The Date The Quote Was Created
+  FQUOTENO (Character 10) — QUOTE Quote Number
+  FQUOTETO (Character 20) — LAST NAME Last Name Of The Primary Contact For This Customer
+  FREQUESTNO (Character 15) — THEIR RFQ NO The Rfq Number Of The Customer
+  FREVNO (Character 2) — QUOTE REV NO Revision Number Of This Quote.
+  FSALESPN (Character 3) — SALESPERSON SALESPERSON FOR THIS QUOTE If the distributor field is filled, then FSALESPN
+  FSALUMEMO (Memo 4) — SALUTATION MEMO Salutation That Appears On The Printed Quote
+  FSTATE (Character 20) — STATE Sold-to State For This Quote (from Syaddr)
+  FSTATUS (Character 20) — STATUS The Current Status Of The Quote:Strt = StartedOp 'Started' - QUOTE STARTED BUT NOT ACKNOWLEDGED - NOT
+  FTERM (Character 4) — TERM
+  FTYPE (Character 1) — QUOTE TYPE Type Of Quote:C - This Quote Is To A CustomerI -
+  FUSERCODE (Character 7) — USER CODE
+  FZIP (Character 10) — ZIP Sold-to Zip From Syaddr
+  FBILLADDR (Character 6) — Bill To Address
+
+## QTPEST — QUOTE ITEM PRICING
+  FDISCOUNT (Numeric 16) — DISCOUNT Discount For This Item. Shown On The Price Summary
+  FENUMBER (Character 3) — ITEM NUMBER External Item number for user identification
+  FINUMBER (Character 3) — QUOTE ITEM NO Quote Item Number
+  FLABCOST (Numeric 16) — LABOR COST Labor Cost Shown On The Price Summary Screen
+  FMATLCOST (Numeric 16) — MATERIAL COST Material Cost Shown On The Price Summary Screen
+  FNETPRICE (Numeric 16) — NET PRICE Net Price For This Quantity
+  FOTHRCOST (Numeric 16) — OTHER COST Other Cost Shown On The Price Summary Screen
+  FOVHDCOST (Numeric 16) — OVERHEAD COST Overhead Cost Shown On The Price Summary Screen
+  FPARTNO (Character 25) — PART NO Part Number
+  FQUANTITY (Numeric 14) — QTY Quantity For This Pricing
+  FQUOTENO (Character 10) — QUOTE NO Quote Number
+  FSETUPCOST (Numeric 16) — SETUP COST Setup Cost Shown On The Price Summary Screen
+  FSUBCOST (Numeric 16) — SUBCONTRACT COST Subcontract Cost Shown On The Price Summary Screen MADE UP OF FFIXACT + FSUBACT * FQUANTITY
+  FTOOLCOST (Numeric 16) — TOOLING COST Tooling Cost Shown On The Price Summary Screen
+  FUNETPRICE (Numeric 16) — UNIT NET PRICE Unit Price Based On This Quantity
+  FUNETTXNPRIC (Numeric 16) — UNIT PRICE TRANS Unit Price in the Transaction Currency
+  FNETTXNPRICE (Numeric 16) — NET PRICE TRANS Net Price in the Transaction Currency
+  FUNETEUROPR (Numeric 16) — UNIT PRICE EURO Unit Price in the Euro Currency
+  FNETEUROPR (Numeric 16) — NET PRICE EURO Net Price in the Euro Currency
+  FDISCPCT (Numeric 16) — Discount Percentage FDISCPCT
+  FCPARTREV (Character 3) — REV Part Revision
+  FCUDREV (Character 3) — User Defined Rev
+
+## QTTAX — FINANCIAL - COMPLEX TAX CODES SALES QUOTES
+  FQUOTENO (Character 10) — QUOTE Quote Number
+  FINUMBER (Character 3) — ITEM NO Item Number
+  FCJRDICT (Character 10) — JURISDICTION NAME
+  FCTAXCODE (Character 10) — TAX CODE
+  FNORDER (4) — ORDER Tax Code Order
+
+## RCINSP — RECEIVING INSPECTIONS
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCPARTREV (Character 3) — REV
+  FCINSPBY (Character 3) — INSP BY
+  FCINSPCODE (Character 4) — INSP CODE
+  FCITEMNO (Character 3) — ITEM NO
+  FCLOT (Character 50) — LOT NUMBER
+  FCNEWBIN (Character 29)
+  FCNEWLOC (Character 14) — LOCATION MOVED TO AF Location Moved To After Inspection
+  FCPARTNO (Character 25) — PART NO
+  FCRECEIVER (Character 6) — RECEIVER
+  FDINSPDATE (Date 8) — INSP DATE
+  FLREORDER (Logica 1) — REORDER
+  FLRETURN (Logica 1) — RETURN
+  FMCOMMENTS (Memo 4) — INSPECTION COMMENTS
+  FNQTYACTD (Numeric 14) — PORTION OF FAILED QT Portion Of Failed Qty Accounted For
+  FNQTYFAIL (Numeric 14) — QTY FAILED
+  FNQTYPASS (Numeric 14) — QTY PASSED
+  RETURNISONO (Character 10) — Return ISO
+  FNQTYTOSHIP (Numeric 15) — Qty To Ship
+
+## RCITEM — RCVR LINE ITEMS
+  FAC (Character 20) — Facility
+  FCORIGUM (Character 3) — Original U/M
+  FCUDREV (Character 3) — User Defined Rev
+  FNORIGQTY (Numeric 18) — Original Quantity
+  SFAC (Character 20) — Source Facility
+  FUEUROCOST (Numeric 16) — EURO UNIT COST Euro Unit Cost (from 'poitem')
+  FUTXNCOST (Numeric 16) — TXN UNIT COST Txn Unit Cost (from 'poitem')
+  FCTOJOBLOT (Character 50)
+  FDISCOUNT (Numeric 4) — PERCENT DISCOUNT Percent Disount from PO
+  FUEURCSTON (Numeric 16) — FUEURCSTON EURO Unit Cost Only
+  FUTXNCSTON (Numeric 16) — FUTXNCSTON TXN Unit Cost Only
+  FUCOSTONLY (Numeric 16) — FUCOSTONLY Unit Cost Only
+  FLCONVOVRD (Logica 1) — OVERRIDE Override Conversion Factor
+  ISO (Character 10) — ISO ISO Number
+  SHIP_LINK (4) — SHIP_LINK Idenity Column of linked Shipper
+  FAUTHORIZE (Character 20) — AUTHORIZED BY Receipt Authorized By Applies only to Receivers created from Returned Goods
+  FBINNO (Character 14) — BIN NO
+  FCATEGORY (Character 8) — CATEGORY Purchase Category This will determine the G/L accounts to post from this transaction.
+  FCOMMENTS (Memo 4) — COMMENTS Comment Line 1
+  FCSTATUS (Character 1) — STATUS Invoice Status blank - no activity, 'P' - invoice pending, 'C' - qty rec'd completely
+  FDESCRIPT (Memo 4) — DESCRIPTION Part Description
+  FEXPDATE (Date 8) — DATE EXPIRES
+  FINSPECT (Character 1) — INPECTION REQD Inspection Required Flag; (y/n)
+  FINVCOST (Numeric 16) — COST/UNIT NO LONGER USED, USE fUcost instead
+  FINVQTY (Numeric 14) — QTY INVD,VEND U/M Qty Invoiced, Vendor U/M FINVQTY is stored in Verdor Units. To convert to
+  FIQTYINV (Numeric 14) — QTY INVD, INV U/M Qty Invoiced, Stocking U/M
+  FITEMNO (Character 3) — RCVR ITEM NO Receiver Item Number
+  FJOKEY (Character 20) — JO NO Job Order Number
+  FLEXPREQD (Logica 1) — EXP DATE REQ'D EXP DATE REQ'D FOR THIS ITEM?
+  FLLOTREQD (Logica 1) — LOT CONTROL REQ'D LOT CONTROL REQ'D FOR THIS ITEM?
+  FLOCATION (Character 14) — LOCATION
+  FLOT (Character 50) — LOT
+  FMEASURE (Character 3) — INVENTORY U/M
+  FPARTNO (Character 25) — PART NO Part Number
+  FPARTREV (Character 3) — REV Part Revision
+  FPOITEMNO (Character 3) — P O LINE ITEM PO Line Item Part of the Foreign Key to poitem ( POTRS##) file
+  FQTYINSP (Numeric 14) — QTY INSPECTED Quantity Inspected If this is a lot controlled part, the qty actually inspected for each lot is
+  FQTYRECV (Numeric 14) — QTY RECEIVED,INV Qty Received; Stocking Units Of Measure
+  FRECEIVER (Character 10) — RECEIVER NO Receiver Number
+  FRELSNO (Character 3) — RELEASE NUMBER Release Number Part of the Foreign Key to poitem ( POTRS##) file
+  FRETCREDIT (Character 1) — CREDITED Credited ?
+  FSOITEM (Character 3) — SO ITEM NO Sales Order Item Number
+  FSOKEY (Character 10) — SO NO Sales Order Number
+  FSORELSNO (Character 3) — SO ITEM RELS NO Sales Order Item Release No
+  FTYPE (Character 1) — DETAIL TYPE Detail Type 'P' = Item belongs to a PO Receiver.
+  FUCOST (Numeric 16) — UNIT COST Unit Cost (from 'poitem')
+  FUMVORI (Character 1) — U/M RECEIVED Item Received In Inv. U/M Or Vendor U/M
+  FVENDNO (Character 6) — VENDOR NO Vendor Number
+  FVQTYRECV (Numeric 14) — QTY RECV, VEND U/M Quantity Received In Vendor Units
+  FFIXCOST (Numeric 17) — Fixed cost
+
+## RCMAST — RCVR MASTER
+  FACCPTBY (Character 3) — INITIALS Initials User's logon id. Automatically entered by the system. Editable.
+  FBILLLAD (Character 18) — BILL OF LADING NO Bill Of Lading Number
+  FCOMPANY (Character 35) — COMPANY
+  FCSTATUS (Character 1) — STATUS Status (S, C or I) 'S' = 'Started'; this receiver has been saved, but contains no items.
+  FDATERECV (Date/Time 8) — DATE RECEIVED DATE ITEMS WERE RECEIVED It defaults to system's date. However, the user is allowed to modify it
+  FFRTCARR (Character 20) — CARRIER Freight Carrier
+  FLOTHRUPD (Logica 1) — POSTINGS DONE? Have postings occurred? Y if related tables (inonhd, poitem, etc.) have been updated based on
+  FPACKLIST (Character 15) — PACKING LIST
+  FPONO (Character 10) — P O NUMBER Purchase Order Number
+  FPOREV (Character 2) — P O REVISION NO Purchase Order Revision Number
+  FPRINTED (Logica 1) — PRINTED Printed Flag 'Y' = Receiver has been printed
+  FRECEIVER (Character 10) — RECEIVER Receiver Number
+  FRETSHIP (Character 1) — RETURNED Returned ? If return of previously shipped goods is 'Y' then
+  FRMANO (Character 25) — AUTH NO RETRN MATL Returned Material Authorization Number
+  FSHIPWGT (Numeric 10) — WEIGHT Shipped Weight
+  FTYPE (Character 1) — TYPE Receiver Type 'P' = Receiver created from an opened Purchase Order
+  FVENDNO (Character 6) — VENDOR NO Vendor Number / Customer Number When creating a Receiver from Returned Goods the Customer
+  START (Date 8) — START DATE Date Receiver Is Created System's Date.
+  FCCURID (Character 3) — RECIEVE CURR ID Receiver Transaction Currency
+  FCFACTOR (Numeric 22) — FACTOR Currency Conversion Factor
+  FDCURDATE (Date 8) — AS OF DATE Date on which Conversion Factor became Effective
+  FDEURODATE (Date 8) — AS OF DATE Date on which Euro Factor became Effective
+  FEUROFCTR (Numeric 16) — EURO FACTOR Conversion Factor from Functional to Euro
+  FLPREMCV (Logica 1) — FLPREMCV Pre-Multi-Currency
+  FCLANDCOST (Character 1) — FCLANDCOST Land Cost
+  DOCSTATUS (Character 10) — Doc Status Document Status
+
+## RFQITEM — RFQ ITEM DETAILS
+  FRFQNO (Character 10) — RFQ.NO. RFQ NUMBER
+  FITEMNO (Character 3) — RFQ.ITEM NO. RFQ ITEM NUMBER
+  FPARTNO (Character 25) — RFQ.PART NO. RFQ PART NUMBER
+  FDESCRIPT (Character 16) — RFQ.PART DESC. RFQ PART DESC.
+  FPRODCL (Character 4) — RFQ.PROD.CLASS RFQ PART DESC.
+  FREV (Character 3) — RFQ.REV.NO. RFQ REV.NO..
+  FAC (Character 20) — FACILITY
+  FPONO (Character 10) — PO NO
+
+## RFQMAST — RFQ DETAILS
+  FAC (Character 20) — FACILITY
+  FRFQNO (Character 10) — RFQ NUMBER
+  FRFQDATE (Date 10) — RFQ DATE
+  FREQBY (Character 3) — RFQ REQ. RFQ REQUISITION BY
+  FREQNO (Character 10) — RFQ REQ.NO. RFQ REQUISITION NO.
+  FSTATUS (Character 9) — RFQ STATUS
+  FFROMDOC (Character 10) — FROM DOC. QUOTE/SO NO
+  FFROMTYPE (Character 6) — FROM TYPE QUOTE/SO TYPE
+
+## RFQVEND — RFQ VENDOR DETAILS
+  FRFQNO (Character 10) — RFQ.NO. RFQ.NO..
+  FVENDNO (Character 6) — RFQ.VEND.NO. RFQ.VEND NO.
+  FDRETURNBY (Date 10) — RFQ.RET.BY DATE RFQ.RETURN BY DATE.
+  FCONTACT (Character 20) — RFQ.VEND CONTACT
+  FCFNAME (Character 15) — RFQ.VEND FIRST NAME
+  FPRINT (Logica 1) — RFQ PRINT FLAG
+
+## RFQVPRT — RFQ VENDORS PARTS Details
+  FCFACTOR (Numeric 22) — RFQVPRT.FCFACTOR
+  FDCURDATE (Date 8) — RFQVPRT.FDCURDATE
+  FDEURODATE (Date 8) — RFQVPRT.FDEURODATE
+  FEUROFCTR (Numeric 17) — RFQVPRT.FEUROFCTR
+  FEXPDATE (Date 8) — RFQVPRT.FEXPDATE
+  FFOB (Character 20) — RFQVPRT.FFOB
+  FITEMNO (Character 3) — RFQVPRT.FITEMNO
+  FLEADTIME (Numeric 15) — RFQVPRT.FLEADTIME
+  FRFQNO (Character 10) — RFQVPRT.FRFQNO
+  FQUOTEDT (Date 8) — RFQVPRT.FQUOTEDT
+  FVENDNO (Character 6) — RFQVPRT.FVENDNO
+  FVENDQUOTE (Character 15) — RFQVPRT.FVENDQUOTE
+  FVCONVFACT (Numeric 21) — RFQVPRT.FVCONVFACT
+  FVMEASURE (Character 3) — RFQVPRT.FVMEASURE
+  FVPARTNO (Character 25) — RFQVPRT.FVPARTNO
+  FVPTDES (Character 35) — RFQVPRT.FVPTDES
+
+## RFQVQTY — RFQ ITEM QUANTITY AND PRICE DETAILS
+  FRFQNO (Character 10) — RFQVQTY.FRFQNO
+  FQUANTITY (Numeric 15) — RFQVQTY.FQUANTITY
+  FUCOST (Numeric 17) — RFQVQTY.FUCOST
+  FUTXNCOST (Numeric 17) — RFQVQTY.FUTXNCOST
+  FVENDNO (Character 6) — RFQVQTY.FVENDNO
+  FVQUANTITY (Numeric 17) — RFQVQTY.FVQUANTITY
+  FVUCOST (Numeric 17) — RFQVQTY.FVUCOST
+  FVUEURCOST (Numeric 17) — RFQVQTY.FVUEURCOST
+  FVUTXNCOST (Numeric 17) — RFQVQTY.FVUTXNCOST
+  FUEURCOST (Numeric 17) — RFQVQTY.FUEURCOST
+
+## SHITEM — SHIP LIST LINE ITEMS
+  FSONO (Character 10) — SO Number
+  FINUMBER (Character 3) — SO Item No
+  FRELEASE (Character 3) — SO Release
+  FPONO (Character 10) — PO No.
+  FPOITEMNO (Character 3) — PO Item No.
+  FPORELSNO (Character 3) — PO Release No.
+  FLINVCPOSS (Logica 0) — Qty still to be invoiced on this item?
+  FCMISCSTAT (Character 1) — 'S' if the misc part 'S' if the misc part is in INMAST, 'N' if not
+  FCPOKEY (Character 16) — PO KEY PO Release Key (items returned to Vendor) poitem.fpono+poitem.fitemno+poitem.frelsno
+  FCSTATUS (Character 1) — INVOICE STATUS Invoice Status blank - no activity and partially invoiced, 'C' - completly invoiced (qty
+  FENUMBER (Character 6) — EXT ITEM NO Ext Item No - SO Item #
+  FINVQTY (Numeric 14) — INVOICED QTY Quantity Invoiced To Date
+  FITEMNO (Character 6) — LINE ITEM Line Item - Ship List Item No FOR EACH SHIPPING LIST, FITEMNO CONSISTS OF
+  FITEMTYPE (Character 1) — MISC ITEM 'M' - Miscelleous Item 'M' - miscell item (i.e. item added to shipper which has no
+  FMDESCRIPT (Memo 4) — DESCRIPTION
+  FMEASURE (Character 3) — U/M
+  FORDERQTY (Numeric 14) — ORDER QTY
+  FPARTNO (Character 25) — PART NO Part Number FPARTNO IS TRANSFERRED FROM A SALES ORDER/JOB
+  FREV (Character 3) — REV Part Revision
+  FSHIPNO (Character 10) — SHIPPER Shipper - Foreign Key To Shmast shmast.fshipno
+  FSHIPQTY (Numeric 14) — QTY SHIPPED Quantity Shipped
+  FSOKEY (Character 16) — SALES ORDER KEY Foreign Key To Sorels sorels.fsono+sorels.finumber+sorels.frelease
+  IDONO (Character 10) — IDONO IDO Number
+  QTYRECVD (Numeric 15) — QTYRECVD Qty received in ISO Shipper Item
+  FCUSTPART (Character 25) — CUSTOMER PART NO Customer Part Number
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  SFAC (Character 20) — Source Facility
+
+## SHMAST — SHIPPING LIST MASTER
+  FBL_LADING (Character 20) — BILL OF LADING
+  FCBCOMPANY (Character 35) — COMPANY
+  FCCITY (Character 20) — CITY
+  FCCOMPANY (Character 35) — COMPANY Company Shipped To
+  FCCOUNTRY (Character 25) — COUNTRY Country Shipped to
+  FCCOUNTY (Character 20) — COUNTY County Shipped to
+  FCFAX (Character 20) — FAX FAX Number, Ship To Address
+  FCFNAME (Character 15) — FIRST NAME
+  FCJOBNO (Character 20) — JOB NO Job No When shmast.ftype = 'JO'
+  FCLNAME (Character 20) — LAST NAME
+  FCNUMBER (Character 6) — CUST NO Cust No When shmast.ftype = 'SO'
+  FCOLLECT (Character 3) — INITIALS - COLLECT
+  FCONFIRM (Character 1) — CONFIRMED
+  FCPHONE (Character 20) — PHONE NO Phone Number
+  FCPONO (Character 10) — PO NO PO No Links to POMAST whenever shmast.ftype = 'JO'
+  FCPRO_ID (Character 7) — WORK CENTER Work Center When shmast.ftype = 'JO'
+  FCSONO (Character 10) — SALES ORDER Sales Order When shmast.ftype = 'SO'
+  FCSOREV (Character 2) — SO REVISION SO Revision When shmast.ftype = 'SO'
+  FCSTATE (Character 20) — STATE State Shipped To
+  FCVENDNO (Character 6) — VENDOR NO Vendor No When shmast.ftype = 'VE'
+  FCZIP (Character 10) — POSTAL CODE Postal Code, Ship To
+  FENTER (Character 3) — INITIALS
+  FFOB (Character 20) — FOB Freight On Board
+  FFRTINVCD (Logica 1) — FRGT CHARGE COPIED
+  FLISINV (Logica 1) — INVOICED ? Invoicing Completed on All items When True, all related shitem record's fcstatus code == 'C' for
+  FLPICKPRIN (Logica 1) — PICK LIST PRT? Picking List Printed?
+  FLSHIPPRIN (Logica 1) — SHIPPER PRT? Shipper Printed?
+  FMREFERENC (Memo 4) — COMMENT
+  FMSTREET (Memo 4) — STREET ADDRESS Street Address (Shipped to)
+  FPOREV (Character 2) — PO REVISION
+  FSHIPDATE (Date 8) — SHIP DATE
+  FSHIPMEMO (Memo 4) — SHIP LIST MEMO
+  FSHIPNO (Character 10) — SHIPPER NUMBER
+  FSHIPVIA (Character 20) — SHIP VIA
+  FSHPTOADDR (Character 6) — SHIP TO ADDRESS KEY Ship-To Address Key When shmast.ftype = 'SO'
+  FTYPE (Character 2) — TYPE Type A SHIPPING LIST CAN BE CREATED IN FOUR WAYS:
+  START (Date 8) — CONFIRMATION DATE
+  FLPREMCV (Logica 1) — FLPREMCV Pre-Multi-Currency
+  FCSO_INUM (Character 3) — FCSO_INUM Internal Item Number on Sales Order
+  FCSONO_REL (Character 3) — FCSONO_REL Release Item Number on Sales Order
+
+## SHSRCE — SHIPPING LIST COST DETAIL
+  LOCATION (Character 20) — Ship Source Number Doc Number for Ship Source
+  INUMBER (Character 3) — Ship Source Item No Doc Item Number for Ship Source
+  IRELEASE (Character 3) — Ship Source Rels No Doc Release Number for Ship Source
+  BIN (Character 14) — Bin No
+  FAC (Character 20) — Facility
+  LOC (Character 26) — Location
+  SOURCE (Character 2)
+  SOURCETYPE (Character 2)
+  FCITEMNO (Character 6) — LINE ITEM
+  FCLOCATION (Character 16) — LOCATION Location (LO, PO, JO) + source Note:
+  FCSHIPNO (Character 10) — SHIPPER
+  FCSHIPSRCE (Character 3) — SOURCE SOURCE (IN, JO, PO)
+  FCSRCITMNO (Character 3) — SOURCE ITEM NUM Source Item Number
+  FLJOBCOST (Logica 1) — JOB COSTS
+  FNLABCOST (Numeric 16) — LABOR COST Unit Labor Cost
+  FNMATLCOST (Numeric 16) — MATERIAL COST Unit Material Cost
+  FNOTHRCOST (Numeric 16) — OTHER COST Unit Other Cost
+  FNOVHDCOST (Numeric 16) — O/H COST Unit O/H Cost
+  FNSHIPQTY (Numeric 14) — QTY SHIPPED
+  FNSTDCOST (Numeric 16) — STD COST Unit Standard Cost
+
+## SLCDPC — Customer Activity Log
+  FACTN_CMPL (Logica 1) — ACTION COMPLETE
+  FACTN_DATE (Date 8) — ACTION DATE
+  FACTN_TYPE (Character 1) — ACTION TYPE
+  FCJOB (Character 20) — JOB
+  FCOMMENTS (Memo 4) — COMMENTS
+  FCQUOTE (Character 10) — QUOTE
+  FCSO (Character 10)
+  FCUSTNO (Character 6) — CUST NUM
+  FNEXT_ACTN (Character 1) — NEXT ACTION
+  FNRELATE (Numeric 1)
+  FORIGIN (Character 15) — ORIGIN
+  FUNIQUE (Character 6) — UNIQUE
+  FWHO_BY (Character 15) — BY WHO
+  FWHO_FIRST (Character 15) — WHO FIRST
+  FWHO_TO (Character 25) — WHO TO
+
+## SLCDPMX — CUSTOMERS
+  fcsubstatus (Character 1) — User Defined Status
+  SUBTYPE (Character 15) — Customer Sub Type Customer Sub Type This field is used to identify customer sub type like Distributer,
+  FANN_SALES (Numeric 6) — ANNUAL SALES Annual Sales annual sales in thousands. This is a field generally only used for
+  FBACKLOG (Numeric 15) — ORDER BACKLOG Order Backlog order backlog. Shows how much sales order items remain
+  FBUS_TYPE (Memo 4) — BUSINESS TYPE Business Type Description of type of business this company is involved in. Generally
+  FCFNAME (Character 15) — CONTACT FIRST NAME First Name Of Primary Contact Person
+  FCITY (Character 20) — BILL TO CITY
+  FCOMPANY (Character 35) — BILL TO NAME
+  FCONTACT (Character 20) — CONTACT LAST NAME Last Name Of Primary Contact Person
+  FPHONE (Character 20) — CONTACT PHONE
+  FCOUNTRY (Character 25) — BILL TO COUNTRY BILL TO COUNTRY Bill-to country
+  FCPAYDEX (Character 3) — PAYDEX D & B paydex field
+  FCREATED (Date/Time 8) — DATE ENTERED Date This Customer Was Added To The System
+  FCRLIMIT (Numeric 15) — CREDIT LIMIT Customer Credit Limit
+  FCSHIPTO (Character 6) — SHIP TO KEY Syaddr.fcaddrkey For Default Ship To Address
+  FCSOLDTO (Character 6) — SOLD TO KEY Syaddr.fcaddrkey For Default Sold To Address
+  FCSTATUS (Character 1) — STATUS CUSTOMER STATUS
+  FCURRENCY (Character 3) — DEFAULT CURRENCY
+  FCUSRCHR1 (Character 20) — USER DEFINED CHAR #1 User Defined Character Field #1
+  FCUSRCHR2 (Character 40) — USER DEFINED CHAR #2 User Defined Character Field #2
+  FCUSRCHR3 (Character 40) — USER DEFINED CHAR #3 User Defined Character Field #3
+  FCUSTNO (Character 6) — CUSTOMER NO
+  FDBDATE (Date 8) — DATE OF D&B Applicable Date Of D & B Rating
+  FDBRATE (Character 4) — RATING D & B Rating
+  FDISRATE (Numeric 7) — DISCOUNT RATE Customer Discount
+  FDISTNO (Character 6) — DISTRIBUTOR
+  FDUSRDATE1 (Date 8) — USER DEFINED DATE #1 User Defined Date Field #1
+  FFAX (Character 20) — FAX
+  FFINCHARGE (Logica 1) — FINANCE CHARGE ? Finance Charge
+  FFOB (Character 20) — FOB Default FOB default FOB for this customer
+  FLLONGDIST (Logica 1) — LONG DISTANCE? Tells if this number is long distance
+  FMNOTES (Memo 4) — NOTES Notes special notes on this customer to pass on to sales and invoicing.
+  FMSTREET (Memo 4) — BILL TO STREET BILL TO STREET bill-to street
+  FMTDAMTNXT (Numeric 16) — NXT MOS SALES
+  FMTDSAMT (Numeric 16) — M-T-D SALES
+  FMUSRMEMO1 (Memo 4) — USER DEFINED MEMO #1 User Defined Memo Field #2
+  FNARDAYSLT (Numeric 16) — AVG DAYS LATE Average Days Late
+  FNO_EMPLOY (Numeric 5) — NO OF EMPLOYEES No Of People approximate number of employees in the company. Used to
+  FNUSRCUR1 (Numeric 16) — CURRENCY User-defined currency field
+  FNUSRQTY1 (Numeric 14) — QUANTITY User Defined Qty Field #1
+  FPAYTYPE (Character 1) — PAYMENT TYPE Payment type '1' = Cash '2' = COD '3' = Terms
+  FPRIORITY (Character 2) — PRIORITY RATING
+  FSALCOMPCT (Numeric 7) — COMMISSION RATE
+  FSALESPN (Character 3) — SALES PERSON SALESPERSON
+  FSHIPVIA (Character 20) — SHIP VIA
+  FSICNO1 (Character 4) — SIC # 1
+  FSICNO2 (Character 4) — SIC #2
+  FSINCE (Date/Time 8) — LAST CHANGED
+  FSTATE (Character 20) — BILL TO STATE
+  FTAXCODE (Character 10) — TAX LOCATION
+  FTAXEXEMPT (Character 15) — TAX EXEMPTION #
+  FTAXRATE (Numeric 7) — SALES TAX RATE
+  FTERM (Character 4) — TERMS
+  FTERR (Character 10) — TERRITORY
+  FTYPE (Character 1) — TYPE C= CustomerD= DistributorP= Prospect
+  FUSERCODE (Character 7) — USER DEFINED CODE SALES CODE FUSERCODE can be used as a salescode.
+  FYR_ESTAB (Character 4) — YEAR ESTABLISHED
+  FYTDSAMT (Numeric 15) — YTD SALES
+  FZIP (Character 10) — BILL TO ZIP CODE
+  FLISFCAST (Logica 1) — FLISFCAST Forcast Indicator
+  FLISTAXABL (Logica 1) — TAXABLE Taxable Customer
+  FCEMAIL (Character 60) — FCEMAIL Contact's E-mail Address
+  FCCRMACCT (Character 12) — CRM - SalesLogix ID CRM - SalesLogix ID for this customer
+  FNCRMMOD (0) — CRM - Owner of last CRM - Owner of last change
+  FSCMPRTY (4) — FSCMPRTY Priority for Advanced Planning
+  FDISTTYPE (Character 10) — Distribution Distribution type to support Zetadocs
+  NAICSCODE (Character 6)
+  FLEDITED (Logica 1) — Is in Edit Mode
+
+## SOANAL — SALES ORDER ANALYSIS
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FCPARTREV (Character 3) — REV Part Revision
+  FCCUSTNO (Character 6) — CUST NUM Customer Number
+  FCINUMBER (Character 3) — ITEM NUMBER
+  FCPARTNO (Character 35) — PART NUM Part Number
+  FCPRODCL (Character 2) — PROD CLASS Product Class
+  FCSONO (Character 10) — S.O. NUM Sales Order Number
+  FCTYPE (Character 1) — ENTRY TYPE Type of entry
+  FNBAKLOG00 (Numeric 14) — BACKLOG PERIOD 00
+  FNBAKLOG01 (Numeric 14) — BACKLOG PERIOD 01
+  FNBAKLOG02 (Numeric 14) — BACKLOG PERIOD 02
+  FNBAKLOG03 (Numeric 14) — BACKLOG PERIOD 03
+  FNBAKLOG04 (Numeric 14) — BACKLOG PERIOD 04
+  FNBAKLOG05 (Numeric 14) — BACKLOG PERIOD 05
+  FNBAKLOG06 (Numeric 14) — BACKLOG PERIOD 06
+  FNBAKLOG07 (Numeric 14) — BACKLOG PERIOD 07
+  FNBAKLOG08 (Numeric 14) — BACKLOG PERIOD 08
+  FNBAKLOG09 (Numeric 14) — BACKLOG PERIOD 09
+  FNBAKLOG10 (Numeric 14) — BACKLOG PERIOD 10
+  FNBAKLOG11 (Numeric 14) — BACKLOG PERIOD 11
+  FNBAKLOG12 (Numeric 14) — BACKLOG PERIOD 12
+  FNGRSPFT01 (Numeric 14) — GROSS PROFIT 01 Gross Profit period 01
+  FNGRSPFT02 (Numeric 14) — GROSS PROFIT 02 Gross Profit period 02
+  FNGRSPFT03 (Numeric 14) — GROSS PROFIT 03 Gross Profit period 03
+  FNGRSPFT04 (Numeric 14) — GROSS PROFIT 04 Gross Profit period 04
+  FNGRSPFT05 (Numeric 14) — GROSS PROFIT 05 Gross Profit period 05
+  FNGRSPFT06 (Numeric 14) — GROSS PROFIT 06 Gross Profit period 06
+  FNGRSPFT07 (Numeric 14) — GROSS PROFIT 07 Gross Profit period 07
+  FNGRSPFT08 (Numeric 14) — GROSS PROFIT 08 Gross Profit period 08
+  FNGRSPFT09 (Numeric 14) — GROSS PROFIT 09 Gross Profit period 09
+  FNGRSPFT10 (Numeric 14) — GROSS PROFIT 10 Gross Profit period 10
+  FNGRSPFT11 (Numeric 14) — GROSS PROFIT 11 Gross Profit period 11
+  FNGRSPFT12 (Numeric 14) — GROSS PROFIT 12 Gross Profit period 12
+  FNLABCST01 (Numeric 14) — LABOR COST 01 Labor Cost
+  FNLABCST02 (Numeric 14) — LABOR COST 02 Labor Cost
+  FNLABCST03 (Numeric 14) — LABOR COST 03 Labor Cost
+  FNLABCST04 (Numeric 14) — LABOR COST 04 Labor Cost
+  FNLABCST05 (Numeric 14) — LABOR COST 05 Labor Cost
+  FNLABCST06 (Numeric 14) — LABOR COST 06 Labor Cost
+  FNLABCST07 (Numeric 14) — LABOR COST 07 Labor Cost
+  FNLABCST08 (Numeric 14) — LABOR COST 08 Labor Cost
+  FNLABCST09 (Numeric 14) — LABOR COST 09 Labor Cost
+  FNLABCST10 (Numeric 14) — LABOR COST 10 Labor Cost
+  FNLABCST11 (Numeric 14) — LABOR COST 11 Labor Cost
+  FNLABCST12 (Numeric 14) — LABOR COST 12 Labor Cost
+  FNLABCST13 (Numeric 14) — LABOR COST 13 Labor Cost
+  FNMATCST01 (Numeric 14) — MATERIAL COST01
+  FNMATCST02 (Numeric 14) — MATERIAL COST02
+  FNMATCST03 (Numeric 14) — MATERIAL COST03
+  FNMATCST04 (Numeric 14) — MATERIAL COST04
+  FNMATCST05 (Numeric 14) — MATERIAL COST05
+  FNMATCST06 (Numeric 14) — MATERIAL COST06
+  FNMATCST07 (Numeric 14) — MATERIAL COST07
+  FNMATCST08 (Numeric 14) — MATERIAL COST08
+  FNMATCST09 (Numeric 14) — MATERIAL COST09
+  FNMATCST10 (Numeric 14) — MATERIAL COST10
+  FNMATCST11 (Numeric 14) — MATERIAL COST11
+  FNMATCST12 (Numeric 14) — MATERIAL COST12
+  FNMATCST13 (Numeric 14) — MATERIAL COST13
+  FNNETPRICE (Numeric 14) — NET PRICE
+  FNORDERQTY (Numeric 14) — ORDER QTY
+  FNORDERS00 (Numeric 14) — ORDERS00
+  FNORDERS01 (Numeric 14) — ORDERS01
+  FNORDERS02 (Numeric 14) — ORDERS02
+  FNORDERS03 (Numeric 14) — ORDERS03
+  FNORDERS04 (Numeric 14) — ORDERS04
+  FNORDERS05 (Numeric 14) — ORDERS05
+  FNORDERS06 (Numeric 14) — ORDERS06
+  FNORDERS07 (Numeric 14) — ORDERS07
+  FNORDERS08 (Numeric 14) — ORDERS08
+  FNORDERS09 (Numeric 14) — ORDERS09
+  FNORDERS10 (Numeric 14) — ORDERS10
+  FNORDERS11 (Numeric 14) — ORDERS11
+  FNORDERS12 (Numeric 14) — ORDERS12
+  FNOVHCST01 (Numeric 14)
+  FNOVHCST02 (Numeric 14)
+  FNOVHCST03 (Numeric 14)
+  FNOVHCST04 (Numeric 14)
+  FNOVHCST05 (Numeric 14)
+  FNOVHCST06 (Numeric 14)
+  FNOVHCST07 (Numeric 14)
+  FNOVHCST08 (Numeric 14)
+  FNOVHCST09 (Numeric 14)
+  FNOVHCST10 (Numeric 14)
+  FNOVHCST11 (Numeric 14)
+  FNOVHCST12 (Numeric 14)
+  FNOVHCST13 (Numeric 14)
+  FNSHPMNT00 (Numeric 14) — SHIPMENT00
+  FNSHPMNT01 (Numeric 14) — SHIPMENT01
+  FNSHPMNT02 (Numeric 14) — SHIPMENT02
+  FNSHPMNT03 (Numeric 14) — SHIPMENT03
+  FNSHPMNT04 (Numeric 14) — SHIPMENT04
+  FNSHPMNT05 (Numeric 14) — SHIPMENT05
+  FNSHPMNT06 (Numeric 14) — SHIPMENT06
+  FNSHPMNT07 (Numeric 14) — SHIPMENT07
+  FNSHPMNT08 (Numeric 14) — SHIPMENT08
+  FNSHPMNT09 (Numeric 14) — SHIPMENT09
+  FNSHPMNT10 (Numeric 14) — SHIPMENT10
+  FNSHPMNT11 (Numeric 14) — SHIPMENT11
+  FNSHPMNT12 (Numeric 14) — SHIPMENT12
+  FNSHPMNT13 (Numeric 14) — SHIPMENT13
+
+## SOCBOM — SALES ORDER CASUAL BOM
+  FBOMDESC (Memo 4) — DESCRIPTION Description Of The Component In The Bom
+  FINUMBER (Character 3) — ITEM NO Internal Item Number
+  FMATLCOST (Numeric 20) — MATERIAL COST
+  FSEQNO (Character 3) — SEQUENCE NO Sequence Number Of The Bom Description & Cost
+  FSONO (Character 10) — SALES ORDER Sales Order Number
+
+## SOCHNG — SALES ORDER STATUS CHANGES
+  FCCHANGEBY (Character 3) — RESPONSIBLE Initials of the person who entered change
+  FCFNAME (Character 15) — FIRST NAME First name of contact person
+  FCLNAME (Character 20) — LAST NAME Last name of contact person
+  FDATE (Date 8) — DATE date of this change
+  FMDISP (Memo 4) — DISPOSITION Disposition memo to describe revision
+  FMREASON (Memo 4) — REASON reason for this change in status/ revision
+  FNCOST (Numeric 20) — COST Fncost
+  FNINVAMT (Numeric 20) — INV AMT Fninvamt
+  FNLABOR (Numeric 20) — LABOR Fnlabor
+  FNMETHOD (Numeric 1) — METHOD method for handling costs in a cancelled SO
+  FNPRICE (Numeric 20) — PRICE Net Price of order at time of this change.
+  FNPURCOST (Numeric 20) — PUR COST Fnpurcost
+  FSONO (Character 10) — SO NO Sales Order number
+  FSOREV (Character 2) — SO REV Revision number of SO
+  FSTATUS (Character 20) — STATUS Status to change to
+  FINUMBER (Character 3) — ITEM NUMBER SALES ORDER ITEM NUMBER
+  FRELEASE (Character 3) — RELEASE NUMBER SALES ORDER RELEASE
+
+## SOCRTG — SALES ORDER CASUAL RTG
+  FINUMBER (Character 3) — ITEM NUMBER Internal Item Number
+  FRATE (Numeric 11) — HOURLY RATE Hourly rate for this operation
+  FRTGDESC (Memo 4) — COMP DESC Description Of The Component In The Routing
+  FSEQNO (Character 3) — SEQUENCE NO Sequence Number Of The Routing Description & Time
+  FSONO (Character 10) — QUOTE NO Quote Number
+  FTIME (Numeric 11) — OPERATION TIME Time Of The Operation In The Routing
+
+## SODBOM — SALES ORDER DETL BOM
+  FBOMDESC (Memo 4) — DESCRIPTION Part Description For This Component
+  FBOMINUM (Character 4) — COMPONENT PART NO Internal Item Number Used In Primary Key.
+  FBOMLCOST (Numeric 20) — LABOR COST Labor Cost Transferred From Inventory When User Wa
+  FBOMMEAS (Character 3) — U/M Unit Of Measure
+  FBOMOCOST (Numeric 20) — OVHD COST Overhead Cost From Inventory When Labor,material A
+  FBOMPART (Character 25) — PART NO Inventory Part Number
+  FBOMREV (Character 3) — PART REVISION NO Revision Number For This Component Part Number
+  FBOMSOURCE (Character 1) — SOURCE Source Of This ComponentM - MakeB - BuyS - Stoc
+  FCLOTEXT (Character 1) — TEXT LOC
+  FCOSTFROM (Character 6) — RFQ NO Rfq Number That Cost Is Derived From
+  FEXTQTY (Numeric 14) — TOTAL QTY If Flextend, This Is Ftotqty * (fextqty Of Parent
+  FFIXCOST (Numeric 20) — FIXED COST Fixed Costs For This Component.
+  FINUMBER (Character 3) — SO ITEM NO Sales Order Item Number
+  FITEM (Character 6) — UNIQUE ITEM NO User Defined Item Number ( Only Used If Specified
+  FLABCOST (Numeric 20) — LABOR COST Total Labor $ For All Rtg Opers For This Part
+  FLABSETCOS (Numeric 20) — LABOR SETUP Total Labor Setup Cost Labor
+  FLASTOPER (Numeric 4) — NEXT OPER NO The Next Operation Number That Will Be Assigned To
+  FLEVEL (Character 2) — LEVEL Level Of This Component ( Sales Order Item Is At
+  FLEXTEND (Logica 1) — EXTEND QTY? If .t., The Total Quantity Is The Unit Qty * Exten
+  FLLOTREQD (Logica 1) — LOT REQUIRED?
+  FLTOOLING (Logica 1) — TOOLING? If .t. , All Material Cost Of This Item Will Be Co
+  FMATLCOST (Numeric 16) — MATERIAL COST Material Cost Of This Component.
+  FNONPRO (Numeric 3) — NON-PROPORTIONAL OPS The Number Of Non-proportional Operations In This
+  FNUMOPERS (Numeric 4) — NUMBER OF OPERATIONS Total Number Of Operations For This Items Routing.
+  FOTHRCOST (Numeric 20) — TOT OTHR COST Total Other $ For All Rtg Opers For This Part
+  FOVHDCOST (Numeric 20) — EST OVHD COST Estimated overhead cost of this item this estimate is from item master
+  FOVRHDSETC (Numeric 20) — TOT OVHD SETUP Totol Overhead Setup Cost
+  FPARINUM (Character 4) — PARENT ITEM NO Internal Item No Of Parent For This Component.
+  FSONO (Character 10) — S O NO Sales Order Number
+  FSTDMEMO (Memo 4) — ITEM MEMO
+  FSUBCOST (Numeric 20) — TOT SUB COST Total Sub-contr $ For All Rtg Opers For This Part
+  FTOTPTIME (Numeric 13) — UNIT QTY Total Production Time For This Component's Routing
+  FTOTQTY (Numeric 14) — TOT QTY Total Quantity
+  FTOTSTIME (Numeric 13) — TOTAL SETUP TIME Total Setup Time Involved In This Component's Rout
+  FVENDNO (Character 6) — VENDOR The Vendor Selected To Buy From
+  FAC (Character 20) — Facility
+  FCBOMUDREV (Character 3) — Bom User Defined Rev Bom's User Defined Rev
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNOPERNO (Numeric 4) — OPER NO NEEDED AT Routing Operation Number where material is needed
+
+## SODISP — SALES ORDER DISPOSITIONS
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FPARTREV (Character 3) — REV Part Revision
+  FCOMPANY (Character 35) — COMPANY Customer name
+  FCPONO (Character 10) — PO NO PO that needs a disposition
+  FDISP (Character 15) — DISPOSITION Disposition of this PO or Job
+  FDUEDATE (Date 8) — DUE DATE Fduedate
+  FJOBNO (Character 20) — JOB NO Job Order that needs disposition
+  FPARTNO (Character 25) — PART NO Part number this po or job relates to
+  FREV (Character 2) — REVISION New revision number
+  FREV_DT (Date 8) — REV_DATE Date this sales order was revised
+  FSONO (Character 6) — SALES ORDER NO Sales Order number
+
+## SODRTG — SALES ORDER DETL RTG
+  FBOMINUM (Character 4) — INERNAL KEY Internal Key Used To Link Rtg Oopers & Del'l Bom
+  FCHNGRATES (Character 1) — RESET RATES 'y' Or ' ' - Ok. To Reset Rates From Work Center
+  FCSTDDESC (Character 4) — STD DESC NO This Is The Standard Description Number Pulled In
+  FDESCRIPT (Memo 4) — OPERATION DESC Operation Description
+  FELPSTIME (Numeric 7) — SUBCONTRACT TIME Elapsed Time Of Subcontract
+  FFIXCOST (Numeric 16) — SUB FIXED COST Fix Cost Of Subcontract
+  FINUMBER (Character 3) — ITEM NO Internal Item Number
+  FLABORUTIL (Numeric 6) — LABOR UTIL % Labor Utilization %
+  FLSCHEDULE (Logica 1) — SCHEDULE? If true, this item should be scheduled
+  FMOVETIME (Numeric 7) — MOVE TIME Item Move Time
+  FOPERMEMO (Memo 4) — OPERATION MEMO
+  FOPERNO (Numeric 4) — OPERATION NO Operation Number
+  FOPERQTY (Numeric 18) — OPERATION QTY Operation Quantity THIS QTY IS FOR ONE OF THE QUOTE ITEM ESTIMATE QTY
+  FOTHRCOST (Numeric 16) — OTHER COST Other Cost Of Operation
+  FPRO_ID (Character 7) — W/C ID Work Center Id
+  FSETUPTIME (Numeric 6) — SETUP TIME Operation Setup Time
+  FSONO (Character 10) — SO NO SO Number
+  FULABCOST (Numeric 6) — LABOR COST Unit Labor Cost For Work Center Fpro_id
+  FUOVRHDCOS (Numeric 6) — OVHD COST Unit Overhead Cost For Work Center Fpro_id
+  FUPRODTIME (Numeric 15) — PROCESS TIME Process Time Per Unit
+  FUSUBCOST (Numeric 16) — SUB COST UNIT Subcontract Cost Per Unit
+  FLLOTREQD (Logica 1) — LOT REQUIRED
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FNSIMULOPS (2) — Simultaneous Ops Simultaneous operations consumed by the operation
+  FYIELD (Numeric 12) — FYIELD Yield Percentage for Advanced Planning
+  CYCLEUNITS (Numeric 13) — X830DRTG
+  UNITSIZE (Numeric 13) — X830DRTG
+  FSETYIELD (Numeric 8) — SETUP YIELD Setup yield for an operation
+
+## SOHIST — Sales Order Monthly Totals
+  FCMONTH (Character 2) — MONTH Month these orders were opened in
+  FCUSTNO (Character 6) — CUSTOMER NUMBER
+  FCYEAR (Character 4) — YEAR Year of this record total
+  FMTDSAMT (Numeric 16) — SALES AMOUNT Amount sold to this customer this month
+
+## SOITEM — SALES ORDER LINE ITEMS
+  FAUTOCREAT (Logica 1) — AUTOCREATE JOB? Auto Create J.o For This Item?
+  FCAS_BOM (Logica 1) — CASUAL BOM? Is there a casual BOM?
+  FCAS_RTG (Logica 1) — CASUAL RTG? Is there a casual routing?
+  FCFROMITEM (Character 3) — NO COPIED FR If copied, item number copied from
+  FCFROMNO (Character 6) — JOB/QUOTE COPIED If copied, So, job or Quote No. copied from
+  FCFROMTYPE (Character 6) — CREATED FROM Where This Item Was Copied From: So = Sales Order
+  FCLOTEXT (Character 1) — TEXT LOC
+  FCOMMPCT (Numeric 7) — COMM PRCNT ITEM Marcel Custom - Commission Pct For Item
+  FCPRODID (Character 6) — PRODUCT ID Product ID of product used to CONFIGURE this item
+  FCUSTPART (Character 25) — CUSTOMER PART NO Customer Part Number
+  FCUSTPTREV (Character 3) — CUST PART REV Customer Part Revision
+  FDESC (Memo 4) — ITEM DESC Short Desc - Will Appear On S.o. Acknowledgement
+  FDESCMEMO (Memo 4) — MEMO FIELD Memo Field For Description
+  FDET_BOM (Logica 1) — DETAIL BOM? Is there a detailed BOM?
+  FDET_RTG (Logica 1) — DETAIL RTG? Is there a detailed Routing?
+  FDUEDATE (Date 8) — DUE DATE Date this item is due to ship
+  FENUMBER (Character 3) — SO ITEM NO S.o. Item Number - Displayed To The User
+  FFIXACT (Numeric 16) — SUB COSTS Fixed costs - total from subcontract operations
+  FGROUP (Character 6) — GRP CODE Group Code
+  FINUMBER (Character 3) — INTRNL ITEM NO Internal Item Number
+  FLABACT (Numeric 16) — LABR COST (CAS) Unit labor costs - from casual or detailed routing
+  FLLOTREQD (Logica 1) — LOT REQUIRED?
+  FMATLACT (Numeric 16) — MATL COSTS Unit Material costs - from casual or detailed BOM.
+  FMEASURE (Character 3) — U/M Unit Of Measure For The Part No./name
+  FMULTIPLE (Logica 1) — MULT RELEASE? 'y' If It's A Multiple Release Item
+  FNEXTINUM (Numeric 4) — NXT ITEM NO
+  FNEXTREL (Numeric 3) — NXT REL NO Next Release Number To Be Assigned
+  FNOVER (Numeric 11) — OVER
+  FNUNDER (Numeric 11) — UNDER
+  FORDERTYPE (Character 3) — ORDER TYPE 'f' = Fixed Price Order, 'o' = Open Order
+  FOTHRACT (Numeric 16) — OTHR ACT
+  FOVHDACT (Numeric 16) — OVHD ACT
+  FPARTNO (Character 25) — PART NO Part No.
+  FPARTREV (Character 3) — REV Part Revision
+  FPRICE (Logica 1) — PRICE
+  FPRINTMEMO (Logica 1) — PRT MEMO? 'y' - Print Memo On Acknow., 'n' - Don't Print
+  FPRODCL (Character 4) — PROD CLASS Product Class
+  FQUANTITY (Numeric 16) — QTY
+  FQUOTEQTY (Numeric 14) — QUOTE QTY
+  FRTGSETUPA (Numeric 16) — RTG SETUP
+  FSCHECODE (Character 6) — PRICE SCHEDULE Price Schedule Code
+  FSHIPITEM (Logica 1) — SALESPERSON If This Item Can Be Shipped, Fshipitem = .t.
+  FSOLDBY (Character 3) — SALESMAN Marcel Custom - Salesman For Item
+  FSONO (Character 10) — SALES ORDER Sales Order Number
+  FSOURCE (Character 1) — SOURCE Source 'S' - Stock
+  FSTANDPART (Logica 1) — STD PART If This Part Has Not Been Changed, Then Any Job Or
+  FSUBACT (Numeric 16) — SUB ACT
+  FSUMMARY (Logica 1) — SUMMARY
+  FTAXCODE (Character 3) — TAX CODE Marcel Custom - Tax Code For Item
+  FTAXRATE (Numeric 7) — TAX RATE Marcel Custom - Tax Rate For Item
+  FTNUMOPER (Numeric 6) — NO OF OPERS
+  FTOOLACT (Numeric 16) — TOOLING ACT
+  FTOTNONPR (Numeric 4) — TOT NON PROD TIME
+  FTOTPTIME (Numeric 14) — TOT PROD TIME
+  FTOTSTIME (Numeric 14) — TOT SETUP TIME
+  FULABCOST1 (Numeric 6) — LABR COST Unit Labor Cost For Item
+  FVIEWPRICE (Logica 1) — VIEW PRICE
+  FCALTUM (Character 3) — Alt. U/M Alternate Unit Of Measure
+  FNALTQTY (Numeric 17) — Alt. Qty. Quantity in Alternate Unit of Measure
+  FAC (Character 20) — Facility
+  FCUDREV (Character 3) — User Defined Rev
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  ITCCOST (Numeric 17) — In Transite Costs
+  SFAC (Character 20) — Source Facility
+  FSCHEDTYPE (Character 1) — SCHED TYPE
+  MANUALPLAN (Logica 0) — Manually Planned Requires manual planning
+  FCITEMSTATUS (Character 20) — LINE ITEM STATUS SALES ORDER LINE ITEM STATUS
+  FDCREATEDDATE (Date 0) — Item Created Date
+  FDREQUESTDATE (Date 0) — Request Date
+  FDMODIFIEDDATE (Date 0) — Item Modified Date
+
+## SOITMCMP — Custom table
+  IDENTITY_COL (4) — IDENTITY_COLUMN
+  FCCOMM (Character 2)
+  FCINUMBER (Character 3)
+  FCSONO (Character 6)
+
+## SOMAST — Sales Order Master
+  FPRIORITY (4) — FPRIORITY Priority for Advanced Planning
+  FCCOMMCODE (Character 10) — Commission Code
+  FSALESCODE (Character 7) — SALES CODE
+  FNDPSTRQD (Numeric 16) — DEPOSIT REQUIRD Deposit Required
+  FNDPSTRCVD (Numeric 16) — DEPOSIT RECEIVED
+  FLPROFRQD (Logica 1) — INVOICE REQUIRD Pro-Forma Invoice Required
+  FLPROFPRTD (Logica 1) — INVOICE REQUIRD Pro-Forma Invoice Printed
+  FEUROFCTR (Numeric 16) — CONVER FACT EURO Conversion Factor to the Euro Currency
+  FDEURODATE (Date 8) — CONVER DATE EURO Conversion Factor Date for the Euro Curr Factor
+  FNCANCCHRGE (Numeric 16) — FNCANCCHRGE Customer Sales Order Number
+  FLCHGPND (Logica 1) — FLCHGPND Change Pending
+  FLLASTECO (Character 25) — FLLASTECO Last Eco Number
+  FCCONTKEY (Character 10) — Contract Code
+  FLCONTRACT (Logica 0) — Based on Contract
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FACKDATE (Date 8) — ACK DATE Date Order Was Acknowledged
+  FACKMEMO (Memo 4) — ACK MEMO Memo Printed On The Sales Order Acknowledgement
+  FCANC_DT (Date 8) — CANCL DATE Date The Order Was Cancelled
+  FCCURID (Character 3) — ALT CURRENCY SO Transaction Currency
+  FCFACTOR (Numeric 22) — CONV FACTOR Conversion Factor This field was previously a character expression, but now holds a
+  FCFNAME (Character 15) — NAME
+  FCFROMNO (Character 6) — FROM NO
+  FCFROMTYPE (Character 5) — FROM TYPE
+  FCITY (Character 20) — CITY
+  FCLOS_DT (Date 8) — DATE ORD CLSD Date The Order Was Closed
+  FCOMPANY (Character 35) — COMPANY Company Name
+  FCONTACT (Character 30) — CONTACT NAME
+  FCOUNTRY (Character 25) — COUNTRY
+  FCUSRCHR1 (Character 20) — USER DEF 1 User Defined Character Field #1
+  FCUSRCHR2 (Character 40) — USER DEF 2 User Defined Character Field #2
+  FCUSRCHR3 (Character 40) — USER DEF 3 User Defined Character Field #3
+  FCUSTNO (Character 6) — CUST NO
+  FCUSTPONO (Character 20) — CUST PO NO Customer Purchase Order Number Was 15 characters in DOS. Expanded to 20 so it would match field
+  FDCURDATE (Date 8) — FACTOR DATE Date of Alt Currency Conversion Factor
+  FDISRATE (Numeric 7) — DISC RATE Discount Rate
+  FDISTNO (Character 6) — DIST NO Distributor Number
+  FDUEDATE (Date 8) — DUE DATE
+  FDUPLICATE (Logica 1) — PRINT DUP? If .t., Print 'duplicate' On The Sales Order
+  FDUSRDATE1 (Date 8) — USER DEF DT 1 User Defined Date Field #1
+  FESTIMATOR (Character 3) — ESTIMATOR Person Who Made The Estimate
+  FFAX (Character 20) — FAX FAX NUMBER
+  FFOB (Character 20) — FOB Freight On Board Point
+  FMSTREET (Memo 4) — SOLD-TO ADDRESS
+  FMUSRMEMO1 (Memo 4) — USER DEF MEMO USER DEFINED MEMO FIELD
+  FNEXTENUM (Character 3) — NXT EXT NO Next External Number To Assign To New Item
+  FNEXTINUM (Character 3) — NXT INT NO Next Internal Number To Assign To New Item
+  FNUSRCUR1 (Numeric 16) — USER CUR 1 User Defined Amount Field #1
+  FNUSRQTY1 (Numeric 14) — USER QTY User Defined Qty Field #1
+  FORDERDATE (Date 8) — ORDER DATE
+  FORDERNAME (Character 65) — SO DESCRIPTION Sales Order Name
+  FORDREVDT (Date 8) — SO REV DATE Order Date Revision
+  FPAYTYPE (Character 1) — PAY TYPE '1' = Cash, '2'= C.o.d., '3' = Other
+  FPHONE (Character 20) — PHONE Phone Number
+  FPRINTED (Logica 1) — PRINTED? .t. If The Sales Order Acknowledgement Was Printed
+  FPRINT_DT (Date 8) — PRINT DATE
+  FSALCOMPCT (Numeric 7) — SALES COM PCT
+  FSALECOM (Logica 1) — SALE COM Have Sales Commissions Been Entered Fof This S.o.
+  FSHIPVIA (Character 20) — SHIP VIA
+  FSHPTOADDR (Character 6) — SHIP ADDRESS Ship To Address
+  FSOCOORD (Character 3) — COORDINATOR Sales Order Coordinator
+  FSOLDADDR (Character 6) — SOLD ADDR Sold-to Address Of The Customer
+  FSOLDBY (Character 3) — SOLD BY
+  FSONO (Character 10) — ORDER Customer Sales Order Number
+  FSOREV (Character 2) — S.O. REVISION NUM Sales Order Revision Number
+  FSTATE (Character 20) — STATE
+  FSTATUS (Character 20) — STATUS INDICATES THE STATUS OF THE SALES ORDER 'STARTED' = ORDER STARTED BUT NOT ACKNOWLEGDED.
+  FTAXCODE (Character 3) — SALES TAX CD Sales Tax Code
+  FTAXRATE (Numeric 7) — TAX RATES Tax Rate ***OBSOLETE*** Not used for Complex Taxes
+  FTERM (Character 4) — TERMS Terms For A Cash Payment THE FIRST SEVEN POSITIONS OF FTERM INDICATE THE
+  FTERR (Character 10) — TERRITORY Internal Name/no Which Defines A Sales Territory
+  FUSERCODE (Character 7) — USER CODE
+  FZIP (Character 10) — ZIP CODE
+  FBILLADDR (Character 6) — Bill To Address
+  CONTRACTNU (Character 10) — CONTRACT NUMBER
+
+## somast_ext
+  FORDBY (Character 35) — Ordered By
+  FBUILDNO (Character 10) — Building No.(GE)
+
+## SOMASTAD
+  FSONO (Character 6)
+  FORDBY (Character 35)
+  FBUILDNO (Character 10)
+  FBUILDNOX (Character 10)
+
+## SORCOM — Commissions
+  FSONO (Character 6) — SALES ORDER Sales Order No
+  FRELEASE (Character 3) — Release
+  FINUMBER (Character 3) — Item Number
+  FSALESPN (Character 3) — Salesperson
+  FNRATE (Numeric 8) — Commission Rate
+  FLRATE2 (Logica 1) — Using Rate 2?
+
+## SORELS — SALES ORDER RELEASES
+  FPRIORITY (4) — FPRIORITY Priority for Advanced Planning
+  FLATP (Logica 1) — FLATP ATP Approved
+  FCBIN (Character 14) — Bin number
+  FCLOC (Character 14) — Location of part
+  FCPBTYPE (Character 1) — Progress Billing Typ Progress Billing Type Progress Billing Type associated with this Line Item/Release. "P" =
+  FCUDREV (Character 3) — User Defined Rev
+  FNDBRMOD (Numeric 1) — Modified by Synchronizer?
+  FLJRDIF (Logica 1) — JURISDICTION DIFFERS
+  FLISTAXABL (Logica 1) — TAXABLE Taxable Item
+  FUNETTXNPRIC (Numeric 16) — Unit Price in TXN Cu Unit Price in TXN Currency
+  FNETTXNPRICE (Numeric 16) — NET PRICE TRANS Net Price for the Transaction Currency
+  FUNETEUROPR (Numeric 16) — UNIT PRICE EURO Unit Price in the Euro Currency
+  FNETEUROPR (Numeric 16) — NET PRICE EURO Net Price in the Euro Currency
+  FDISCPCT (Numeric 16) — Discount Percentage FDISCPCT
+  FPARTREV (Character 3) — REV Part Revision
+  FAVAILSHIP (Logica 1) — AVAIL SHIP Item Is/is Not Available For Shipment [y/n]
+  FBOOK (Numeric 14) — STOCK QTY.
+  FBQTY (Numeric 14) — PLANNED BUY QTY Buy Qty.
+  FDELIVERY (Memo 4) — DELIVERY NOTES
+  FDISCOUNT (Numeric 16) — DISCOUNT Total Discount Amount (re: price summary) Discount per unit is fDiscount / fOrderQty
+  FDUEDATE (Date 8) — DUE DATE SALES ORDER RELEASE DUE DATE
+  FENUMBER (Character 3) — ITEM NUMBER External Item number - this is what the user sees
+  FINUMBER (Character 3) — ID NUMBER Id Number - used to link items to rest of system
+  FINVAMOUNT (Numeric 16) — INVOICED AMOUNT Invoiced To Date Amount
+  FINVQTY (Numeric 14) — QTY INVOICED Quantity Invoiced To Date
+  FJOB (Logica 1) — JOB ORDER EXISTS Does A Job Order Exist For This Order
+  FJOQTY (Numeric 14) — JO QTY Total Qty of job orders for this release
+  FLABCOST (Numeric 16) — EST LABOR Estimated Total Labor Cost
+  FLNGTH (Numeric 14) — LNGTH Unused Coated -- Length
+  FLSHIPDATE (Date 8) — LAST SHIPPED Items Were Last Shipped On This Date
+  FMASTERREL (Logica 1) — MASTER RELEASE
+  FMATLCOST (Numeric 16) — MATERIAL COST Estimated Total Material Cost from price summary
+  FMAXQTY (Numeric 14) — MAX QTY Max Qty Which Can Be Shipped Before The Due Date
+  FMQTY (Numeric 14) — PLANNED MAKE QTY Total qty being made in job orders
+  FMSI (Numeric 14) — MSI Unused Coated -- Msi (converted Value)
+  FNETPRICE (Numeric 16) — NET PRICE
+  FNINVSHIP (Numeric 14) — INV FROM SHIPPERS Qty Invoiced to date from Shippers Used to calculate 'Open' Qty... i.e. Qty that can be shipped/invoiced
+  FNPURVAR (Currency 8) — PURCH PRICE VARIANCE Purch Price Variance Total
+  FNRETPOQTY (Numeric 16) — QTY RETURNED ON PO Qty Returned on Vendor Return PO's
+  FORDERQTY (Numeric 14) — ORDER QTY Quantity Ordered
+  FOTHRCOST (Numeric 16) — EST OTHER COSTS Estimated Total Other Costs from price summary
+  FOVHDCOST (Numeric 16) — EST O/H Estimated Total O/h Costs from price summary
+  FPARTNO (Character 25) — ITEM Part No.
+  FPOQTY (Numeric 14) — PURCHASED QTY total qty being purchased in PO's
+  FPOSTATUS (Character 10) — PO NO A recent Purchase Order Number
+  FQUANT (Numeric 14) — QUANT Unused Coated -- Quantity
+  FRELEASE (Character 3) — RELEASE NO Release No.
+  FSETUPCOST (Numeric 16) — EST SETUP COST Estimated Set-up from detailed routing
+  FSHIPBOOK (Numeric 14) — SHIP BOOK Portion Of Stocked Quantity That Has Been Shipped
+  FSHIPBUY (Numeric 14) — SHIP BUY Portion Of Bought Quantity That Has Been Shipped
+  FSHIPMAKE (Numeric 14) — SHIP MAKE Portion Of Made Quantity That Has Been Shipped
+  FSHPBEFDUE (Logica 1) — SHP BEF DUE 'y' If The Item Can Be Shipped Before It's Due
+  FSHPTOADDR (Character 6) — SHIP TO KEY Key To Syaddr Ship To Address ACTUAL ADDRESS IS TAKEN FROM THE
+  FSONO (Character 10) — SALES ORDER Sales Order No
+  FSPLITSHP (Logica 1) — SPLIT SHP Are Split Shipments Ok?
+  FSTATUS (Character 20) — JOB NO. A Recent Job No for this Item
+  FSTKQTY (Numeric 14) — STK QTY Qty Which Has Been Reserved In Stock
+  FSUBCOST (Numeric 16) — SUB-CONTRACT COST Estimated Sub-contract Cost from Price Summary
+  FTOOLCOST (Numeric 16) — TOOLING COST Estimated Tooling Cost from Price Summary
+  FTOSHPBOOK (Numeric 14) — TO SHP BOOK Booked Qty To Be Shipped From Unconfirmed Shipment
+  FTOSHPBUY (Numeric 14) — TO SHP BUY Bought Qty To Be Shipped From Unconfirmed Shipment
+  FTOSHPMAKE (Numeric 14) — TO SHP MAKE Made Qty To Be Shipped From Unconfirmed Shipment
+  FUNETPRICE (Numeric 16) — UNIT PRICE (NET) Unit Price Note: fdiscount + fUnetPrice = List Price of this item release. At
+  FVENDNO (Character 6) — VENDOR NO Vendor Number
+  FWIDTH (Numeric 14) — WIDTH Unused Coated -- Width
+  EARLYDAYS (Numeric 11) — SO early ship (days)
+  FCRELSSTATUS (Character 20) — RELEASE STATUS SALES ORDER RELEASE STATUS
+  FNISOQTY (Numeric 15) — ISO Quantity
+  FLINVCPOSS (Logica 0) — Qty still to be invoiced on this item?
+  FDMODIFIEDDATE (Date 0) — Item Modified Date
+  FDCREATEDDATE (Date 0) — Item Created Date
+  FDREQUESTDATE (Date 0) — Request Date
+
+## sorels_ext
+  FGEPONO (Character 20) — Customer PO No.
+  FREFNAME (Character 35) — Ref. Name
+  FCUSTNOTES (Memo 0) — Customer Notes
+  FORDERBY (Character 35) — Order By
+  FDEDATE (Date/Time 0) — Release Date
+
+## SORELSAD
+  FINUMBER (Character 3)
+  FRELEASE (Character 3)
+  FSONO (Character 6)
+  FGEPONO (Character 20)
+  FREFNAME (Character 35)
+  FCUSTNOTES (Memo 4)
+  FORDERBY (Character 35)
+  FDEDATE (Date/Time 8)
+
+## SOSHIP — SHIPPING TO INFORMATION
+  FCSONO (Character 10) — FCSONO Sales Order Shipping Number
+  FCENUMBER (Character 3) — FCENUMBER Sales Order External Item Number
+  FCINUMBER (Character 3) — FCINUMBER Sales Order Internal Item Number
+  FCRELEASE (Character 3) — FCRELEASE Sales Order Release
+  FCCOMPANY (Character 35) — FCCOMPANY Sales Order, Company
+  FMSTREET (Memo 4) — FMSTREET Sales Order, Street
+  FCCITY (Character 20) — FCCITY Sales Order, City
+  FCSTATE (Character 20) — FCSTATE Sales Order, State
+  FCZIP (Character 10) — FCZIP Sales Order, Zip Code
+  FCCOUNTRY (Character 25) — FCCOUNTRY Sales Order, Country
+  FCPHONE (Character 20) — FCPHONE Sales Order, Phone Number To Contact
+  FCFAX (Character 20) — FCFAX Sales Order, Fax Number To Contact
+
+## SOTAX — FINANCIAL - COMPLEX TAX CODES SALES ORDERS
+  FSONO (Character 6) — SALES ORDER Sales Order Number
+  FINUMBER (Character 3) — ITEM NO Sales Order Item Number
+  FRELEASE (Character 3) — RELEASE NO Sales Order Release Number
+  FCJRDICT (Character 10) — JURISDICTION NAME
+  FCTAXCODE (Character 10) — TAX CODE
+  FNORDER (4) — ORDER Tax Code Order
+
+## SYADDR — LINKED ADDRESSES
+  FCJRDICT (Character 10) — JURISDICTION NAME
+  FAC (Character 20) — Facility
+  FCCRMADDRS (Character 12) — CRM - SalesLogix ID CRM - SalesLogix ID for this Address
+  FCLOC (Character 14) — Locations
+  FNCRMMOD (0) — CRM - Owner of last CRM - Owner of last change
+  FCEMAIL (Character 60) — FCEMAIL Contact's E-mail Address
+  FCADDRKEY (Character 6) — KEY Key Address Key (user definable) Unique for this alias + key + type of
+  FCADDRTYPE (Character 1) — TYPE Type 'S'- Ship To type, 'O' = Sold To type, + others as user defines
+  FCALIAS (Character 10) — PARENT TABLE
+  FCALIASKEY (Character 6) — ACCOUNT ID Parent Key
+  FCCITY (Character 20) — CITY
+  FCCOMPANY (Character 35) — COMPANY / NAME COMPANY / NAME IN ADDRESS
+  FCCOUNTRY (Character 25) — COUNTRY
+  FCCOUNTY (Character 20) — COUNTY
+  FCFAX (Character 20) — FAX
+  FCFNAME (Character 15) — FIRST NAME First name of primary contact
+  FCLNAME (Character 20) — LAST NAME Last name of primary contact
+  FCPHONE (Character 20) — PHONE
+  FCSTATE (Character 20) — STATE/PROVINCE STATE/PROVINCE Can be used to link to state table to get the full (25 character long)
+  FCZIP (Character 10) — POSTAL CODE
+  FLLONGDIST (Logica 1) — LONG DISTANCE? Is this a long distance number?
+  FMNOTES (Memo 4) — NOTES
+  FMSTREET (Memo 4) — STREET
+
+## UPSMAST
+  FBL_LADING (Character 20) — BOL
+  FCBCOMPANY (Character 35) — COMPANY
+  FCCITY (Character 20) — CITY
+  FCCOMPANY (Character 35) — COMPANY
+  FCCOUNTRY (Character 20) — COUNTRY
+  FCCOUNTY (Character 20) — COUNTY
+  FCEMAIL (Character 60) — EMAIL
+  FCFAX (Character 20) — FAX
+  FCFNAME (Character 15) — FIRST NAME
+  FCJOBNO (Character 20) — JOB NO
+  FCLNAME (Character 20) — LAST NAME
+  FCNUMBER (Character 6) — CUSTOMER
+  FCOLLECT (Character 3) — COLLECT
+  FCONFIRM (Character 1) — CONFIRM
+  FCPHONE (Character 20) — PHONE
+  FCPONO (Character 10) — PO NO
+  FCPRO_ID (Character 7) — WC ID
+  FCSTATE (Character 20) — STATE
+  FCSO_INUM (Character 3) — SO ITEM NO
+  FCSONO (Character 10) — SO NO
+  FCSONO_REL (Character 3) — SO ITEM RELS
+  FCSOREV (Character 2) — SO REV
+  FCUSTPONO (Character 20) — CUST PO NO
+  FCVENDNO (Character 6) — VEND NO
+  FCZIP (Character 10) — ZIP
+  FENTER (Character 3) — ENTER
+  FFOB (Character 20) — FOB
+  FFRTAMT (Numeric 17) — FRT AMT
+  FLISINV (Logica 0) — INVCD
+  FLPICKPRIN (Logica 0) — PICK LIST PRINTED
+  FLPREMCV (Logica 0) — PRE MCV
+  FLSHIPPRIN (Logica 0) — SHIPPER PRINTED
+  FMREFERENC (Memo 0) — REFERENCE
+  FMSTREET (Memo 0) — STREET
+  FMTRCKNO (Memo 0) — TRACING NO
+  FNO_BOXES (0) — NO BOXES
+  FPOREV (Character 2) — PO REV
+  FSHIPDATE (Date/Time 0) — SHIP DATE
+  FSHIPMEMO (Memo 0) — SHIP MEMO
+  FSHIPNO (Character 10) — SHIP NO
+  FSHIPVIA (Character 20) — SHIP VIA
+  FSHIPWGHT (Numeric 12) — SHIP WGHT
+  FSHPTOADDR (Character 4) — SHIP TO ADDR
+  FTSNDDTTM (Date/Time 0) — SEND DATE/TIME
+  FTYPE (Character 2) — TYPE
+  START (Date/Time 0)
+  UPSADDR2 (Memo 0)
+  UPSADDR3 (Memo 0)
+  UPSDATE (Date/Time 0)
+  QVNOPTION (Character 1)
+  QVNSUBJ (Character 75)
+  QVNTYPE (Character 6)
