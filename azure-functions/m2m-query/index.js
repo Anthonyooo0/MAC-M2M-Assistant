@@ -342,16 +342,32 @@ module.exports = async function (context, req) {
     try {
       result = await pool.request().query(sqlQuery);
     } catch (sqlErr) {
-      // Detect SQL Server "Invalid column name 'X'" hallucination
+      // Detect SQL Server "Invalid column name 'X'" or "Invalid object name 'X'" hallucinations
       const invalidColMatch = sqlErr.message && sqlErr.message.match(/Invalid column name '([^']+)'/i);
+      const invalidObjMatch = sqlErr.message && sqlErr.message.match(/Invalid object name '([^']+)'/i);
 
-      if (!invalidColMatch) {
-        // Not a column-name error — surface it normally
+      if (!invalidColMatch && !invalidObjMatch) {
+        // Not a column/table error — surface it normally
         throw sqlErr;
       }
 
-      const badColumn = invalidColMatch[1];
-      context.log.warn(`[m2m-query] Invalid column '${badColumn}' — retrying with correction context`);
+      const badName = invalidColMatch ? invalidColMatch[1] : invalidObjMatch[1];
+      const errorType = invalidColMatch ? 'column' : 'table';
+      context.log.warn(`[m2m-query] Invalid ${errorType} '${badName}' — retrying with correction context`);
+
+      const correctionText = invalidColMatch
+        ? `The SQL query you just generated failed with this database error: ` +
+          `"Invalid column name '${badName}'". ` +
+          `The column '${badName}' does not exist in the database schema. ` +
+          `Please search the schema carefully for the correct column name in the relevant table(s) ` +
+          `and generate a corrected SQL query using only column names that are explicitly listed in the schema. ` +
+          `Do not guess or infer any column names.`
+        : `The SQL query you just generated failed with this database error: ` +
+          `"Invalid object name '${badName}'". ` +
+          `The table '${badName}' does not exist in the database. ` +
+          `Please search the schema carefully for the correct table name and ` +
+          `generate a corrected SQL query using only table names that are explicitly listed in the schema. ` +
+          `Do not guess or infer any table names.`;
 
       // Build retry conversation: feed the failed attempt back as context
       const retryMessages = [
@@ -361,15 +377,7 @@ module.exports = async function (context, req) {
         // Correction from the "user" (automated, never shown to the human user)
         {
           role: 'user',
-          parts: [{
-            text:
-              `The SQL query you just generated failed with this database error: ` +
-              `"Invalid column name '${badColumn}'". ` +
-              `The column '${badColumn}' does not exist in the database schema. ` +
-              `Please search the schema carefully for the correct column name in the relevant table(s) ` +
-              `and generate a corrected SQL query using only column names that are explicitly listed in the schema. ` +
-              `Do not guess or infer any column names.`,
-          }],
+          parts: [{ text: correctionText }],
         },
       ];
 
