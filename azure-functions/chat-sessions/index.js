@@ -30,7 +30,8 @@ function getPool() {
       requestTimeout: 30000,
       pool: { max: 10, min: 1, idleTimeoutMillis: 30000 },
     };
-    poolPromise = sql.connect(config).catch(err => {
+    const pool = new sql.ConnectionPool(config);
+    poolPromise = pool.connect().catch(err => {
       poolPromise = null; // Reset so next call retries
       throw err;
     });

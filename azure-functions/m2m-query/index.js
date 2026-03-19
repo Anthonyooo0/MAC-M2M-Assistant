@@ -377,7 +377,8 @@ module.exports = async function (context, req) {
     dbName = config.database;
     context.log.info(`[m2m-query] Connecting to server="${dbServer}" database="${dbName}" user="${config.user}"`);
 
-    pool = await sql.connect(config);
+    pool = new sql.ConnectionPool(config);
+    await pool.connect();
 
     // -----------------------------------------------------------------------
     // Execute SQL — with one silent retry on invalid column name errors
@@ -486,7 +487,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _debug: { server: dbServer, database: dbName } }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '' }),
     };
   } finally {
     if (pool) {
