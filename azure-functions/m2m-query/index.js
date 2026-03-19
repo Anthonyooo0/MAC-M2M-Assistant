@@ -302,15 +302,51 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // Safety checks
-    const safety = validateSqlSafety(sqlQuery);
+    // Safety checks — retry once if Gemini generated non-SELECT SQL
+    let safety = validateSqlSafety(sqlQuery);
     if (!safety.ok) {
-      context.res = {
-        status: 400,
-        headers: CORS,
-        body: JSON.stringify({ error: safety.reason, explanation, sql: sqlQuery }),
+      context.log.warn(`[m2m-query] Safety check failed: ${safety.reason} — retrying`);
+
+      const safetyRetryMessages = [
+        ...geminiMessages,
+        { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+        {
+          role: 'user',
+          parts: [{
+            text: `Your query was rejected: "${safety.reason}". ` +
+              `You MUST only generate SELECT queries. Do not use INSERT, UPDATE, DELETE, DROP, or any other statement type. ` +
+              `Please regenerate as a SELECT query only.`,
+          }],
+        },
+      ];
+
+      const safetyRetryBody = {
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: safetyRetryMessages,
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };
-      return;
+
+      const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
+      if (safetyRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+        const retryParsed = parseGeminiResponse(safetyRetryData);
+        explanation = retryParsed.explanation;
+        let retrySql = retryParsed.sqlQuery;
+        if (retrySql) retrySql = cleanSqlQuery(retrySql);
+
+        if (retrySql) {
+          sqlQuery = retrySql;
+          safety = validateSqlSafety(sqlQuery);
+        }
+      }
+
+      if (!safety.ok) {
+        context.res = {
+          status: 400,
+          headers: CORS,
+          body: JSON.stringify({ error: safety.reason, explanation, sql: sqlQuery }),
+        };
+        return;
+      }
     }
 
     // Parse M2M connection string
