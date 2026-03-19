@@ -206,6 +206,8 @@ module.exports = async function (context, req) {
   let pool = null;
   let sqlQuery = '';
   let explanation = '';
+  let dbServer = '?';
+  let dbName = '?';
 
   try {
     const { message, history } = req.body || {};
@@ -371,6 +373,10 @@ module.exports = async function (context, req) {
       requestTimeout: 30000,
     };
 
+    dbServer = config.server;
+    dbName = config.database;
+    context.log.info(`[m2m-query] Connecting to server="${dbServer}" database="${dbName}" user="${config.user}"`);
+
     pool = await sql.connect(config);
 
     // -----------------------------------------------------------------------
@@ -480,7 +486,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '' }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _debug: { server: dbServer, database: dbName } }),
     };
   } finally {
     if (pool) {
