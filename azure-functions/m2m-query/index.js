@@ -195,123 +195,6 @@ function buildSystemPrompt(role) {
 }
 
 // ---------------------------------------------------------------------------
-// Parsed schema lookup — built once at startup for fast validation
-// ---------------------------------------------------------------------------
-
-// Parse m2m-schema.txt into { TABLE: { columns: Set([COL1, COL2, ...]), raw: "full text block" } }
-function parseSchemaLookup(schema) {
-  const lookup = {};
-  let currentTable = null;
-  let currentRaw = '';
-  const lines = schema.split('\n');
-
-  for (const line of lines) {
-    const tableMatch = line.match(/^## (\w+)/);
-    if (tableMatch) {
-      // Save previous table
-      if (currentTable) {
-        lookup[currentTable].raw = currentRaw.trim();
-      }
-      currentTable = tableMatch[1].toUpperCase();
-      lookup[currentTable] = { columns: new Set(), raw: '' };
-      currentRaw = line + '\n';
-      continue;
-    }
-    if (currentTable) {
-      currentRaw += line + '\n';
-      const fieldMatch = line.match(/^\s+(\w+)\s+\(/);
-      if (fieldMatch) {
-        lookup[currentTable].columns.add(fieldMatch[1].toUpperCase());
-      }
-    }
-  }
-  // Save last table
-  if (currentTable && lookup[currentTable]) {
-    lookup[currentTable].raw = currentRaw.trim();
-  }
-  return lookup;
-}
-
-const SCHEMA_LOOKUP = parseSchemaLookup(M2M_SCHEMA);
-
-// Extract table names referenced in SQL (FROM, JOIN, and CTE table refs)
-function extractTablesFromSql(sqlQuery) {
-  const tables = new Set();
-  // Match FROM/JOIN <table> patterns (with optional alias)
-  const tablePattern = /\b(?:FROM|JOIN)\s+(\w+)/gi;
-  let match;
-  while ((match = tablePattern.exec(sqlQuery)) !== null) {
-    tables.add(match[1].toUpperCase());
-  }
-  return [...tables];
-}
-
-// Extract column names referenced in SQL for a given set of known tables
-function extractColumnsFromSql(sqlQuery) {
-  const columns = new Set();
-  // Match word.word patterns (table.column) and bare column names in SELECT/WHERE/ORDER BY
-  // Table-qualified: table.column
-  const qualifiedPattern = /\b(\w+)\.(\w+)\b/gi;
-  let match;
-  while ((match = qualifiedPattern.exec(sqlQuery)) !== null) {
-    columns.add({ table: match[1].toUpperCase(), column: match[2].toUpperCase() });
-  }
-  return [...columns];
-}
-
-// Validate all tables and columns in the SQL exist in the schema
-function validateSchemaCompliance(sqlQuery, schemaLookup, restrictions) {
-  const errors = [];
-
-  // Check tables
-  const tables = extractTablesFromSql(sqlQuery);
-  const invalidTables = tables.filter(t => !schemaLookup[t]);
-  for (const t of invalidTables) {
-    // Find closest match for helpful error
-    const candidates = Object.keys(schemaLookup)
-      .filter(k => k.includes(t) || t.includes(k) || levenshteinClose(t, k))
-      .slice(0, 3);
-    const suggestion = candidates.length > 0 ? ` Did you mean: ${candidates.join(', ')}?` : '';
-    errors.push({ type: 'table', name: t, message: `Table '${t}' does not exist in the schema.${suggestion}` });
-  }
-
-  // Check table-qualified columns
-  const qualifiedCols = extractColumnsFromSql(sqlQuery);
-  for (const { table, column } of qualifiedCols) {
-    if (!schemaLookup[table]) continue; // Table error already caught
-    // Skip common SQL keywords that look like columns
-    if (['AS', 'ON', 'AND', 'OR', 'NOT', 'NULL', 'IS', 'IN', 'BY', 'ASC', 'DESC', 'TOP', 'LIKE', 'BETWEEN', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'RTRIM', 'LTRIM', 'UPPER', 'LOWER', 'CAST', 'CONVERT', 'ISNULL', 'COALESCE', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'CROSS', 'FULL', 'WHERE', 'SELECT', 'FROM', 'JOIN', 'GROUP', 'ORDER', 'HAVING', 'DISTINCT', 'UNION', 'ALL', 'EXISTS'].includes(column)) continue;
-    if (!schemaLookup[table].columns.has(column)) {
-      const availableCols = [...schemaLookup[table].columns].slice(0, 10).join(', ');
-      errors.push({ type: 'column', name: `${table}.${column}`, message: `Column '${column}' does not exist on table '${table}'. Available columns include: ${availableCols}...` });
-    }
-  }
-
-  return errors;
-}
-
-// Simple check if two strings are within edit distance ~2
-function levenshteinClose(a, b) {
-  if (Math.abs(a.length - b.length) > 2) return false;
-  let diff = 0;
-  const shorter = a.length <= b.length ? a : b;
-  const longer = a.length > b.length ? a : b;
-  for (let i = 0; i < shorter.length; i++) {
-    if (shorter[i] !== longer[i]) diff++;
-    if (diff > 2) return false;
-  }
-  return true;
-}
-
-// Get the raw schema text for specific tables (for focused retries)
-function getSchemaForTables(tableNames, schemaLookup) {
-  return tableNames
-    .filter(t => schemaLookup[t])
-    .map(t => schemaLookup[t].raw)
-    .join('\n\n');
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -563,112 +446,6 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // -----------------------------------------------------------------------
-    // Pre-execution schema validation — catch hallucinated tables/columns
-    // BEFORE they hit SQL Server. If invalid, retry with focused schema.
-    // -----------------------------------------------------------------------
-    const MAX_RETRIES = 2;
-    let currentSql = sqlQuery;
-    let currentExplanation = explanation;
-    let retryCount = 0;
-    let schemaErrors = validateSchemaCompliance(currentSql, SCHEMA_LOOKUP, restrictions);
-
-    while (schemaErrors.length > 0 && retryCount < MAX_RETRIES) {
-      retryCount++;
-      context.log.warn(`[m2m-query] Schema validation failed (attempt ${retryCount}): ${schemaErrors.map(e => e.message).join('; ')}`);
-
-      // Get the tables referenced in the SQL (valid ones) + nearby suggestions
-      const referencedTables = extractTablesFromSql(currentSql);
-      const validTables = referencedTables.filter(t => SCHEMA_LOOKUP[t]);
-      // Also add suggested tables from error messages
-      for (const err of schemaErrors) {
-        if (err.type === 'table') {
-          const candidates = Object.keys(SCHEMA_LOOKUP)
-            .filter(k => k.includes(err.name) || err.name.includes(k) || levenshteinClose(err.name, k));
-          validTables.push(...candidates);
-        }
-      }
-      const uniqueTables = [...new Set(validTables)];
-      const focusedSchema = getSchemaForTables(uniqueTables, SCHEMA_LOOKUP);
-
-      const errorDetails = schemaErrors.map(e => `- ${e.message}`).join('\n');
-
-      const retryMessages = [
-        ...geminiMessages,
-        { role: 'model', parts: [{ text: JSON.stringify({ explanation: currentExplanation, sql: currentSql }) }] },
-        {
-          role: 'user',
-          parts: [{
-            text:
-              `Your SQL query has errors — these tables or columns do NOT exist in the database:\n${errorDetails}\n\n` +
-              `Here is the EXACT schema for the relevant tables. Use ONLY these table and column names:\n\n${focusedSchema}\n\n` +
-              `Generate a corrected SQL query using ONLY the tables and columns listed above. Do not guess or infer any names.`,
-          }],
-        },
-      ];
-
-      const retryGeminiBody = {
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: retryMessages,
-        generationConfig: { temperature: 0.0, maxOutputTokens: 2048 },
-      };
-
-      const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
-
-      if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
-        context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
-        break;
-      }
-      if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) break;
-
-      const retryParsed = parseGeminiResponse(retryGeminiData);
-      currentExplanation = retryParsed.explanation;
-      let retrySql = retryParsed.sqlQuery;
-      if (retrySql) retrySql = cleanSqlQuery(retrySql);
-
-      if (!retrySql) {
-        // Model gave up and returned explanation only
-        context.res = {
-          status: 200,
-          headers: CORS,
-          body: JSON.stringify({ explanation: currentExplanation, sql: '', columns: [], rows: [], rowCount: 0 }),
-        };
-        return;
-      }
-
-      const retrySafety = validateSqlSafety(retrySql, restrictions);
-      if (!retrySafety.ok) {
-        context.res = {
-          status: 400,
-          headers: CORS,
-          body: JSON.stringify({ error: retrySafety.reason, explanation: currentExplanation, sql: retrySql }),
-        };
-        return;
-      }
-
-      currentSql = retrySql;
-      schemaErrors = validateSchemaCompliance(currentSql, SCHEMA_LOOKUP, restrictions);
-    }
-
-    // If still invalid after retries, return the errors without hitting the DB
-    if (schemaErrors.length > 0) {
-      const errMsg = schemaErrors.map(e => e.message).join('; ');
-      context.log.error(`[m2m-query] Schema validation still failing after ${MAX_RETRIES} retries: ${errMsg}`);
-      context.res = {
-        status: 400,
-        headers: CORS,
-        body: JSON.stringify({
-          error: `The AI generated a query with invalid references: ${errMsg}. Please rephrase your question.`,
-          explanation: currentExplanation,
-          sql: currentSql,
-        }),
-      };
-      return;
-    }
-
-    sqlQuery = currentSql;
-    explanation = currentExplanation;
-
     // Parse M2M connection string
     const parts = {};
     for (const segment of connString.split(';')) {
@@ -692,37 +469,39 @@ module.exports = async function (context, req) {
     pool = await sql.connect(config);
 
     // -----------------------------------------------------------------------
-    // Execute SQL — schema is pre-validated, but handle remaining DB errors
+    // Execute SQL — with one silent retry on invalid column name errors
     // -----------------------------------------------------------------------
     let result;
     try {
       result = await pool.request().query(sqlQuery);
     } catch (sqlErr) {
-      // If it's an invalid column that slipped past validation (unqualified reference),
-      // do one more targeted retry
+      // Detect SQL Server "Invalid column name 'X'" hallucination
       const invalidColMatch = sqlErr.message && sqlErr.message.match(/Invalid column name '([^']+)'/i);
-      const invalidObjMatch = sqlErr.message && sqlErr.message.match(/Invalid object name '([^']+)'/i);
 
-      if (!invalidColMatch && !invalidObjMatch) throw sqlErr;
+      if (!invalidColMatch) {
+        // Not a column-name error — surface it normally
+        throw sqlErr;
+      }
 
-      const badName = invalidColMatch ? invalidColMatch[1] : invalidObjMatch[1];
-      const errorType = invalidColMatch ? 'column' : 'table';
-      context.log.warn(`[m2m-query] DB error: Invalid ${errorType} '${badName}' — retrying`);
+      const badColumn = invalidColMatch[1];
+      context.log.warn(`[m2m-query] Invalid column '${badColumn}' — retrying with correction context`);
 
-      const referencedTables = extractTablesFromSql(sqlQuery);
-      const validTables = referencedTables.filter(t => SCHEMA_LOOKUP[t]);
-      const focusedSchema = getSchemaForTables(validTables, SCHEMA_LOOKUP);
-
+      // Build retry conversation: feed the failed attempt back as context
       const retryMessages = [
         ...geminiMessages,
+        // What the model previously produced (the bad SQL)
         { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+        // Correction from the "user" (automated, never shown to the human user)
         {
           role: 'user',
           parts: [{
             text:
-              `The SQL query failed with: "${sqlErr.message}". ` +
-              `Here is the EXACT schema for the relevant tables:\n\n${focusedSchema}\n\n` +
-              `Generate a corrected query using ONLY these column names. Do not guess.`,
+              `The SQL query you just generated failed with this database error: ` +
+              `"Invalid column name '${badColumn}'". ` +
+              `The column '${badColumn}' does not exist in the database schema. ` +
+              `Please search the schema carefully for the correct column name in the relevant table(s) ` +
+              `and generate a corrected SQL query using only column names that are explicitly listed in the schema. ` +
+              `Do not guess or infer any column names.`,
           }],
         },
       ];
@@ -730,26 +509,43 @@ module.exports = async function (context, req) {
       const retryGeminiBody = {
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents: retryMessages,
-        generationConfig: { temperature: 0.0, maxOutputTokens: 2048 },
+        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };
 
       const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
-      if (retryGeminiData._statusCode >= 400 || !retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) throw sqlErr;
+
+      if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
+        context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
+        throw sqlErr; // Fall back to original error
+      }
+
+      if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+        throw sqlErr;
+      }
 
       const retryParsed = parseGeminiResponse(retryGeminiData);
       explanation = retryParsed.explanation;
-      let retrySql = retryParsed.sqlQuery;
-      if (retrySql) retrySql = cleanSqlQuery(retrySql);
-      if (!retrySql) {
-        context.res = { status: 200, headers: CORS, body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }) };
+      let retrySqlQuery = retryParsed.sqlQuery;
+      if (retrySqlQuery) retrySqlQuery = cleanSqlQuery(retrySqlQuery);
+
+      if (!retrySqlQuery) {
+        // Model responded with explanation-only on retry — return it
+        context.res = {
+          status: 200,
+          headers: CORS,
+          body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }),
+        };
         return;
       }
-      const retrySafety = validateSqlSafety(retrySql, restrictions);
-      if (!retrySafety.ok) throw sqlErr;
 
-      context.log.info(`[m2m-query] DB-error retry SQL: ${retrySql}`);
-      result = await pool.request().query(retrySql);
-      sqlQuery = retrySql;
+      const retrySafety = validateSqlSafety(retrySqlQuery, restrictions);
+      if (!retrySafety.ok) {
+        throw sqlErr; // Unexpected — fall back to original error
+      }
+
+      context.log.info(`[m2m-query] Retry SQL: ${retrySqlQuery}`);
+      result = await pool.request().query(retrySqlQuery);
+      sqlQuery = retrySqlQuery; // use the corrected SQL in the response
     }
 
     const columns = result.recordset.length > 0 ? Object.keys(result.recordset[0]) : [];
