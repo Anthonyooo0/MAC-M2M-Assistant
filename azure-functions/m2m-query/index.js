@@ -387,32 +387,15 @@ module.exports = async function (context, req) {
     try {
       result = await pool.request().query(sqlQuery);
     } catch (sqlErr) {
-      // Detect SQL Server "Invalid column name 'X'" or "Invalid object name 'X'" hallucinations
-      const invalidColMatch = sqlErr.message && sqlErr.message.match(/Invalid column name '([^']+)'/i);
-      const invalidObjMatch = sqlErr.message && sqlErr.message.match(/Invalid object name '([^']+)'/i);
+      // Retry ANY SQL error by feeding it back to Gemini for self-correction
+      context.log.warn(`[m2m-query] SQL error — retrying with correction context: ${sqlErr.message}`);
 
-      if (!invalidColMatch && !invalidObjMatch) {
-        // Not a column/table error — surface it normally
-        throw sqlErr;
-      }
-
-      const badName = invalidColMatch ? invalidColMatch[1] : invalidObjMatch[1];
-      const errorType = invalidColMatch ? 'column' : 'table';
-      context.log.warn(`[m2m-query] Invalid ${errorType} '${badName}' — retrying with correction context`);
-
-      const correctionText = invalidColMatch
-        ? `The SQL query you just generated failed with this database error: ` +
-          `"Invalid column name '${badName}'". ` +
-          `The column '${badName}' does not exist in the database schema. ` +
-          `Please search the schema carefully for the correct column name in the relevant table(s) ` +
-          `and generate a corrected SQL query using only column names that are explicitly listed in the schema. ` +
-          `Do not guess or infer any column names.`
-        : `The SQL query you just generated failed with this database error: ` +
-          `"Invalid object name '${badName}'". ` +
-          `The table '${badName}' does not exist in the database. ` +
-          `Please search the schema carefully for the correct table name and ` +
-          `generate a corrected SQL query using only table names that are explicitly listed in the schema. ` +
-          `Do not guess or infer any table names.`;
+      const correctionText = `The SQL query you just generated failed with this database error:\n` +
+        `"${sqlErr.message}"\n\n` +
+        `The failed query was:\n${sqlQuery}\n\n` +
+        `Please carefully fix the issue and regenerate a corrected SQL query. ` +
+        `Use ONLY table and column names that are explicitly listed in the schema. ` +
+        `Do not guess or infer any names. Double-check your syntax.`;
 
       // Build retry conversation: feed the failed attempt back as context
       const retryMessages = [
