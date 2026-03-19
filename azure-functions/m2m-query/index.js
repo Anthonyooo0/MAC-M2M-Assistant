@@ -21,20 +21,47 @@ If the user asks a general question that does NOT need a database query (like 'w
 {"explanation":"Your helpful answer here","sql":""}
 
 === RESTRICTED TABLES — NEVER QUERY THESE ===
-The following tables contain sensitive/personal information and must NEVER be queried, referenced, or included in any SQL:
+The following tables contain sensitive information and must NEVER be queried, referenced, or included in any SQL:
+
+HR, Payroll & Labor (PII):
 - PREMPL (Employee Master — SSN, DOB, salary, home address, emergency contacts)
-- PRDIST (GL Postings from Payroll — employee payroll amounts)
-- LADETAIL (Daily Labor Detail — employee earnings, overtime rates)
+- CSPAYR (Payroll System Setup — payroll config, overtime rates, earning codes)
+- PRDIST (Payroll Distribution — employee payroll amounts)
+- PRDEPT (Payroll Departments — departmental labor distributions)
+- CRHEAD (CRP Header — average hourly wages, fringes, compensation)
+- CRMAST (CRP Master — employee compensation/benefit projections)
+- LADETAIL (Daily Labor Detail — employee earnings, pay rates)
 - LADETAILVIEW (Daily Labor Detail View)
-- LAMAST (Daily Labor Master — employee work records)
-- CRHEAD (Cash Flow/Payroll Header — wages, salary, fringe benefits)
-- CSPAYR (Payroll System Setup — payroll config, earnings codes)
-- UTUSER (User Master — passwords, login credentials)
-- UTPASSWD (Change Password — stored passwords)
+- LAMAST (Daily Labor Master — timecard entries)
+
+Banking & EFT (PCI/Financial):
 - APCHAC (AP Checking Accounts — bank account numbers, routing numbers)
 - APEFTMAST (AP EFT Batch Master — bank account IDs)
 - VENDEFT (Vendor EFT Bank Detail — vendor bank accounts, routing numbers)
-If a user asks for data from ANY of these tables, politely explain that the table contains restricted information (employee personal data, payroll, credentials, or banking details) and cannot be queried.
+- CCINFO (Credit Card Information — customer credit card numbers)
+- CCSETUPMAST (Credit Card Setup — payment gateway account IDs, passwords)
+
+System Security:
+- UTUSER (User Master — user accounts, privileges, encrypted passwords)
+- UTPASSWD (Change Password Log — password history)
+- UTPREF (System Wide Settings — admin usernames, global passwords)
+
+Corporate Financials:
+- GLMAST (GL Chart of Accounts)
+- GLITEM (GL Account Balances)
+- GLSTMT (Bank Reconciliation Statement)
+- PLBUDG (Budgets per GL Account)
+
+If a user asks for data from ANY of these tables, politely explain that the table contains restricted information and cannot be queried.
+
+=== RESTRICTED COLUMNS — NEVER SELECT THESE FIELDS ===
+Even on tables that ARE allowed, NEVER include these columns in any query:
+- INMASTX: F2LABCOST, F2MATLCOST, F2OVHDCOST, FAVGCOST (internal cost data)
+- INPROD: FCOGSLAB, FCOGSMATL, FCOGSOVHD (COGS breakdowns)
+- SOANAL: FNGRSPFT01 through FNGRSPFT12 (gross profit by period)
+- JOPACT: FLABACT, FMATLACT, FOTHRACT (actual job costs)
+- BLQOC / BLQOP: FNBLPROFIT, FNQUPROFIT (backlog/quote profit)
+If a user asks for cost, margin, or profit data from these fields, explain that internal cost/profit data is restricted.
 
 === ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
 The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
@@ -168,10 +195,33 @@ function validateSqlSafety(sqlQuery) {
   if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
     return { ok: false, reason: 'Only SELECT queries are allowed.' };
   }
-  const RESTRICTED_TABLES = ['PREMPL','PRDIST','LADETAIL','LADETAILVIEW','LAMAST','CRHEAD','CSPAYR','UTUSER','UTPASSWD','APCHAC','APEFTMAST','VENDEFT'];
+  const RESTRICTED_TABLES = [
+    // HR, Payroll & Labor
+    'PREMPL','CSPAYR','PRDIST','PRDEPT','CRHEAD','CRMAST','LADETAIL','LADETAILVIEW','LAMAST',
+    // Banking & EFT
+    'APCHAC','APEFTMAST','VENDEFT','CCINFO','CCSETUPMAST',
+    // System Security
+    'UTUSER','UTPASSWD','UTPREF',
+    // Corporate Financials
+    'GLMAST','GLITEM','GLSTMT','PLBUDG',
+  ];
   for (const table of RESTRICTED_TABLES) {
     if (new RegExp('\\b' + table + '\\b', 'i').test(sqlQuery)) {
       return { ok: false, reason: `This query references a restricted table (${table}) containing sensitive information.` };
+    }
+  }
+  const RESTRICTED_COLUMNS = [
+    'F2LABCOST','F2MATLCOST','F2OVHDCOST','FAVGCOST',   // INMASTX costs
+    'FCOGSLAB','FCOGSMATL','FCOGSOVHD',                  // INPROD COGS
+    'FNGRSPFT01','FNGRSPFT02','FNGRSPFT03','FNGRSPFT04', // SOANAL gross profit
+    'FNGRSPFT05','FNGRSPFT06','FNGRSPFT07','FNGRSPFT08',
+    'FNGRSPFT09','FNGRSPFT10','FNGRSPFT11','FNGRSPFT12',
+    'FLABACT','FMATLACT','FOTHRACT',                      // JOPACT actual costs
+    'FNBLPROFIT','FNQUPROFIT',                             // BLQOC/BLQOP profit
+  ];
+  for (const col of RESTRICTED_COLUMNS) {
+    if (new RegExp('\\b' + col + '\\b', 'i').test(sqlQuery)) {
+      return { ok: false, reason: `This query references a restricted column (${col}) containing confidential cost/profit data.` };
     }
   }
   if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i.test(sqlQuery)) {

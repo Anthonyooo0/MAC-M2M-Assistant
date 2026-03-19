@@ -585,15 +585,6 @@
   FCFORMAT (Character 35) — ACCOUNT Account Establishes the format expression used to display the G/L account
   FLCONSOL (Logica 1) — CONSOLIDATE ? Consolidate ? If True, use this account for accross-company reporting
 
-## GLITEM — GL ACCOUNT BALANCES
-  FCACCTNUM (Character 25) — ACCOUNT NO Account Number This is the glmast.fcacctnum for this balance record (the parent)
-  FCCLASS (Character 1) — CLASS Class : 'o' - Opening, 'd' - Date , 'b' - Budget B Class :
-  FCDESCR (Character 20) — DESCRIPTION Description Description -unique for this account + type + date
-  FCTIME_TS (Date/Time 8) — DATE/TIME Date & Time Stamp Of When Record Was Originally Cr Date & time record created
-  FCUSERID (Character 4) — USER ID User Id Of Person Creating Record User id who created the record
-  FDDATE (Date 8) — DATE Date Associated With This Balance Amount Date
-  FNAMOUNT (Currency 8) — AMOUNT Amount Amount
-
 ## GLJEITEM — Journal Entry Item
   FCENTRY (Character 10) — JE NUMBER Journal Entry Number
   FDDATE (Date 8) — DATE Transaction Date
@@ -610,22 +601,6 @@
   FLREVERSE (Logica 1) — AUTOREVERSE? .T. if this journal entry is autoreverse
   FCSTATUS (Character 1) — STATUS "S" - started, "P" - posted
   FLREVENTRY (Logica 1) — REVERSING? .T. if reversing part of autoreverse entry.
-
-## GLMAST — GL CHART OF ACCOUNTS
-  FCACTCAT (Character 1) — Category of Activity Category of Activity Character value is 'O' for Operating activities, 'I' for Investing and 'F'
-  FLCASH (Logica 0) — Cash and Equivalent Cash and Cash Equivalent If checked this account will be used to verify the Cash Flow
-  FLREVLCURR (Logica 1) — REVAL CURR FACTOR Revaluate at Current Factor
-  FCACCTNUM (Character 25) — ACCOUNT NUMBER Unique Account Number User defined unique number (or character string) to help them
-  FCCLASS (Character 1) — CLASS 'C' - Credit, 'D' - Debit, blank If 'C', normal balance is Credit
-  FCCODE (Character 1) — CATEGORY Account Category Relates back to glhead & determines default "Class" (i.e. Debit or
-  FCDESCR (Character 40) — DESCRIPTION
-  FCPARENTID (Character 25) — PARENT G/L NO. GL Account No of Parent glmast.fcacctum for this account's "parent" in this same table, glmast
-  FCTYPE (Character 3) — TYPE User Defined 'type' From Cspopup User defined "type" to help in creating supplemental reports which
-  FLCONSOL (Logica 1) — CONSOLIDATE Use In Company Consolidation Reporting
-  FLFUNDS (Logica 1) — FUNDS INDICATOR Funds Indicator If an Asset or Liab & this is True, this is a 'CURRENT' Asset or
-  FLINACTIVE (Logica 1) — INACTIVE ACCT Inactive Account if True If this flag is True, system will not allow future transactions to occur
-  FMNOTE (Memo 4) — NOTES Accounting Notes Place here any "notes" regarding this balance you wish to have
-  FNORDER (Numeric 5) — PRINT ORDER Order In Which 'sub-accounts' May Appear On Printe Used to specify the order in which "sub-accounts" may appear on
 
 ## GLRPTI — GL REPORT TEMPLATE LINE ITEMS
   FCACCTNUM (Character 25) — GL ACCOUNT ACCOUNT NUMBER
