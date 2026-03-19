@@ -332,7 +332,13 @@ module.exports = async function (context, req) {
       requestTimeout: 60000,
     };
 
+    context.log.info(`[m2m-query] Connecting to server=${config.server} database=${config.database} user=${config.user}`);
     pool = await sql.connect(config);
+    context.log.info(`[m2m-query] Connected successfully`);
+
+    // Debug: log which database we're actually connected to
+    const dbCheck = await pool.request().query('SELECT DB_NAME() AS currentDb, @@SERVERNAME AS serverName');
+    context.log.info(`[m2m-query] Actual DB: ${dbCheck.recordset[0].currentDb}, Server: ${dbCheck.recordset[0].serverName}`);
 
     // -----------------------------------------------------------------------
     // Execute SQL — with one silent retry on invalid column name errors
@@ -434,7 +440,7 @@ module.exports = async function (context, req) {
       status: 500,
       headers: CORS,
       body: JSON.stringify({
-        error: err.message || String(err),
+        error: `${err.message || String(err)} [server=${(req.body||{}).database || 'default'}]`,
         sql: sqlQuery || '',
         explanation: explanation || '',
       }),
