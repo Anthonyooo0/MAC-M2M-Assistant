@@ -229,7 +229,10 @@ module.exports = async function (context, req) {
         return;
       }
     } else {
-      connString = process.env.M2M_CONNECTION_STRING;
+      // DEBUG: Log the raw env var to see what Azure is giving us
+      const rawEnv = process.env.M2M_CONNECTION_STRING;
+      context.log.info(`[m2m-query] RAW M2M_CONNECTION_STRING = "${rawEnv}"`);
+      connString = rawEnv;
       if (!connString) {
         context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'M2M database connection is not configured.' }) };
         return;
