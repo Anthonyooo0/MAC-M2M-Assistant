@@ -204,10 +204,6 @@ module.exports = async function (context, req) {
   };
 
   let pool = null;
-  let sqlQuery = '';
-  let explanation = '';
-  let actualDb = '';
-  let actualServer = '';
 
   try {
     const { message, history } = req.body || {};
@@ -286,7 +282,7 @@ module.exports = async function (context, req) {
       return;
     }
 
-    ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
+    let { explanation, sqlQuery } = parseGeminiResponse(geminiData);
 
     // Clean SQL: strip comments, extract SELECT if wrapped in other statements
     if (sqlQuery) {
@@ -330,19 +326,11 @@ module.exports = async function (context, req) {
       user: parts['user id'] || parts['uid'] || '',
       password: parts['password'] || parts['pwd'] || '',
       options: { encrypt: false, trustServerCertificate: true },
-      connectionTimeout: 30000,
-      requestTimeout: 60000,
+      connectionTimeout: 15000,
+      requestTimeout: 30000,
     };
 
-    context.log.info(`[m2m-query] Connecting to server=${config.server} database=${config.database} user=${config.user}`);
     pool = await sql.connect(config);
-    context.log.info(`[m2m-query] Connected successfully`);
-
-    // Debug: log which database we're actually connected to
-    const dbCheck = await pool.request().query('SELECT DB_NAME() AS currentDb, @@SERVERNAME AS serverName');
-    actualDb = dbCheck.recordset[0].currentDb;
-    actualServer = dbCheck.recordset[0].serverName;
-    context.log.info(`[m2m-query] Actual DB: ${actualDb}, Server: ${actualServer}`);
 
     // -----------------------------------------------------------------------
     // Execute SQL — with one silent retry on invalid column name errors
@@ -443,11 +431,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({
-        error: `${err.message || String(err)} [connectedTo=${actualDb || 'unknown'}@${actualServer || 'unknown'}]`,
-        sql: sqlQuery || '',
-        explanation: explanation || '',
-      }),
+      body: JSON.stringify({ error: err.message || String(err) }),
     };
   } finally {
     if (pool) {

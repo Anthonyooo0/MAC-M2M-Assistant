@@ -290,9 +290,7 @@ function App() {
       const explanation = data.explanation || '';
       let content = '';
       if (data.error) {
-        content = isAdmin && data.sql
-          ? `Error: ${data.error}\n\nSQL Query:\n${data.sql}`
-          : `Error: ${data.error}`;
+        content = `Error: ${data.error}`;
       } else if (explanation) {
         content = explanation;
       } else if (data.rowCount != null) {
