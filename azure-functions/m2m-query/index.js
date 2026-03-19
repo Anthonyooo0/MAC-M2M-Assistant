@@ -17,28 +17,32 @@ try {
 // ---------------------------------------------------------------------------
 
 // Tables that are completely blocked — no queries allowed
-// NOTE: Names are matched case-insensitively against SQL queries
 const RESTRICTED_TABLES = [
   // HR, Payroll & Labor (PII)
-  'prempl',       // Employee Master — SSN, DOB, salary, home address, emergency contacts
-  'prdist',       // GL Postings from Payroll — employee payroll amounts
-  'prdept',       // Payroll Departments — payroll labor distributions
-  'ladetail',     // Daily Labor Detail — employee earnings, overtime rates
-  'lamast',       // Daily Labor Master — employee work records
-  'crhead',       // Cash Flow/Payroll Header — wages, salary, fringe benefits
-  'crmast',       // CRP Line Item Master — avg hourly wages, compensation projections
-  'cspayr',       // Payroll System Setup — payroll config, earnings codes
+  'PREMPL',       // Employee Master — SSN, DOB, salary, home address, emergency contacts
+  'PRDIST',       // GL Postings from Payroll — employee payroll amounts
+  'PRDEPT',       // Payroll Departments — payroll labor distributions
+  'LADETAIL',     // Daily Labor Detail — employee earnings, overtime rates
+  'LADETAILVIEW', // Daily Labor Detail View
+  'LAMAST',       // Daily Labor Master — employee work records
+  'CRHEAD',       // Cash Flow/Payroll Header — wages, salary, fringe benefits
+  'CRMAST',       // CRP Line Item Master — avg hourly wages, compensation projections
+  'CSPAYR',       // Payroll System Setup — payroll config, earnings codes
   // Banking, Credit Card & EFT (PCI-DSS)
-  'apchac',       // AP Checking Accounts — bank account numbers, routing numbers
-  'apeftmast',    // AP EFT Batch Master — bank account IDs
+  'APCHAC',       // AP Checking Accounts — bank account numbers, routing numbers
+  'APEFTMAST',    // AP EFT Batch Master — bank account IDs
   'VENDEFT',      // Vendor EFT Bank Detail — vendor bank accounts, routing numbers
-  'ccinfo',       // Credit Card Information — customer card numbers
-  'ccsetupmast',  // Credit Card Setup — payment gateway account IDs & passwords
+  'CCINFO',       // Credit Card Information — customer card numbers
+  'CCSETUPMAST',  // Credit Card Setup — payment gateway account IDs & passwords
+  // System Security & Passwords
+  'UTUSER',       // User Master — passwords, login credentials
+  'UTPASSWD',     // Change Password — stored passwords
+  'UTPREF',       // System Wide Settings — domain names, admin passwords
   // Corporate Financials & GL
-  'glmast',       // GL Chart of Accounts
-  'glitem',       // GL Account Balances
-  'glstmt',       // Bank Reconciliation Statement
-  'plbudg',       // Budgets per GL Account
+  'GLMAST',       // GL Chart of Accounts
+  'GLITEM',       // GL Account Balances
+  'GLSTMT',       // Bank Reconciliation Statement
+  'PLBUDG',       // Budgets per GL Account
 ];
 
 // Fields that are blocked on otherwise-accessible tables (profit margins, COGS, internal costs)
@@ -87,14 +91,6 @@ function buildFieldRestrictionsPrompt(restrictedFields) {
 
 // Filter the schema to remove restricted tables and redact restricted fields
 function filterSchema(schema, restrictions) {
-  // Normalize restricted tables to uppercase for comparison
-  const blockedTables = new Set(restrictions.restrictedTables.map(t => t.toUpperCase()));
-  // Normalize restricted fields: { TABLE_UPPER: Set([FIELD_UPPER, ...]) }
-  const blockedFields = {};
-  for (const [table, fields] of Object.entries(restrictions.restrictedFields)) {
-    blockedFields[table.toUpperCase()] = new Set(fields.map(f => f.toUpperCase()));
-  }
-
   const lines = schema.split('\n');
   const output = [];
   let skipTable = false;
@@ -104,7 +100,7 @@ function filterSchema(schema, restrictions) {
     const tableMatch = line.match(/^## (\w+)/);
     if (tableMatch) {
       const tableName = tableMatch[1].toUpperCase();
-      if (blockedTables.has(tableName)) {
+      if (restrictions.restrictedTables.includes(tableName)) {
         skipTable = true;
         continue;
       }
@@ -117,11 +113,11 @@ function filterSchema(schema, restrictions) {
     if (skipTable) continue;
 
     // Check if this line defines a restricted field
-    if (currentTable && blockedFields[currentTable]) {
+    if (currentTable && restrictions.restrictedFields[currentTable]) {
       const fieldMatch = line.match(/^\s+(\w+)\s+\(/);
       if (fieldMatch) {
         const fieldName = fieldMatch[1].toUpperCase();
-        if (blockedFields[currentTable].has(fieldName)) {
+        if (restrictions.restrictedFields[currentTable].includes(fieldName)) {
           continue; // Redact this field from the schema
         }
       }
