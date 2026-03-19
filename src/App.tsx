@@ -86,6 +86,7 @@ function App() {
 
   const chatHistoryEnabled = !!CHAT_SESSIONS_URL && !!CHAT_MESSAGES_URL;
   const isAdmin = ADMIN_EMAILS.includes(currentUser || '');
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated && accounts.length > 0) {
@@ -100,10 +101,12 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load sessions when user logs in
+  // Load sessions when user logs in, then mark app as ready
   useEffect(() => {
     if (currentUser && chatHistoryEnabled) {
-      loadSessions();
+      loadSessions().then(() => setAppReady(true));
+    } else if (currentUser) {
+      setAppReady(true);
     }
   }, [currentUser]);
 
@@ -388,6 +391,23 @@ function App() {
       }
     }
     return <Login />;
+  }
+
+  // Loading screen — wait for sessions and app data to be ready
+  if (!appReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="w-20 h-20 mx-auto mb-6">
+            <img src="/mac_logo.png" alt="MAC Products" className="w-full h-full object-contain" />
+          </div>
+          <div className="flex justify-center mb-4">
+            <div className="w-8 h-8 border-4 border-slate-200 border-t-mac-navy rounded-full animate-spin"></div>
+          </div>
+          <p className="text-slate-500 text-sm font-medium tracking-wide">Loading your workspace...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
