@@ -12,123 +12,7 @@ try {
   console.error('Could not load m2m-schema.txt:', e.message);
 }
 
-// ---------------------------------------------------------------------------
-// Security Configuration — RBAC, Table & Field Restrictions
-// ---------------------------------------------------------------------------
-
-// Tables that are completely blocked — no queries allowed
-const RESTRICTED_TABLES = [
-  // HR, Payroll & Labor (PII)
-  'PREMPL',       // Employee Master — SSN, DOB, salary, home address, emergency contacts
-  'PRDIST',       // GL Postings from Payroll — employee payroll amounts
-  'PRDEPT',       // Payroll Departments — payroll labor distributions
-  'LADETAIL',     // Daily Labor Detail — employee earnings, overtime rates
-  'LADETAILVIEW', // Daily Labor Detail View
-  'LAMAST',       // Daily Labor Master — employee work records
-  'CRHEAD',       // Cash Flow/Payroll Header — wages, salary, fringe benefits
-  'CRMAST',       // CRP Line Item Master — avg hourly wages, compensation projections
-  'CSPAYR',       // Payroll System Setup — payroll config, earnings codes
-  // Banking, Credit Card & EFT (PCI-DSS)
-  'APCHAC',       // AP Checking Accounts — bank account numbers, routing numbers
-  'APEFTMAST',    // AP EFT Batch Master — bank account IDs
-  'VENDEFT',      // Vendor EFT Bank Detail — vendor bank accounts, routing numbers
-  'CCINFO',       // Credit Card Information — customer card numbers
-  'CCSETUPMAST',  // Credit Card Setup — payment gateway account IDs & passwords
-  // System Security & Passwords
-  'UTUSER',       // User Master — passwords, login credentials
-  'UTPASSWD',     // Change Password — stored passwords
-  'UTPREF',       // System Wide Settings — domain names, admin passwords
-  // Corporate Financials & GL
-  'GLMAST',       // GL Chart of Accounts
-  'GLITEM',       // GL Account Balances
-  'GLSTMT',       // Bank Reconciliation Statement
-  'PLBUDG',       // Budgets per GL Account
-];
-
-// Fields that are blocked on otherwise-accessible tables (profit margins, COGS, internal costs)
-const RESTRICTED_FIELDS = {
-  BLQOC:   ['FNBLPROFIT', 'FNQUPROFIT'],
-  BLQOP:   ['FNBLPROFIT', 'FNQUPROFIT'],
-  INPROD:  ['FCOGSLAB', 'FCOGSMATL', 'FCOGSOVHD'],
-  INMASTX: ['F2LABCOST', 'F2MATLCOST', 'F2OVHDCOST', 'FAVGCOST', 'F2DISPLCST', 'F2DISPMCST', 'F2DISPOCST', 'F2DISPTCST', 'F2TOTCOST'],
-  SOANAL:  ['FNGRSPFT01','FNGRSPFT02','FNGRSPFT03','FNGRSPFT04','FNGRSPFT05','FNGRSPFT06',
-            'FNGRSPFT07','FNGRSPFT08','FNGRSPFT09','FNGRSPFT10','FNGRSPFT11','FNGRSPFT12'],
-  JOPACT:  ['FLABACT', 'FMATLACT', 'FOTHRACT', 'FOVHDACT', 'FLABINV', 'FMATLINV', 'FOTHRINV', 'FOVHDINV',
-            'FSUBACT', 'FSUBINV', 'FTOOLACT', 'FRTGSETUPA', 'FSETUPACT',
-            'FADDEDOCOS', 'FADDEDPCOS', 'FADDEDSCOS'],
-};
-
-// Role definitions for future RBAC expansion
-const ROLES = {
-  admin:       { restrictedTables: [], restrictedFields: {} },                          // Full access
-  order_clerk: { restrictedTables: RESTRICTED_TABLES, restrictedFields: RESTRICTED_FIELDS }, // Default
-};
-
-// For now, all users get 'order_clerk' restrictions. Expand this mapping as needed.
-function getUserRole(/* userEmail */) {
-  return 'order_clerk';
-}
-
-function getRestrictionsForRole(role) {
-  return ROLES[role] || ROLES.order_clerk;
-}
-
-// Build the restricted-fields section for the AI system prompt
-function buildFieldRestrictionsPrompt(restrictedFields) {
-  if (!restrictedFields || Object.keys(restrictedFields).length === 0) return '';
-  let lines = [
-    '',
-    '=== RESTRICTED FIELDS — NEVER SELECT THESE COLUMNS ===',
-    'The following columns exist in the schema but contain confidential cost/profit data. NEVER include them in SELECT, WHERE, ORDER BY, or any part of a query.',
-    'If a user asks for data that would require these columns, explain that the information is restricted.',
-    '',
-  ];
-  for (const [table, fields] of Object.entries(restrictedFields)) {
-    lines.push(`- ${table}: ${fields.join(', ')}`);
-  }
-  return lines.join('\n');
-}
-
-// Filter the schema to remove restricted tables and redact restricted fields
-function filterSchema(schema, restrictions) {
-  const lines = schema.split('\n');
-  const output = [];
-  let skipTable = false;
-  let currentTable = null;
-
-  for (const line of lines) {
-    const tableMatch = line.match(/^## (\w+)/);
-    if (tableMatch) {
-      const tableName = tableMatch[1].toUpperCase();
-      if (restrictions.restrictedTables.includes(tableName)) {
-        skipTable = true;
-        continue;
-      }
-      skipTable = false;
-      currentTable = tableName;
-      output.push(line);
-      continue;
-    }
-
-    if (skipTable) continue;
-
-    // Check if this line defines a restricted field
-    if (currentTable && restrictions.restrictedFields[currentTable]) {
-      const fieldMatch = line.match(/^\s+(\w+)\s+\(/);
-      if (fieldMatch) {
-        const fieldName = fieldMatch[1].toUpperCase();
-        if (restrictions.restrictedFields[currentTable].includes(fieldName)) {
-          continue; // Redact this field from the schema
-        }
-      }
-    }
-
-    output.push(line);
-  }
-  return output.join('\n');
-}
-
-const SYSTEM_PROMPT_TEMPLATE = (restrictedTablesBlock, restrictedFieldsBlock, filteredSchema) => `You are an AI assistant for MAC Products employees that helps them query the M2M ERP database (Made2Manage version 7.51).
+const SYSTEM_PROMPT = `You are an AI assistant for MAC Products employees that helps them query the M2M ERP database (Made2Manage version 7.51).
 
 You MUST respond with valid JSON in this exact format:
 {"explanation":"A helpful plain-English explanation of what the data shows, any insights, and answers to the user's question. Be conversational and helpful. If the user asked a question, answer it directly.","sql":"THE SQL QUERY HERE"}
@@ -138,9 +22,19 @@ If the user asks a general question that does NOT need a database query (like 'w
 
 === RESTRICTED TABLES — NEVER QUERY THESE ===
 The following tables contain sensitive/personal information and must NEVER be queried, referenced, or included in any SQL:
-${restrictedTablesBlock}
-If a user asks for data from ANY of these tables, politely explain that the table contains restricted information (employee personal data, payroll, credentials, banking, or corporate financials) and cannot be queried.
-${restrictedFieldsBlock}
+- PREMPL (Employee Master — SSN, DOB, salary, home address, emergency contacts)
+- PRDIST (GL Postings from Payroll — employee payroll amounts)
+- LADETAIL (Daily Labor Detail — employee earnings, overtime rates)
+- LADETAILVIEW (Daily Labor Detail View)
+- LAMAST (Daily Labor Master — employee work records)
+- CRHEAD (Cash Flow/Payroll Header — wages, salary, fringe benefits)
+- CSPAYR (Payroll System Setup — payroll config, earnings codes)
+- UTUSER (User Master — passwords, login credentials)
+- UTPASSWD (Change Password — stored passwords)
+- APCHAC (AP Checking Accounts — bank account numbers, routing numbers)
+- APEFTMAST (AP EFT Batch Master — bank account IDs)
+- VENDEFT (Vendor EFT Bank Detail — vendor bank accounts, routing numbers)
+If a user asks for data from ANY of these tables, politely explain that the table contains restricted information (employee personal data, payroll, credentials, or banking details) and cannot be queried.
 
 === ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
 The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
@@ -180,19 +74,8 @@ IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code bloc
 
 Here is the COMPLETE M2M database schema with all tables and fields:
 
-${filteredSchema}
+${M2M_SCHEMA}
 `;
-
-// Build the default system prompt (order_clerk role)
-function buildSystemPrompt(role) {
-  const restrictions = getRestrictionsForRole(role);
-  const tablesBlock = restrictions.restrictedTables
-    .map(t => `- ${t}`)
-    .join('\n');
-  const fieldsBlock = buildFieldRestrictionsPrompt(restrictions.restrictedFields);
-  const filteredSchema = filterSchema(M2M_SCHEMA, restrictions);
-  return SYSTEM_PROMPT_TEMPLATE(tablesBlock, fieldsBlock, filteredSchema);
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -279,31 +162,18 @@ function cleanSqlQuery(sqlQuery) {
   return cleaned;
 }
 
-function validateSqlSafety(sqlQuery, restrictions) {
+function validateSqlSafety(sqlQuery) {
   const firstWord = (sqlQuery.split(/\s+/)[0] || '').toUpperCase();
 
   if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
     return { ok: false, reason: 'Only SELECT queries are allowed.' };
   }
-
-  // Check restricted tables
-  const tables = restrictions ? restrictions.restrictedTables : RESTRICTED_TABLES;
-  for (const table of tables) {
+  const RESTRICTED_TABLES = ['PREMPL','PRDIST','LADETAIL','LADETAILVIEW','LAMAST','CRHEAD','CSPAYR','UTUSER','UTPASSWD','APCHAC','APEFTMAST','VENDEFT'];
+  for (const table of RESTRICTED_TABLES) {
     if (new RegExp('\\b' + table + '\\b', 'i').test(sqlQuery)) {
       return { ok: false, reason: `This query references a restricted table (${table}) containing sensitive information.` };
     }
   }
-
-  // Check restricted fields
-  const fields = restrictions ? restrictions.restrictedFields : RESTRICTED_FIELDS;
-  for (const [table, fieldList] of Object.entries(fields)) {
-    for (const field of fieldList) {
-      if (new RegExp('\\b' + field + '\\b', 'i').test(sqlQuery)) {
-        return { ok: false, reason: `This query references a restricted field (${field} on ${table}) containing confidential cost/profit data.` };
-      }
-    }
-  }
-
   if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i.test(sqlQuery)) {
     return { ok: false, reason: 'Query contains forbidden keywords.' };
   }
@@ -342,12 +212,6 @@ module.exports = async function (context, req) {
       context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'message is required' }) };
       return;
     }
-
-    // Determine user role and build role-specific prompt + restrictions
-    const userEmail = (req.body.userEmail || '').toLowerCase();
-    const role = getUserRole(userEmail);
-    const restrictions = getRestrictionsForRole(role);
-    const SYSTEM_PROMPT = buildSystemPrompt(role);
 
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) {
@@ -436,7 +300,7 @@ module.exports = async function (context, req) {
     }
 
     // Safety checks
-    const safety = validateSqlSafety(sqlQuery, restrictions);
+    const safety = validateSqlSafety(sqlQuery);
     if (!safety.ok) {
       context.res = {
         status: 400,
@@ -538,7 +402,7 @@ module.exports = async function (context, req) {
         return;
       }
 
-      const retrySafety = validateSqlSafety(retrySqlQuery, restrictions);
+      const retrySafety = validateSqlSafety(retrySqlQuery);
       if (!retrySafety.ok) {
         throw sqlErr; // Unexpected — fall back to original error
       }

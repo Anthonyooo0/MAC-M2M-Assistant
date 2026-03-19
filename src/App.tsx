@@ -282,7 +282,7 @@ function App() {
       const res = await fetch(M2M_QUERY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, database: activeCompany.database, userEmail: currentUser }),
+        body: JSON.stringify({ message: text, history, database: activeCompany.database }),
       });
 
       const data = await res.json();
