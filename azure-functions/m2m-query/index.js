@@ -328,8 +328,8 @@ module.exports = async function (context, req) {
       user: parts['user id'] || parts['uid'] || '',
       password: parts['password'] || parts['pwd'] || '',
       options: { encrypt: false, trustServerCertificate: true },
-      connectionTimeout: 15000,
-      requestTimeout: 30000,
+      connectionTimeout: 30000,
+      requestTimeout: 60000,
     };
 
     pool = await sql.connect(config);
