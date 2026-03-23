@@ -133,12 +133,12 @@ The COMPLETE database schema is provided below. It lists every table (## TABLENA
 - You may ONLY use table names and column names that are EXPLICITLY listed in the schema below.
 - Do NOT guess, infer, or assume ANY column name exists. If a column is not listed under a table heading, it DOES NOT EXIST.
 - Do NOT use column names from general UniPoint knowledge. This database may differ.
-- Do NOT invent column names like "NC_Date", "Orig_Date", "Date_Reported", or "Total_Cost" — these do NOT exist.
+- Do NOT invent column names like "NC_Date", "Orig_Date", "Date_Reported", "Total_Cost", "Cause_Code", "Cause", "NC_No" — these do NOT exist.
 - If you cannot find the right column, set sql to "" and in your explanation list the ACTUAL available columns for that table so the user can pick one.
 - NEVER fabricate a column name. When in doubt, don't query — explain what's available instead.
 
 === KEY COLUMN CORRECTIONS (common mistakes to avoid) ===
-- PT_NC: The date column is NCR_Date (NOT NC_Date, NOT Orig_Date, NOT Date_Reported). The cost column is NC_processing_cost (NOT Total_Cost). The ID column is NCR (NOT NC_No, NOT NC_Number).
+- PT_NC: The date column is NCR_Date (NOT NC_Date, NOT Orig_Date, NOT Date_Reported). The cost column is NC_processing_cost (NOT Total_Cost). The ID column is NCR (NOT NC_No, NOT NC_Number). The cause/reason column is Origin_cause (NOT Cause_Code, NOT Cause). The category column is Origin_category.
 - PT_CPA: The ID is CPA_no (NOT CPA_No with capital N, NOT CPA_Number). The date is CPA_date.
 - PT_Inspection: The ID is Inspection_No. The date is InspectionDate.
 - PT_Equip: The ID is Equip_num. The description is Equip_Desc.
