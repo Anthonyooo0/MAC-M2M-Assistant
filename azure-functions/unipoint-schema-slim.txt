@@ -659,36 +659,36 @@
   UserID (nvarchar 50) — User ID
   PermissionLevel (int) — Permission Level
 
-## PT_NC — Non-Conformance Reports
-  NCR (nvarchar 10) — NCR
-  NCR_Date (datetime) — NCR Date
-  Status (nvarchar 20) — Status
-  Material (nvarchar 50) — Material
-  Description (nvarchar 50) — Description
-  Rev (nvarchar 20) — Rev
-  Ext_desc (nvarchar MAX) — Ext desc
-  Drawing (nvarchar 25) — Drawing
-  NC_type (nvarchar 20) — NC type
-  Job (nvarchar 50) — Job
-  Sales_Order (nvarchar 50) — Sales Order
-  SO_Detail (int) — SO Detail
-  Work_Center (nvarchar 50) — Work Center
-  Vendor (nvarchar 50) — Vendor
-  PO (nvarchar 50) — PO
-  Line (nvarchar 10) — Line
-  PO_Detail (int) — PO Detail
-  Packlist_V (nvarchar 20) — Packlist V
-  Customer (nvarchar 50) — Customer
-  Packlist_C (nvarchar 20) — Packlist C
-  Other_desc (nvarchar 50) — Other desc
-  Reference (nvarchar 30) — Reference
-  Lot (nvarchar 50) — Lot
-  Origin (nvarchar 30) — Origin
-  Origin_ref (nvarchar 50) — Origin ref
-  Origin_cause (nvarchar 20) — Origin cause
-  Origin_category (nvarchar 20) — Origin category
-  Qty_total (float) — Qty total
-  Qty_rejected (float) — Qty rejected
+## PT_NC — Non-Conformance Reports (NCRs). This is the main table for all non-conformance records.
+  NCR (nvarchar 10) — NCR Number (primary key, unique ID for the non-conformance report)
+  NCR_Date (datetime) — Date Reported (when the NC was created/reported — use this for date filtering)
+  Status (nvarchar 20) — Status (Open, Closed, etc.)
+  Material (nvarchar 50) — Part Number / Material
+  Description (nvarchar 50) — Short description of the non-conformance
+  Rev (nvarchar 20) — Part Revision
+  Ext_desc (nvarchar MAX) — Extended description / details
+  Drawing (nvarchar 25) — Drawing number
+  NC_type (nvarchar 20) — NC Type (type/category of non-conformance)
+  Job (nvarchar 50) — Job number
+  Sales_Order (nvarchar 50) — Sales Order number
+  SO_Detail (int) — Sales Order line item
+  Work_Center (nvarchar 50) — Work Center where NC occurred
+  Vendor (nvarchar 50) — Vendor code (if vendor-caused)
+  PO (nvarchar 50) — Purchase Order number
+  Line (nvarchar 10) — PO Line number
+  PO_Detail (int) — PO Detail ID
+  Packlist_V (nvarchar 20) — Vendor packing list
+  Customer (nvarchar 50) — Customer code (if customer-related)
+  Packlist_C (nvarchar 20) — Customer packing list
+  Other_desc (nvarchar 50) — Other description
+  Reference (nvarchar 30) — Reference number
+  Lot (nvarchar 50) — Lot number
+  Origin (nvarchar 30) — Origin / source of the NC
+  Origin_ref (nvarchar 50) — Origin reference
+  Origin_cause (nvarchar 20) — Root cause of the NC (use this when user asks about "cause" or "reason")
+  Origin_category (nvarchar 20) — Cause category / classification
+  Qty_total (float) — Total quantity in the lot
+  Qty_rejected (float) — Quantity rejected
   Sample_qty (float) — Sample qty
   Sample_rejected (float) — Sample rejected
   Inspection_by (nvarchar 25) — Inspection by
@@ -709,7 +709,7 @@
   Disposition_by (nvarchar 25) — Disposition by
   Disposition_date (datetime) — Disposition date
   Disposition_complete (bit) — Disposition complete
-  Close_Date (datetime) — Close Date
+  Close_Date (datetime) — Date the NC was closed
   Notes (nvarchar MAX) — Notes
   CPA_Requested (bit) — CPA Requested
   CPA_Requested_by (nvarchar 30) — CPA Requested by
@@ -720,10 +720,10 @@
   Accounting_hrs (float) — Accounting hrs
   Est_rework_hrs (float) — Est rework hrs
   Act_rework_hrs (float) — Act rework hrs
-  Scrap_cost (float) — Scrap cost
-  NC_processing_cost (float) — NC processing cost
-  Est_Rework_labor_cost (float) — Est Rework labor cost
-  Act_Rework_labor_cost (float) — Act Rework labor cost
+  Scrap_cost (float) — Scrap cost (dollar amount of scrapped material)
+  NC_processing_cost (float) — Total processing cost of this NC (use this when user asks about "cost" or "total cost")
+  Est_Rework_labor_cost (float) — Estimated rework labor cost
+  Act_Rework_labor_cost (float) — Actual rework labor cost
   AI_required (bit) — AI required
   AI_complete (bit) — AI complete
   Accounting_notes (nvarchar MAX) — Accounting notes
@@ -735,7 +735,7 @@
   Acc_Action_Vendor (nvarchar 30) — Acc Action Vendor
   Orig_Invoice_Vendor (nvarchar 15) — Orig Invoice Vendor
   Credit_Memo_Vendor (nvarchar 15) — Credit Memo Vendor
-  Originated_date (datetime) — Originated date
+  Originated_date (datetime) — Date the NC was originated/created
   Disp_Job (nvarchar 50) — Disp Job
   Disp_Jobop (int) — Disp Jobop
   Disp_WC (nvarchar 50) — Disp WC
