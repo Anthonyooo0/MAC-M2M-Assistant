@@ -301,6 +301,110 @@ function validateSqlSafety(sqlQuery) {
 }
 
 // ---------------------------------------------------------------------------
+// UniPoint schema validator — checks SQL against actual schema before execution
+// ---------------------------------------------------------------------------
+
+function parseSchemaFile(schemaText) {
+  const tables = {};
+  let currentTable = null;
+  for (const line of schemaText.split('\n')) {
+    const tableMatch = line.match(/^## (\S+)/);
+    if (tableMatch) {
+      currentTable = tableMatch[1].toLowerCase();
+      tables[currentTable] = new Set();
+    } else if (currentTable) {
+      const colMatch = line.match(/^\s+(\S+)\s+\(/);
+      if (colMatch) {
+        tables[currentTable].add(colMatch[1].toLowerCase());
+      }
+    }
+  }
+  return tables;
+}
+
+// Parse once at startup
+const UNIPOINT_TABLES = parseSchemaFile(UNIPOINT_SCHEMA);
+
+function validateAgainstSchema(sqlQuery, schemaTables) {
+  const errors = [];
+
+  // Extract table names after FROM and JOIN (case-insensitive)
+  const tablePattern = /\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)/gi;
+  let match;
+  const usedTables = new Set();
+  while ((match = tablePattern.exec(sqlQuery)) !== null) {
+    const tableName = match[1].toLowerCase();
+    // Skip subquery aliases and common SQL keywords
+    if (['select', 'where', 'on', 'and', 'or', 'not', 'in', 'as', 'top'].includes(tableName)) continue;
+    usedTables.add(tableName);
+    if (!schemaTables[tableName]) {
+      errors.push(`Table '${match[1]}' does not exist in the schema. Available tables: ${Object.keys(schemaTables).slice(0, 15).join(', ')}...`);
+    }
+  }
+
+  // Extract column references — look for word.word patterns (table.column) and bare columns
+  // Only validate table.column patterns since bare column names could be aliases
+  const qualifiedColPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  while ((match = qualifiedColPattern.exec(sqlQuery)) !== null) {
+    const tableName = match[1].toLowerCase();
+    const colName = match[2].toLowerCase();
+    // Skip if it's an alias or not a known table
+    if (!schemaTables[tableName]) continue;
+    if (!schemaTables[tableName].has(colName)) {
+      // Find similar columns to suggest
+      const available = [...schemaTables[tableName]];
+      const similar = available.filter(c => c.includes(colName) || colName.includes(c)).slice(0, 5);
+      const suggestion = similar.length > 0 ? ` Similar columns: ${similar.join(', ')}` : ` Available columns: ${available.slice(0, 10).join(', ')}...`;
+      errors.push(`Column '${match[2]}' does not exist in table '${match[1]}'.${suggestion}`);
+    }
+  }
+
+  // Also check unqualified columns against used tables for common hallucinations
+  // Extract columns from SELECT (before FROM) and WHERE/GROUP BY/ORDER BY
+  if (usedTables.size === 1) {
+    const theTable = [...usedTables][0];
+    const tableCols = schemaTables[theTable];
+    if (tableCols) {
+      // Get all identifiers that look like column references
+      const selectMatch = sqlQuery.match(/SELECT\s+(?:TOP\s+\d+\s+)?([\s\S]*?)\bFROM\b/i);
+      if (selectMatch) {
+        const selectPart = selectMatch[1];
+        // Extract bare column names (not functions, not aliases after AS, not string literals)
+        const bareColPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+        let colMatch;
+        const skipWords = new Set(['select','top','as','from','where','and','or','not','in','is','null',
+          'like','between','case','when','then','else','end','cast','convert','count','sum','avg','min',
+          'max','distinct','asc','desc','order','by','group','having','dateadd','datediff','getdate',
+          'year','month','day','isnull','coalesce','left','right','substring','len','upper','lower',
+          'trim','ltrim','rtrim','nvarchar','int','float','bit','datetime','money']);
+        while ((colMatch = bareColPattern.exec(selectPart)) !== null) {
+          const word = colMatch[1].toLowerCase();
+          if (skipWords.has(word)) continue;
+          if (/^\d+$/.test(colMatch[1])) continue;
+          // Check if this looks like a column (not a string literal, not a number, not an alias)
+          // If it's not in the schema, flag it
+          if (!tableCols.has(word) && word !== theTable) {
+            // Could be an alias — check if it follows AS
+            const beforeMatch = selectPart.substring(0, colMatch.index);
+            if (/\bAS\s*$/i.test(beforeMatch)) continue; // It's an alias name, skip
+            if (/["']\s*$/.test(beforeMatch)) continue; // Inside a string literal
+            const similar = [...tableCols].filter(c => c.includes(word) || word.includes(c)).slice(0, 5);
+            if (similar.length > 0) {
+              errors.push(`Column '${colMatch[1]}' does not exist in table '${theTable}'. Did you mean: ${similar.join(', ')}?`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // Main Azure Function
 // ---------------------------------------------------------------------------
 
@@ -478,7 +582,61 @@ module.exports = async function (context, req) {
       }
     }
 
-    // Parse M2M connection string
+    // UniPoint only: validate SQL against schema before executing
+    if (database === 'unipoint_live' && sqlQuery) {
+      const schemaCheck = validateAgainstSchema(sqlQuery, UNIPOINT_TABLES);
+      if (!schemaCheck.ok) {
+        context.log.warn(`[m2m-query] Schema validation failed: ${schemaCheck.errors.join('; ')} — retrying`);
+
+        const schemaRetryMessages = [
+          ...geminiMessages,
+          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+          {
+            role: 'user',
+            parts: [{
+              text: `Your SQL query failed schema validation before execution. The following problems were found:\n` +
+                schemaCheck.errors.map(e => `- ${e}`).join('\n') + '\n\n' +
+                `You MUST only use table and column names from the schema. Please fix these errors and regenerate the query.`,
+            }],
+          },
+        ];
+
+        const schemaRetryBody = {
+          system_instruction: { parts: [{ text: activePrompt }] },
+          contents: schemaRetryMessages,
+          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        };
+
+        const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
+        if (schemaRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+          const retryParsed = parseGeminiResponse(schemaRetryData);
+          explanation = retryParsed.explanation;
+          let retrySql = retryParsed.sqlQuery;
+          if (retrySql) retrySql = cleanSqlQuery(retrySql);
+
+          if (retrySql) {
+            const retrySchemaCheck = validateAgainstSchema(retrySql, UNIPOINT_TABLES);
+            if (retrySchemaCheck.ok) {
+              sqlQuery = retrySql;
+            } else {
+              // Still invalid after retry — return the errors to user
+              context.res = {
+                status: 400,
+                headers: CORS,
+                body: JSON.stringify({
+                  error: `Schema validation failed: ${retrySchemaCheck.errors.join('; ')}`,
+                  explanation,
+                  sql: retrySql,
+                }),
+              };
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    // Parse connection string
     const parts = {};
     for (const segment of connString.split(';')) {
       const idx = segment.indexOf('=');
