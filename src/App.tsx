@@ -665,15 +665,22 @@ function App() {
                   </div>
                   <h3 className="text-lg font-bold text-slate-400 mb-2">What would you like to know?</h3>
                   <p className="text-sm text-slate-400 max-w-md mb-8">
-                    Ask me anything about M2M data — sales orders, jobs, inventory, purchase orders, customers, and more.
+                    {activeCompany.id === 'unipoint'
+                      ? 'Ask me anything about UniPoint quality data — inspections, NCRs, corrective actions, equipment, and more.'
+                      : 'Ask me anything about M2M data — sales orders, jobs, inventory, purchase orders, customers, and more.'}
                   </p>
                   <div className="grid grid-cols-2 gap-3 max-w-lg">
-                    {[
+                    {(activeCompany.id === 'unipoint' ? [
+                      'Show me all open non-conformance reports',
+                      'What corrective actions are in progress?',
+                      'List recent inspections',
+                      'Show equipment maintenance due',
+                    ] : [
                       'Show me all open sales orders',
                       'What jobs are active right now?',
                       'List inventory items with zero on hand',
                       'Show purchase orders due this month',
-                    ].map((suggestion) => (
+                    ]).map((suggestion) => (
                       <button
                         key={suggestion}
                         onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
