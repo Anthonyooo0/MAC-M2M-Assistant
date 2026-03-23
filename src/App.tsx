@@ -44,7 +44,7 @@ interface Company {
 const COMPANIES: Company[] = [
   { id: 'mac-products', name: 'MAC Products', shortName: 'MAC PRODUCTS', logo: '/mac_logo.png', database: 'm2mdata99' },
   { id: 'mac-impulse', name: 'MAC Impulse', shortName: 'MAC IMPULSE', logo: '/mac_impulse_logo.png', database: 'm2mdata66' },
-  { id: 'unipoint', name: 'UniPoint Quality', shortName: 'UNIPOINT', logo: '/UniPointlogo.jpg', database: 'unipoint_live' },
+  { id: 'unipoint', name: 'UniPoint Quality', shortName: 'UNIPOINT', logo: '/UniPointlogo.png', database: 'unipoint_live' },
 ];
 
 // Map of users who have access to specific companies (by email → company IDs)
