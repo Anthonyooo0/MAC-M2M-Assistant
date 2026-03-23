@@ -3,13 +3,21 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-// Load the slim M2M schema (core tables only) at startup
-const schemaPath = path.join(__dirname, '..', 'm2m-schema-slim.txt');
+// Load schemas at startup
+const m2mSchemaPath = path.join(__dirname, '..', 'm2m-schema-slim.txt');
 let M2M_SCHEMA = '';
 try {
-  M2M_SCHEMA = fs.readFileSync(schemaPath, 'utf-8');
+  M2M_SCHEMA = fs.readFileSync(m2mSchemaPath, 'utf-8');
 } catch (e) {
-  console.error('Could not load m2m-schema.txt:', e.message);
+  console.error('Could not load m2m-schema-slim.txt:', e.message);
+}
+
+const uniSchemaPath = path.join(__dirname, '..', 'unipoint-schema-slim.txt');
+let UNIPOINT_SCHEMA = '';
+try {
+  UNIPOINT_SCHEMA = fs.readFileSync(uniSchemaPath, 'utf-8');
+} catch (e) {
+  console.error('Could not load unipoint-schema-slim.txt:', e.message);
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant for MAC Products employees that helps them query the M2M ERP database (Made2Manage version 7.51).
@@ -102,6 +110,59 @@ IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code bloc
 Here is the COMPLETE M2M database schema with all tables and fields:
 
 ${M2M_SCHEMA}
+`;
+
+const UNIPOINT_SYSTEM_PROMPT = `You are an AI assistant for MAC Products quality team members that helps them query the UniPoint Quality Management database.
+
+You MUST respond with valid JSON in this exact format:
+{"explanation":"A helpful plain-English explanation of what the data shows, any insights, and answers to the user's question. Be conversational and helpful. If the user asked a question, answer it directly.","sql":"THE SQL QUERY HERE"}
+
+If the user asks a general question that does NOT need a database query (like 'what am I looking at', 'explain this', 'what does this field mean', etc.), respond with:
+{"explanation":"Your helpful answer here","sql":""}
+
+=== RESTRICTED TABLES — NEVER QUERY THESE ===
+- PT_Security_Users (user accounts, passwords)
+- PT_Employee (SSN, pay rates, personal data)
+- PT_Employee_Extended (passwords, login credentials)
+- PT_Cashflow and all PT_Cashflow_* tables (financial data)
+- PT_GST (tax configuration)
+If a user asks for data from these tables, politely explain that they contain restricted information.
+
+=== ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
+The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
+- You may ONLY use table names and column names that are EXPLICITLY listed in the schema below.
+- Do NOT guess, infer, or assume ANY column name exists.
+- If you cannot find the right column, set sql to "" and list the available columns.
+- NEVER fabricate a column name.
+
+QUERY RULES:
+1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
+2. Always use TOP 500 to limit results unless the user asks for a count/aggregate.
+3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name.
+   Examples: NCR AS "NCR Number", Status AS "Status", NCR_Date AS "Date Reported"
+   - Every column in every SELECT must have an AS alias with a friendly name.
+   - Use double quotes around aliases that contain spaces.
+4. UniPoint uses nvarchar fields — no need for RTRIM().
+5. Use proper JOIN syntax when linking tables.
+6. Common table relationships:
+   - PT_Inspection.InspectionSpecification_No = PT_InspectionSpecification.InspectionSpecification_No
+   - PT_Inspection.Inspection_No = PT_InspectionItem.Inspection_No
+   - PT_InspectionItem.Inspection_No = PT_InspectionItem_Measurement.Inspection_No
+   - PT_InspectionItem.InspectionItemID = PT_InspectionItem_Measurement.InspectionItemID
+   - PT_InspectionSpecification_Measurement.InspectionSpecification_No = PT_InspectionSpecification.InspectionSpecification_No
+   - PT_NC.CPA_No = PT_CPA.CPA_no (Non-Conformance → Corrective Action)
+   - PT_NC.Vendor links to vendor lookups
+   - PT_NC.Customer links to customer lookups
+   - PT_Equip_Maint.Equip_num = PT_Equip.Equip_num
+   - PT_Attach links to various records via AttachType/AttachReference
+   - PT_SignOff links via SignoffType/SignoffTypeID
+   - PT_History tracks changes via ObjectType/ObjectKey
+
+IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
+
+Here is the COMPLETE UniPoint database schema with all tables and fields:
+
+${UNIPOINT_SCHEMA}
 `;
 
 // ---------------------------------------------------------------------------
@@ -273,20 +334,25 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // Pick connection string based on requested database
+    // Pick connection string and system prompt based on requested database
     const { database } = req.body || {};
     let connString;
+    let activePrompt = SYSTEM_PROMPT;
     if (database === 'm2mdata66') {
       connString = process.env.M2M_IMPULSE_CONNECTION_STRING;
       if (!connString) {
         context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'MAC Impulse database connection is not configured.' }) };
         return;
       }
+    } else if (database === 'unipoint_live') {
+      connString = process.env.UNIPOINT_CONNECTION_STRING;
+      activePrompt = UNIPOINT_SYSTEM_PROMPT;
+      if (!connString) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'UniPoint database connection is not configured.' }) };
+        return;
+      }
     } else {
-      // DEBUG: Log the raw env var to see what Azure is giving us
-      const rawEnv = process.env.M2M_CONNECTION_STRING;
-      context.log.info(`[m2m-query] RAW M2M_CONNECTION_STRING = "${rawEnv}"`);
-      connString = rawEnv;
+      connString = process.env.M2M_CONNECTION_STRING;
       if (!connString) {
         context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'M2M database connection is not configured.' }) };
         return;
@@ -314,7 +380,7 @@ module.exports = async function (context, req) {
     // First Gemini call
     // -----------------------------------------------------------------------
     const geminiBody = {
-      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      system_instruction: { parts: [{ text: activePrompt }] },
       contents: geminiMessages,
       generationConfig: {
         temperature: 0.1,
@@ -375,7 +441,7 @@ module.exports = async function (context, req) {
       ];
 
       const safetyRetryBody = {
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        system_instruction: { parts: [{ text: activePrompt }] },
         contents: safetyRetryMessages,
         generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };
@@ -460,7 +526,7 @@ module.exports = async function (context, req) {
       ];
 
       const retryGeminiBody = {
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        system_instruction: { parts: [{ text: activePrompt }] },
         contents: retryMessages,
         generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
       };

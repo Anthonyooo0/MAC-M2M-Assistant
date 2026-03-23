@@ -1,0 +1,911 @@
+# UniPoint Quality Database Schema — Active Tables Only
+# Generated from uniPoint_Live INFORMATION_SCHEMA, filtered to tables with data
+# Source: unit point tables in use right now.csv
+
+## PT_Address — Addresses
+  Address (int) — Address
+  AddressType (nvarchar 20) — Address Type
+  AddressSource (nvarchar 50) — Address Source
+  ShipVia (nvarchar 15) — Ship Via
+  AddressDefault (nvarchar 5) — Address Default
+  Status (nvarchar 8) — Status
+  AddressID (nvarchar 15) — Address ID
+  AddressName (nvarchar 40) — Address Name
+  Line1 (nvarchar 45) — Line1
+  Line2 (nvarchar 45) — Line2
+  City (nvarchar 20) — City
+  State (nvarchar 3) — State
+  PostalCode (nvarchar 10) — Postal Code
+  Country (nvarchar 20) — Country
+  Phone (nvarchar 20) — Phone
+  Fax (nvarchar 20) — Fax
+  LeadDays (smallint) — Lead Days
+  Accounting (bit) — Accounting
+  Shipping (bit) — Shipping
+  Notes (nvarchar MAX) — Notes
+
+## PT_Attach — Attachments
+  Attachment (int) — Attachment
+  AttachType (nvarchar 20) — Attach Type
+  AttachDescription (nvarchar 254) — Attach Description
+  AttachPath (nvarchar 254) — Attach Path
+  AttachOrigin (nvarchar 20) — Attach Origin
+  AttachReference (nvarchar 50) — Attach Reference
+  UserID (nvarchar 50) — User ID
+  AttachNotes (nvarchar MAX) — Attach Notes
+  AttachTypeCategory (nvarchar 20) — Attach Type Category
+  AttachOriginCategory (nvarchar 20) — Attach Origin Category
+  AttachmentId (nvarchar 50) — Attachment Id
+  AttachTypeSubType (nvarchar 50) — Attach Type Sub Type
+  AttachTypeSubId (nvarchar 50) — Attach Type Sub Id
+  AttachOriginSubType (nvarchar 50) — Attach Origin Sub Type
+  AttachOriginSubId (nvarchar 50) — Attach Origin Sub Id
+  AttachSource (nvarchar 50) — Attach Source
+  CreateDate (datetime) — Create Date
+
+## PT_Attach_Link — Link (child of Attachments)
+  AttachLinkId (int) — Attach Link Id
+  AttachLinkType (nvarchar 50) — Attach Link Type
+  AttachLinkTypeID (nvarchar 50) — Attach Link Type ID
+  AttachLinkSubType (nvarchar 50) — Attach Link Sub Type
+  AttachLinkSubTypeID (nvarchar 50) — Attach Link Sub Type ID
+  AttachLinkOrigin (nvarchar 50) — Attach Link Origin
+  AttachLinkOriginID (nvarchar 50) — Attach Link Origin ID
+  AttachmentId (nvarchar 50) — Attachment Id
+  AttachLinkSource (nvarchar 50) — Attach Link Source
+  CreateDate (datetime) — Create Date
+
+## PT_Bubble_Feature — Drawing Bubble Features
+  BubbleFeatureId (nvarchar 50) — Bubble Feature Id
+  BubblePageId (nvarchar 50) — Bubble Page Id
+  DetailType (nvarchar 255) — Detail Type
+  DetailTypeId (nvarchar 255) — Detail Type Id
+  BubbleXml (nvarchar MAX) — Bubble Xml
+
+## PT_Bubble_Page — Drawing Bubble Pages
+  BubblePageId (nvarchar 50) — Bubble Page Id
+  SourceType (nvarchar 255) — Source Type
+  SourceTypeId (nvarchar 255) — Source Type Id
+  Page (smallint) — Page
+  Rotation (smallint) — Rotation
+  ScaleFactor (float) — Scale Factor
+
+## PT_Cost — Cost Tracking
+  CostID (nvarchar 50) — Cost ID
+  CostType (nvarchar 20) — Cost Type
+  CostTypeID (nvarchar 20) — Cost Type ID
+  Item (nvarchar 50) — Item
+  Vendor (nvarchar 50) — Vendor
+  PO (nvarchar 50) — PO
+  POLine (nvarchar 10) — PO Line
+  GLAccount (nvarchar 50) — GL Account
+  Description (nvarchar 50) — Description
+  Category (nvarchar 20) — Category
+  Notes (nvarchar MAX) — Notes
+  Feedback (nvarchar MAX) — Feedback
+  DueDate (datetime) — Due Date
+  EstimatedQuantity (float) — Estimated Quantity
+  EstimatedCost (float) — Estimated Cost
+  ActualQuantity (float) — Actual Quantity
+  ActualCost (float) — Actual Cost
+  UofM (nvarchar 20) — Uof M
+  VendorName (nvarchar 300) — Vendor Name
+
+## PT_CPA — Corrective/Preventive Actions
+  CPA_no (nvarchar 10) — CPA no
+  CPA_date (datetime) — CPA date
+  Status (nvarchar 20) — Status
+  Type (nvarchar 30) — Type
+  Category (nvarchar 20) — Category
+  Description (nvarchar 50) — Description
+  Originated_by (nvarchar 25) — Originated by
+  Originated_complete (bit) — Originated complete
+  Assigned_to (nvarchar 25) — Assigned to
+  Dept (nvarchar 50) — Dept
+  Date_for_completion (datetime) — Date for completion
+  CPA_notes (nvarchar MAX) — CPA notes
+  Investigation_notes (nvarchar MAX) — Investigation notes
+  Investigation_by (nvarchar 50) — Investigation by
+  Investigation_date (datetime) — Investigation date
+  Investigation_complete (bit) — Investigation complete
+  Action_notes (nvarchar MAX) — Action notes
+  Action_by (nvarchar 25) — Action by
+  Action_date (datetime) — Action date
+  Action_complete (bit) — Action complete
+  Verification_notes (nvarchar MAX) — Verification notes
+  Verification_by (nvarchar 25) — Verification by
+  Verification_date (datetime) — Verification date
+  Verification_complete (bit) — Verification complete
+  Action_implemented (bit) — Action implemented
+  Action_effective (bit) — Action effective
+  Close_date (datetime) — Close date
+  Origination_hrs (float) — Origination hrs
+  Investigation_hrs (float) — Investigation hrs
+  Action_hrs (float) — Action hrs
+  Verification_hrs (float) — Verification hrs
+  CPA_labor_cost (float) — CPA labor cost
+  Priority (smallint) — Priority
+  Division (nvarchar 25) — Division
+  Implementation_notes (nvarchar MAX) — Implementation notes
+  Implementation_by (nvarchar 25) — Implementation by
+  Implementation_date (datetime) — Implementation date
+  Implementation_complete (bit) — Implementation complete
+  Implementation_hrs (float) — Implementation hrs
+  Manager (nvarchar 20) — Manager
+  Customer (nvarchar 50) — Customer
+  Vendor (nvarchar 50) — Vendor
+  Source (nvarchar 30) — Source
+  Origin (nvarchar 30) — Origin
+  Origin_ref (nvarchar 50) — Origin ref
+  Origin_cause (nvarchar 20) — Origin cause
+  Origin_category (nvarchar 20) — Origin category
+  ErpSource (nvarchar 50) — Erp Source
+  ErpSourceId (nvarchar 50) — Erp Source Id
+  CustomerName (nvarchar 300) — Customer Name
+  Origin_Ref_Name (nvarchar 300) — Origin Ref Name
+  VendorName (nvarchar 300) — Vendor Name
+
+## PT_CustomModule_Field — Field (child of Custom Modules)
+  FieldID (nvarchar 50) — Field ID
+  CustomModule_No (nvarchar 10) — Custom Module No
+  FieldType (nvarchar 20) — Field Type
+  FieldSubType (nvarchar 20) — Field Sub Type
+  Removeable (bit) — Removeable
+  Label (nvarchar 20) — Label
+  DbField (nvarchar 20) — Db Field
+  DbSubTable (nvarchar 20) — Db Sub Table
+  DefaultValue (nvarchar 50) — Default Value
+  DisplayOrder (int) — Display Order
+  Required (nvarchar 20) — Required
+  SearchFilter (bit) — Search Filter
+  SearchColumn (bit) — Search Column
+  Enabled (bit) — Enabled
+  ShowUserCodeButton (bit) — Show User Code Button
+
+## PT_Equip — Equipment/Assets
+  Equip_num (nvarchar 15) — Equip num
+  Equip_Desc (nvarchar 50) — Equip Desc
+  Ext_Desc (nvarchar MAX) — Ext Desc
+  Manufacturer (nvarchar 50) — Manufacturer
+  Owner (nvarchar 50) — Owner
+  Customer (nvarchar 50) — Customer
+  Acquisition (nvarchar 20) — Acquisition
+  Vendor (nvarchar 50) — Vendor
+  Invoice (nvarchar 20) — Invoice
+  PO (nvarchar 50) — PO
+  Job (nvarchar 50) — Job
+  Serial_No (nvarchar 50) — Serial No
+  Status (nvarchar 15) — Status
+  Class (nvarchar 20) — Class
+  Category (nvarchar 20) — Category
+  Assigned_to (nvarchar 15) — Assigned to
+  Assigned_dept (nvarchar 50) — Assigned dept
+  Assigned_employee (nvarchar 50) — Assigned employee
+  Assigned_vendor (nvarchar 50) — Assigned vendor
+  Location (nvarchar 30) — Location
+  Downtime_cost (float) — Downtime cost
+  Acquisition_date (datetime) — Acquisition date
+  Purchase_cost (float) — Purchase cost
+  Current_Value (float) — Current Value
+  Disposal_value (float) — Disposal value
+  Disposal_date (datetime) — Disposal date
+  Use_equip_meter (bit) — Use equip meter
+  Equip_meter (int) — Equip meter
+  Equip_meter_units (nvarchar 15) — Equip meter units
+  Status_date (datetime) — Status date
+  File_picture (nvarchar 255) — File picture
+  File_website (nvarchar 255) — File website
+  File_manual (nvarchar 255) — File manual
+  Notes (nvarchar MAX) — Notes
+  EquipID (int) — Equip ID
+  Current_location (nvarchar 30) — Current location
+  ModelYear (nvarchar 50) — Model Year
+  Fixed_Asset (bit) — Fixed Asset
+  Salvage_Value (float) — Salvage Value
+  Asset_GL_Account (nvarchar 50) — Asset GL Account
+  Availability (nvarchar 20) — Availability
+  Division (nvarchar 25) — Division
+  ModelNo (nvarchar 50) — Model No
+  Flag_Past_Due (bit) — Flag Past Due
+  Track_Usage (bit) — Track Usage
+  Warranty_date (datetime) — Warranty date
+  Manager (nvarchar 20) — Manager
+  ContractNumber (nvarchar 30) — Contract Number
+  ContractStartDate (datetime) — Contract Start Date
+  ContractEndDate (datetime) — Contract End Date
+  ContractHours (float) — Contract Hours
+  Equip_meter_date (datetime) — Equip meter date
+  Usage_cost (float) — Usage cost
+  UsageGroup (nvarchar 20) — Usage Group
+  IsKit (bit) — Is Kit
+  Assigned_customer (nvarchar 50) — Assigned customer
+  Assigned_wc (nvarchar 50) — Assigned wc
+  Calibration_Required (bit) — Calibration Required
+  CustomerName (nvarchar 300) — Customer Name
+  Assigned_customer_Name (nvarchar 300) — Assigned customer Name
+  VendorName (nvarchar 300) — Vendor Name
+  Assigned_vendor_Name (nvarchar 300) — Assigned vendor Name
+
+## PT_Equip_Maint — Equipment Maintenance/Work Orders
+  Equip_num (nvarchar 15) — Equip num
+  Maint_num (int) — Maint num
+  Type (nvarchar 25) — Type
+  Category (nvarchar 25) — Category
+  Maint_desc (nvarchar 35) — Maint desc
+  Status (nvarchar 15) — Status
+  Source (nvarchar 20) — Source
+  Source_Ref (nvarchar 50) — Source Ref
+  Job (nvarchar 50) — Job
+  PO (nvarchar 50) — PO
+  Line (nvarchar 10) — Line
+  PO_Detail (int) — PO Detail
+  Completed_date (datetime) — Completed date
+  Completed_by (nvarchar 25) — Completed by
+  Recurring (int) — Recurring
+  Freq_type (nvarchar 20) — Freq type
+  Freq_interval (int) — Freq interval
+  OneTime_based (nvarchar 10) — One Time based
+  Last_date (datetime) — Last date
+  Next_date (datetime) — Next date
+  Last_meter (int) — Last meter
+  Next_meter (int) — Next meter
+  Equip_meter (int) — Equip meter
+  Warranty (bit) — Warranty
+  Preventable (bit) — Preventable
+  Preventable_by (nvarchar 30) — Preventable by
+  Notes (nvarchar MAX) — Notes
+  Est_labor_hrs (float) — Est labor hrs
+  Act_labor_hrs (float) — Act labor hrs
+  Est_labor_cost (float) — Est labor cost
+  Act_labor_cost (float) — Act labor cost
+  Est_material_cost (float) — Est material cost
+  Act_material_cost (float) — Act material cost
+  Est_service_cost (float) — Est service cost
+  Act_service_cost (float) — Act service cost
+  Est_downtime_hrs (float) — Est downtime hrs
+  Act_downtime_hrs (float) — Act downtime hrs
+  Est_downtime_cost (float) — Est downtime cost
+  Act_downtime_cost (float) — Act downtime cost
+  Printed (bit) — Printed
+  Create_date (datetime) — Create date
+  Job_Operation (int) — Job Operation
+  Work_Center (nvarchar 50) — Work Center
+  Priority (smallint) — Priority
+  Class (nvarchar 20) — Class
+  Department (nvarchar 50) — Department
+  Division (nvarchar 25) — Division
+  Ticket_Manager (nvarchar 20) — Ticket Manager
+  Cause (nvarchar 20) — Cause
+  Cause_Category (nvarchar 20) — Cause Category
+  Update_Equip_Cert (bit) — Update Equip Cert
+  Next_Ticket_Based_On (nvarchar 20) — Next Ticket Based On
+  Next_Ticket_Template (nvarchar 50) — Next Ticket Template
+  RecurrenceID (nvarchar 50) — Recurrence ID
+  Feedback_Notes (nvarchar MAX) — Feedback Notes
+  Flag_Past_Due (bit) — Flag Past Due
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  Source_Ref_Name (nvarchar 300) — Source Ref Name
+
+## PT_History — Audit History/Change Log
+  ID (int) — ID
+  ObjectType (nvarchar 50) — Object Type
+  ObjectSubType (nvarchar 50) — Object Sub Type
+  ObjectKey (nvarchar 50) — Object Key
+  FilterKey1 (nvarchar 50) — Filter Key1
+  FilterKey2 (nvarchar 50) — Filter Key2
+  Action (nvarchar 50) — Action
+  Description (nvarchar MAX) — Description
+  Notes (nvarchar MAX) — Notes
+  UserID (nvarchar 50) — User ID
+  ActionDate (datetime) — Action Date
+  TokenLicense (nvarchar 100) — Token License
+  Source (nvarchar 50) — Source
+
+## PT_History_Time — Time (child of Audit History/Change Log)
+  ID (int) — ID
+  ObjectType (nvarchar 50) — Object Type
+  ObjectSubType (nvarchar 50) — Object Sub Type
+  ObjectKey (nvarchar 50) — Object Key
+  Hours (float) — Hours
+  Amount (money) — Amount
+  UserID (nvarchar 20) — User ID
+  ActionDate (datetime) — Action Date
+  ObjectSubKey (nvarchar 50) — Object Sub Key
+
+## PT_Inspection — Inspections
+  Inspection_No (nvarchar 10) — Inspection No
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  Description (nvarchar 40) — Description
+  Ext_desc (nvarchar MAX) — Ext desc
+  Part (nvarchar 50) — Part
+  PartDescription (nvarchar 50) — Part Description
+  Manager (nvarchar 20) — Manager
+  Status (nvarchar 20) — Status
+  Revision (nvarchar 50) — Revision
+  InspectionSpecification_type (nvarchar 20) — Inspection Specification type
+  Class (nvarchar 20) — Class
+  Category (nvarchar 20) — Category
+  Department (nvarchar 50) — Department
+  Division (nvarchar 25) — Division
+  Work_Center (nvarchar 50) — Work Center
+  Vendor (nvarchar 50) — Vendor
+  Customer (nvarchar 50) — Customer
+  InspectionRateType (nvarchar 20) — Inspection Rate Type
+  InspectionRateQuantity (int) — Inspection Rate Quantity
+  InspectionRateSampleInterval (float) — Inspection Rate Sample Interval
+  InspectionRateSampleMin (int) — Inspection Rate Sample Min
+  InspectionRateSampleMax (int) — Inspection Rate Sample Max
+  InspectionRateMinutes (float) — Inspection Rate Minutes
+  InspectionRateFixedType (nvarchar 10) — Inspection Rate Fixed Type
+  InspectionRateAnsiLevel (nvarchar 5) — Inspection Rate Ansi Level
+  InspectionRateAnsiType (nvarchar 10) — Inspection Rate Ansi Type
+  InspectionRateAnsiSampling (nvarchar 10) — Inspection Rate Ansi Sampling
+  InspectionRateAnsiAQL (float) — Inspection Rate Ansi AQL
+  InspectionRatePercentage (float) — Inspection Rate Percentage
+  Notes (nvarchar MAX) — Notes
+  ScheduledDate (datetime) — Scheduled Date
+  InspectionDate (datetime) — Inspection Date
+  CloseDate (datetime) — Close Date
+  Inspector (nvarchar 20) — Inspector
+  PO (nvarchar 50) — PO
+  POLine (nvarchar 10) — PO Line
+  SO (nvarchar 50) — SO
+  SOLine (nvarchar 10) — SO Line
+  Job (nvarchar 50) — Job
+  Shipment (nvarchar 20) — Shipment
+  InspectionHrs (float) — Inspection Hrs
+  InspectionCost (float) — Inspection Cost
+  TotalQuantity (int) — Total Quantity
+  InspectionQuantity (int) — Inspection Quantity
+  Lot (nvarchar 50) — Lot
+  Serial (nvarchar 50) — Serial
+  CalculatedResult (nvarchar 20) — Calculated Result
+  Result (nvarchar 20) — Result
+  BaseInspection (nvarchar 10) — Base Inspection
+  SampleNumber (int) — Sample Number
+  PartRevision (nvarchar 20) — Part Revision
+  Operation (nvarchar 50) — Operation
+  RejectedQuantity (int) — Rejected Quantity
+  LotSkip (bit) — Lot Skip
+  CreateDate (datetime) — Create Date
+  CompletedPreviously (bit) — Completed Previously
+  CompletedBy (nvarchar 20) — Completed By
+  QtyFailed (int) — Qty Failed
+  ErpSource (nvarchar 50) — Erp Source
+  ErpSourceId (nvarchar 50) — Erp Source Id
+  InspectionRateAsmeB18181Type (nvarchar 50) — Inspection Rate Asme B18181Type
+  InspectionRateAsmeB18181Level (nvarchar 5) — Inspection Rate Asme B18181Level
+  InspectionRateAstmF147012Level (nvarchar 5) — Inspection Rate Astm F147012Level
+  InspectionRateAsmeB18182011Category (nvarchar 5) — Inspection Rate Asme B18182011Category
+  InspectionRateAsmeB18182011Level (nvarchar 5) — Inspection Rate Asme B18182011Level
+  CustomerName (nvarchar 300) — Customer Name
+  VendorName (nvarchar 300) — Vendor Name
+  ExpiryDate (datetime) — Expiry Date
+  InspectionRateMilStd1916VerificationLevel (nvarchar 5) — Inspection Rate Mil Std1916Verification Level
+  InspectionRateMilStd1916SamplingType (nvarchar 10) — Inspection Rate Mil Std1916Sampling Type
+  InspectionRateMilStd1916Stage (nvarchar 10) — Inspection Rate Mil Std1916Stage
+
+## PT_Inspection_Measurement — Measurement (child of Inspections)
+  InspectionMeasurementID (int) — Inspection Measurement ID
+  Inspection_No (nvarchar 10) — Inspection No
+  InspectionSpecificationMeasurementID (nvarchar 50) — Inspection Specification Measurement ID
+  InspectionRateType (nvarchar 20) — Inspection Rate Type
+  InspectionRateQuantity (int) — Inspection Rate Quantity
+  InspectionRateSampleInterval (float) — Inspection Rate Sample Interval
+  InspectionRateSampleMin (int) — Inspection Rate Sample Min
+  InspectionRateSampleMax (int) — Inspection Rate Sample Max
+  InspectionRateMinutes (float) — Inspection Rate Minutes
+  InspectionRateFixedType (nvarchar 10) — Inspection Rate Fixed Type
+  InspectionRateAnsiLevel (nvarchar 5) — Inspection Rate Ansi Level
+  InspectionRateAnsiType (nvarchar 10) — Inspection Rate Ansi Type
+  InspectionRateAnsiSampling (nvarchar 10) — Inspection Rate Ansi Sampling
+  InspectionRateAnsiAQL (float) — Inspection Rate Ansi AQL
+  InspectionRatePercentage (float) — Inspection Rate Percentage
+  InspectionResultType (nvarchar 20) — Inspection Result Type
+  InspectionResultQuantity (int) — Inspection Result Quantity
+  InspectionResultPercentage (float) — Inspection Result Percentage
+  Result (nvarchar 20) — Result
+  InspectionRateAsmeB18181Type (nvarchar 50) — Inspection Rate Asme B18181Type
+  InspectionRateAsmeB18181Level (nvarchar 5) — Inspection Rate Asme B18181Level
+  InspectionRateAstmF147012Level (nvarchar 5) — Inspection Rate Astm F147012Level
+  InspectionRateAsmeB18182011Category (nvarchar 5) — Inspection Rate Asme B18182011Category
+  InspectionRateAsmeB18182011Level (nvarchar 5) — Inspection Rate Asme B18182011Level
+  InspectionRateMilStd1916VerificationLevel (nvarchar 5) — Inspection Rate Mil Std1916Verification Level
+  InspectionRateMilStd1916SamplingType (nvarchar 10) — Inspection Rate Mil Std1916Sampling Type
+  InspectionRateMilStd1916Stage (nvarchar 10) — Inspection Rate Mil Std1916Stage
+
+## PT_InspectionItem — InspectionItem
+  InspectionItemID (nvarchar 50) — Inspection Item ID
+  Inspection_No (nvarchar 10) — Inspection No
+  InspectionTime (datetime) — Inspection Time
+  Result (nvarchar 20) — Result
+
+## PT_InspectionItem_Measurement — InspectionItem Measurement
+  ID (int) — ID
+  Inspection_No (nvarchar 10) — Inspection No
+  InspectionItemID (nvarchar 50) — Inspection Item ID
+  InspectionSpecificationMeasurementID (nvarchar 50) — Inspection Specification Measurement ID
+  InspectionValue (nvarchar 50) — Inspection Value
+  PassingMinimum (float) — Passing Minimum
+  PassingMaximum (float) — Passing Maximum
+  InspectionRateSatisfied (bit) — Inspection Rate Satisfied
+  Equip_num (nvarchar 20) — Equip num
+  ToolType (nvarchar 20) — Tool Type
+  MiscTool (nvarchar 50) — Misc Tool
+  Notes (nvarchar MAX) — Notes
+  Result (nvarchar 20) — Result
+  LastUserID (nvarchar 20) — Last User ID
+  LastDate (datetime) — Last Date
+  SpecLookupInspecitonValueLastDate (datetime) — Spec Lookup Inspeciton Value Last Date
+  SpecLookupInspection_No (nvarchar 10) — Spec Lookup Inspection No
+  SpecLookupInspectionItemID (nvarchar 50) — Spec Lookup Inspection Item ID
+
+## PT_InspectionItem_Measurement_Log — InspectionItem Measurement Log
+  ID (int) — ID
+  Inspection_No (nvarchar 10) — Inspection No
+  InspectionItemID (nvarchar 50) — Inspection Item ID
+  InspectionSpecificationMeasurementID (nvarchar 50) — Inspection Specification Measurement ID
+  UserID (nvarchar 20) — User ID
+  ValueChangedFrom (nvarchar 50) — Value Changed From
+  ValueChangedTo (nvarchar 50) — Value Changed To
+  ValueChangedTime (datetime) — Value Changed Time
+
+## PT_InspectionSpecification — Inspection Specifications/Templates
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  Description (nvarchar 40) — Description
+  Ext_desc (nvarchar MAX) — Ext desc
+  Part (nvarchar 50) — Part
+  PartDescription (nvarchar 50) — Part Description
+  Manager (nvarchar 20) — Manager
+  Status (nvarchar 20) — Status
+  Revision (nvarchar 50) — Revision
+  InspectionSpecification_type (nvarchar 20) — Inspection Specification type
+  Class (nvarchar 20) — Class
+  Category (nvarchar 20) — Category
+  Department (nvarchar 50) — Department
+  Division (nvarchar 25) — Division
+  Work_Center (nvarchar 50) — Work Center
+  Vendor (nvarchar 50) — Vendor
+  Customer (nvarchar 50) — Customer
+  InspectionRateType (nvarchar 20) — Inspection Rate Type
+  InspectionRateQuantity (int) — Inspection Rate Quantity
+  InspectionRateSampleInterval (float) — Inspection Rate Sample Interval
+  InspectionRateSampleMin (int) — Inspection Rate Sample Min
+  InspectionRateSampleMax (int) — Inspection Rate Sample Max
+  InspectionRateMinutes (float) — Inspection Rate Minutes
+  InspectionRateFixedType (nvarchar 10) — Inspection Rate Fixed Type
+  InspectionRateAnsiLevel (nvarchar 5) — Inspection Rate Ansi Level
+  InspectionRateAnsiType (nvarchar 10) — Inspection Rate Ansi Type
+  InspectionRateAnsiSampling (nvarchar 10) — Inspection Rate Ansi Sampling
+  InspectionRateAnsiAQL (float) — Inspection Rate Ansi AQL
+  InspectionRatePercentage (float) — Inspection Rate Percentage
+  InspectionResultType (nvarchar 20) — Inspection Result Type
+  InspectionResultQuantity (int) — Inspection Result Quantity
+  InspectionResultPercentage (float) — Inspection Result Percentage
+  Notes (nvarchar MAX) — Notes
+  Inspector (nvarchar 20) — Inspector
+  PartRevision (nvarchar 20) — Part Revision
+  RecordSummaryDataOnly (bit) — Record Summary Data Only
+  Operation (nvarchar 50) — Operation
+  OneTime (bit) — One Time
+  DefaultUofM (nvarchar 10) — Default Uof M
+  GroupAttributesBy (nvarchar 20) — Group Attributes By
+  InspectionRateAsmeB18181Type (nvarchar 50) — Inspection Rate Asme B18181Type
+  InspectionRateAsmeB18181Level (nvarchar 5) — Inspection Rate Asme B18181Level
+  InspectionRateAstmF147012Level (nvarchar 5) — Inspection Rate Astm F147012Level
+  MasterJob (nvarchar 50) — Master Job
+  InspectionRateAsmeB18182011Category (nvarchar 5) — Inspection Rate Asme B18182011Category
+  InspectionRateAsmeB18182011Level (nvarchar 5) — Inspection Rate Asme B18182011Level
+  CustomerName (nvarchar 300) — Customer Name
+  VendorName (nvarchar 300) — Vendor Name
+  InspectionRateMilStd1916VerificationLevel (nvarchar 5) — Inspection Rate Mil Std1916Verification Level
+  InspectionRateMilStd1916SamplingType (nvarchar 10) — Inspection Rate Mil Std1916Sampling Type
+  InspectionRateMilStd1916Stage (nvarchar 10) — Inspection Rate Mil Std1916Stage
+
+## PT_InspectionSpecification_ChoiceList — Choice List (child of Inspection Specifications/Templates)
+  ID (int) — ID
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  InspectionSpecificationMeasurementID (nvarchar 50) — Inspection Specification Measurement ID
+  DisplayOrder (int) — Display Order
+  Choice (nvarchar 50) — Choice
+  IsPassingValue (bit) — Is Passing Value
+
+## PT_InspectionSpecification_DecimalDefault — Decimal Default (child of Inspection Specifications/Templates)
+  ID (int) — ID
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  Decimals (smallint) — Decimals
+  PassingMinimum (float) — Passing Minimum
+  PassingMaximum (float) — Passing Maximum
+  Type (nvarchar 20) — Type
+  RangeFrom (float) — Range From
+  RangeTo (float) — Range To
+  Percentage (bit) — Percentage
+  BaselinePattern (nvarchar 20) — Baseline Pattern
+
+## PT_InspectionSpecification_Measurement — Measurement (child of Inspection Specifications/Templates)
+  InspectionSpecificationMeasurementID (nvarchar 50) — Inspection Specification Measurement ID
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  Name (nvarchar 50) — Name
+  DataType (nvarchar 20) — Data Type
+  Description (nvarchar 50) — Description
+  ExtendedDescription (nvarchar MAX) — Extended Description
+  IsSpecification (bit) — Is Specification
+  IsProcess (bit) — Is Process
+  InputType (nvarchar 20) — Input Type
+  Required (bit) — Required
+  DataSubType (nvarchar 20) — Data Sub Type
+  DefaultValue (nvarchar 50) — Default Value
+  CarryOverLastEntry (bit) — Carry Over Last Entry
+  Length (smallint) — Length
+  Format (nvarchar 50) — Format
+  Validation (nvarchar 30) — Validation
+  ValidationDetail (nvarchar 255) — Validation Detail
+  UofM (nvarchar 10) — Uof M
+  MinValueCompare (nvarchar 10) — Min Value Compare
+  MaxValueCompare (nvarchar 10) — Max Value Compare
+  AllowZero (bit) — Allow Zero
+  DefaultToBaseLine (bit) — Default To Base Line
+  MinNumberValue (float) — Min Number Value
+  MaxNumberValue (float) — Max Number Value
+  MinTimeValue (nvarchar 50) — Min Time Value
+  MaxTimeValue (nvarchar 50) — Max Time Value
+  DocDetail (nvarchar 50) — Doc Detail
+  RestrictToChoiceList (bit) — Restrict To Choice List
+  PassingValuesEnabled (bit) — Passing Values Enabled
+  PassingValueMode (nvarchar 20) — Passing Value Mode
+  PassingBaseLine (float) — Passing Base Line
+  PassingMinimum (float) — Passing Minimum
+  PassingMaximum (float) — Passing Maximum
+  PassingBaseLineFormula (nvarchar MAX) — Passing Base Line Formula
+  PassingMinimumFormula (nvarchar MAX) — Passing Minimum Formula
+  PassingMaximumFormula (nvarchar MAX) — Passing Maximum Formula
+  Equip_num (nvarchar 20) — Equip num
+  InspectionRateType (nvarchar 20) — Inspection Rate Type
+  InspectionRateQuantity (int) — Inspection Rate Quantity
+  InspectionRateSampleInterval (float) — Inspection Rate Sample Interval
+  InspectionRateSampleMin (int) — Inspection Rate Sample Min
+  InspectionRateSampleMax (int) — Inspection Rate Sample Max
+  InspectionRateMinutes (float) — Inspection Rate Minutes
+  InspectionRateFixedType (nvarchar 10) — Inspection Rate Fixed Type
+  InspectionRateAnsiLevel (nvarchar 5) — Inspection Rate Ansi Level
+  InspectionRateAnsiType (nvarchar 10) — Inspection Rate Ansi Type
+  InspectionRateAnsiSampling (nvarchar 10) — Inspection Rate Ansi Sampling
+  InspectionRateAnsiAQL (float) — Inspection Rate Ansi AQL
+  InspectionRatePercentage (float) — Inspection Rate Percentage
+  InspectionResultType (nvarchar 20) — Inspection Result Type
+  InspectionResultQuantity (int) — Inspection Result Quantity
+  InspectionResultPercentage (float) — Inspection Result Percentage
+  DisplayOrder (int) — Display Order
+  ToolType (nvarchar 20) — Tool Type
+  MiscTool (nvarchar 50) — Misc Tool
+  DT_Symbols (nvarchar 255) — DT Symbols
+  RestrictToLookup (bit) — Restrict To Lookup
+  Print (bit) — Print
+  ActualFormula (nvarchar MAX) — Actual Formula
+  InspectionSpecLookupTypeInspectionSpecification_No (nvarchar 20) — Inspection Spec Lookup Type Inspection Specification No
+  InspectionSpecLookupTypeMeasurementID (nvarchar 50) — Inspection Spec Lookup Type Measurement ID
+  Category (nvarchar 20) — Category
+  Work_Center (nvarchar 50) — Work Center
+  Operation (nvarchar 50) — Operation
+  InspectionRateAsmeB18181Type (nvarchar 50) — Inspection Rate Asme B18181Type
+  InspectionRateAsmeB18181Level (nvarchar 5) — Inspection Rate Asme B18181Level
+  InspectionRateAstmF147012Level (nvarchar 5) — Inspection Rate Astm F147012Level
+  InspectionRateAsmeB18182011Category (nvarchar 5) — Inspection Rate Asme B18182011Category
+  InspectionRateAsmeB18182011Level (nvarchar 5) — Inspection Rate Asme B18182011Level
+  InspectionRateMilStd1916VerificationLevel (nvarchar 5) — Inspection Rate Mil Std1916Verification Level
+  InspectionRateMilStd1916SamplingType (nvarchar 10) — Inspection Rate Mil Std1916Sampling Type
+  InspectionRateMilStd1916Stage (nvarchar 10) — Inspection Rate Mil Std1916Stage
+
+## PT_InspectionSpecification_MeasurementGroup — Measurement Group (child of Inspection Specifications/Templates)
+  ID (int) — ID
+  InspectionSpecification_No (nvarchar 20) — Inspection Specification No
+  Group (nvarchar 20) — Group
+  Value (nvarchar 50) — Value
+  DisplayOrder (int) — Display Order
+
+## PT_InspectionSpecification_StandardChoices — Standard Choices (child of Inspection Specifications/Templates)
+  AutoID (int) — Auto ID
+  Choice (nvarchar 50) — Choice
+  DisplayOrder (int) — Display Order
+  ChoiceGroup (nvarchar 20) — Choice Group
+  IsPassingValue (bit) — Is Passing Value
+
+## PT_Item_Security — Item Security
+  ItemSecurityID (int) — Item Security ID
+  ItemType (nvarchar 20) — Item Type
+  ItemID (nvarchar 20) — Item ID
+  IdentifierType (nvarchar 20) — Identifier Type
+  IdentifierID (nvarchar 20) — Identifier ID
+  PermissionLevel (int) — Permission Level
+
+## PT_MOPS — Metrics/KPIs
+  MOPS_ID (nvarchar 50) — MOPS ID
+  DefaultNote (nvarchar MAX) — Default Note
+  DisplayGallery (nvarchar 20) — Display Gallery
+  DisplayStyle (nvarchar 20) — Display Style
+  DisplayColor (int) — Display Color
+
+## PT_MOPS_Benchmark — Benchmark (child of Metrics/KPIs)
+  ID (int) — ID
+  MOPS_ID (nvarchar 50) — MOPS ID
+  BenchmarkType (nvarchar 20) — Benchmark Type
+  BenchmarkDescription (nvarchar 50) — Benchmark Description
+  DisplayGallery (nvarchar 20) — Display Gallery
+  DisplayStyle (nvarchar 20) — Display Style
+  DisplayColor (int) — Display Color
+  DisplayEnabled (bit) — Display Enabled
+  TrendType (nvarchar 20) — Trend Type
+  TrendPeriod (int) — Trend Period
+  TargetType (nvarchar 20) — Target Type
+  TargetPeriod (nvarchar 20) — Target Period
+  TargetLineType (nvarchar 20) — Target Line Type
+  ComparisonType (nvarchar 20) — Comparison Type
+  ComparisonTimeType (nvarchar 20) — Comparison Time Type
+  TargetValue1 (float) — Target Value1
+  TargetValue2 (float) — Target Value2
+  TargetDate1 (datetime) — Target Date1
+  TargetDate2 (datetime) — Target Date2
+  TargetSlope (float) — Target Slope
+
+## PT_MOPS_Datasource — Datasource (child of Metrics/KPIs)
+  MOPS_Datasource_ID (nvarchar 50) — MOPS Datasource ID
+  MOPS_ID (nvarchar 50) — MOPS ID
+  SummingWeight (float) — Summing Weight
+  IsEnabled (bit) — Is Enabled
+
+## PT_MOPS_Security — Security (child of Metrics/KPIs)
+  ID (int) — ID
+  MOPS_ID (nvarchar 50) — MOPS ID
+  UserID (nvarchar 50) — User ID
+  PermissionLevel (int) — Permission Level
+
+## PT_NC — Non-Conformance Reports
+  NCR (nvarchar 10) — NCR
+  NCR_Date (datetime) — NCR Date
+  Status (nvarchar 20) — Status
+  Material (nvarchar 50) — Material
+  Description (nvarchar 50) — Description
+  Rev (nvarchar 20) — Rev
+  Ext_desc (nvarchar MAX) — Ext desc
+  Drawing (nvarchar 25) — Drawing
+  NC_type (nvarchar 20) — NC type
+  Job (nvarchar 50) — Job
+  Sales_Order (nvarchar 50) — Sales Order
+  SO_Detail (int) — SO Detail
+  Work_Center (nvarchar 50) — Work Center
+  Vendor (nvarchar 50) — Vendor
+  PO (nvarchar 50) — PO
+  Line (nvarchar 10) — Line
+  PO_Detail (int) — PO Detail
+  Packlist_V (nvarchar 20) — Packlist V
+  Customer (nvarchar 50) — Customer
+  Packlist_C (nvarchar 20) — Packlist C
+  Other_desc (nvarchar 50) — Other desc
+  Reference (nvarchar 30) — Reference
+  Lot (nvarchar 50) — Lot
+  Origin (nvarchar 30) — Origin
+  Origin_ref (nvarchar 50) — Origin ref
+  Origin_cause (nvarchar 20) — Origin cause
+  Origin_category (nvarchar 20) — Origin category
+  Qty_total (float) — Qty total
+  Qty_rejected (float) — Qty rejected
+  Sample_qty (float) — Sample qty
+  Sample_rejected (float) — Sample rejected
+  Inspection_by (nvarchar 25) — Inspection by
+  Inspection_date (datetime) — Inspection date
+  Location (nvarchar 20) — Location
+  Originated_by (nvarchar 25) — Originated by
+  NC_notes (nvarchar MAX) — NC notes
+  Originated_complete (bit) — Originated complete
+  RMA (bit) — RMA
+  RMA_authorized_by (nvarchar 25) — RMA authorized by
+  RMA_notes (nvarchar MAX) — RMA notes
+  Investigation_notes (nvarchar MAX) — Investigation notes
+  Investigated_by (nvarchar 25) — Investigated by
+  Investigation_date (datetime) — Investigation date
+  Investigation_complete (bit) — Investigation complete
+  Disposition_notes (nvarchar MAX) — Disposition notes
+  Disposition (nvarchar 20) — Disposition
+  Disposition_by (nvarchar 25) — Disposition by
+  Disposition_date (datetime) — Disposition date
+  Disposition_complete (bit) — Disposition complete
+  Close_Date (datetime) — Close Date
+  Notes (nvarchar MAX) — Notes
+  CPA_Requested (bit) — CPA Requested
+  CPA_Requested_by (nvarchar 30) — CPA Requested by
+  CPA_No (nvarchar 15) — CPA No
+  Origination_hrs (float) — Origination hrs
+  Investigation_hrs (float) — Investigation hrs
+  Disposition_hrs (float) — Disposition hrs
+  Accounting_hrs (float) — Accounting hrs
+  Est_rework_hrs (float) — Est rework hrs
+  Act_rework_hrs (float) — Act rework hrs
+  Scrap_cost (float) — Scrap cost
+  NC_processing_cost (float) — NC processing cost
+  Est_Rework_labor_cost (float) — Est Rework labor cost
+  Act_Rework_labor_cost (float) — Act Rework labor cost
+  AI_required (bit) — AI required
+  AI_complete (bit) — AI complete
+  Accounting_notes (nvarchar MAX) — Accounting notes
+  Acc_Customer (nvarchar 50) — Acc Customer
+  Acc_Action_Customer (nvarchar 30) — Acc Action Customer
+  Orig_Invoice_Customer (nvarchar 15) — Orig Invoice Customer
+  Credit_Memo_Customer (nvarchar 15) — Credit Memo Customer
+  Acc_Vendor (nvarchar 50) — Acc Vendor
+  Acc_Action_Vendor (nvarchar 30) — Acc Action Vendor
+  Orig_Invoice_Vendor (nvarchar 15) — Orig Invoice Vendor
+  Credit_Memo_Vendor (nvarchar 15) — Credit Memo Vendor
+  Originated_date (datetime) — Originated date
+  Disp_Job (nvarchar 50) — Disp Job
+  Disp_Jobop (int) — Disp Jobop
+  Disp_WC (nvarchar 50) — Disp WC
+  Job_notes_updated (bit) — Job notes updated
+  Costs_updated (bit) — Costs updated
+  Customer_PO (nvarchar 50) — Customer PO
+  Priority (smallint) — Priority
+  Department (nvarchar 50) — Department
+  Verification_notes (nvarchar MAX) — Verification notes
+  Verified_by (nvarchar 25) — Verified by
+  Verification_date (datetime) — Verification date
+  Verification_complete (bit) — Verification complete
+  Verification_hrs (float) — Verification hrs
+  Division (nvarchar 25) — Division
+  Manager (nvarchar 20) — Manager
+  Qty_Inspected (float) — Qty Inspected
+  Due_Date (datetime) — Due Date
+  Class (nvarchar 20) — Class
+  RMANo (nvarchar 50) — RMA No
+  RMAReturnAddressID (nvarchar 15) — RMA Return Address ID
+  Serial (nvarchar 50) — Serial
+  Operation (nvarchar 50) — Operation
+  Qty_Scrap (float) — Qty Scrap
+  Qty_Rework (float) — Qty Rework
+  Qty_Return (float) — Qty Return
+  Qty_UseAsIs (float) — Qty Use As Is
+  ErpSource (nvarchar 50) — Erp Source
+  ErpSourceId (nvarchar 50) — Erp Source Id
+  CustomerName (nvarchar 300) — Customer Name
+  Origin_Ref_Name (nvarchar 300) — Origin Ref Name
+  Acc_Customer_Name (nvarchar 300) — Acc Customer Name
+  VendorName (nvarchar 300) — Vendor Name
+  Acc_Vendor_Name (nvarchar 300) — Acc Vendor Name
+
+## PT_Report_Options — Report Options
+  OptionId (nvarchar 50) — Option Id
+  ReportId (nvarchar 50) — Report Id
+  OptionPropertyName (nvarchar 100) — Option Property Name
+  OptionValue (nvarchar MAX) — Option Value
+  OptionType (nvarchar 50) — Option Type
+  IsClassic (bit) — Is Classic
+
+## PT_Request — Requests/Change Requests
+  RequestId (nvarchar 10) — Request Id
+  RequestedBy (nvarchar 20) — Requested By
+  Manager (nvarchar 20) — Manager
+  AssignedTo (nvarchar 20) — Assigned To
+  Status (nvarchar 20) — Status
+  Type (nvarchar 30) — Type
+  RequestDate (datetime) — Request Date
+  DueDate (datetime) — Due Date
+  CompleteDate (datetime) — Complete Date
+  AssignedDate (datetime) — Assigned Date
+  Request (nvarchar MAX) — Request
+  Source (nvarchar 20) — Source
+  SourceDetail (nvarchar 255) — Source Detail
+  Request_complete (bit) — Request complete
+  EmailRequestUsersOnNew (nvarchar 20) — Email Request Users On New
+  EmailRequestUsersOnComplete (nvarchar 20) — Email Request Users On Complete
+  EmailSourceSignoffsOnNew (nvarchar 20) — Email Source Signoffs On New
+  EmailSourceSignoffsOnComplete (nvarchar 20) — Email Source Signoffs On Complete
+  Reference (nvarchar 30) — Reference
+  SourceTemplate (nvarchar 10) — Source Template
+  Action_Detail (nvarchar 30) — Action Detail
+  ErpSource (nvarchar 50) — Erp Source
+  ErpSourceId (nvarchar 50) — Erp Source Id
+  SourceSub (nvarchar 50) — Source Sub
+  SourceSubDetail (nvarchar 50) — Source Sub Detail
+  SourceDetailName (nvarchar 300) — Source Detail Name
+  Description (nvarchar 50) — Description
+  Division (nvarchar 25) — Division
+
+## PT_Review — Reviews
+  Review (int) — Review
+  ReviewOrigin (nvarchar 20) — Review Origin
+  ReviewReference (nvarchar 50) — Review Reference
+  Status (nvarchar 25) — Status
+  LastDate (datetime) — Last Date
+  NextDate (datetime) — Next Date
+  CompleteDate (datetime) — Complete Date
+  CompletedBy (nvarchar 20) — Completed By
+  Notes (nvarchar MAX) — Notes
+  Description (nvarchar 50) — Description
+  ReviewFrequency (nvarchar MAX) — Review Frequency
+  ReviewScope (nvarchar MAX) — Review Scope
+  AssignedTo (nvarchar 20) — Assigned To
+
+## PT_RiskLevel — RiskLevel
+  ID (int) — ID
+  Name (nvarchar 20) — Name
+  DisplayOrder (int) — Display Order
+  DisplayIcon (binary) — Display Icon
+  DisplayColor (int) — Display Color
+
+## PT_SignOff — Approvals/Sign-Offs
+  SignoffID (int) — Signoff ID
+  SignoffType (nvarchar 20) — Signoff Type
+  SignoffTypeID (nvarchar 20) — Signoff Type ID
+  Sequence (int) — Sequence
+  Name (nvarchar 50) — Name
+  Title (nvarchar 50) — Title
+  Approved (bit) — Approved
+  Rejected (bit) — Rejected
+  UserID (nvarchar 50) — User ID
+  Request_Date (datetime) — Request Date
+  Due_Date (datetime) — Due Date
+  Approval_Date (datetime) — Approval Date
+  Type (nvarchar 20) — Type
+  Comment (nvarchar MAX) — Comment
+  Manager (nvarchar 50) — Manager
+  ExternalCompanyID (nvarchar 50) — External Company ID
+  ExternalCompanyName (nvarchar 300) — External Company Name
+  SigneeType (nvarchar 50) — Signee Type
+  Instructions (nvarchar MAX) — Instructions
+
+## PT_Task — Tasks
+  TaskID (nvarchar 50) — Task ID
+  TaskType (nvarchar 20) — Task Type
+  TaskTypeID (nvarchar 20) — Task Type ID
+  TaskSubType (nvarchar 20) — Task Sub Type
+  TaskListSequence (int) — Task List Sequence
+  UserID (nvarchar 50) — User ID
+  Sequence (int) — Sequence
+  Description (nvarchar 50) — Description
+  Details (nvarchar MAX) — Details
+  Notes (nvarchar MAX) — Notes
+  Status (nvarchar 20) — Status
+  DueDate (datetime) — Due Date
+  AssignedDate (datetime) — Assigned Date
+  CompleteDate (datetime) — Complete Date
+  ItemID (nvarchar 20) — Item ID
+  ReferenceType (nvarchar 20) — Reference Type
+  Reference (nvarchar 50) — Reference
+  Hours (float) — Hours
+  TaskComplete (bit) — Task Complete
+  Manager (nvarchar 50) — Manager
+  ExternalCompanyID (nvarchar 50) — External Company ID
+  ExternalCompanyName (nvarchar 300) — External Company Name
+  AssigneeType (nvarchar 50) — Assignee Type
+
+## PT_Template — Template
+  TemplateID (nvarchar 50) — Template ID
+  TemplateType (nvarchar 50) — Template Type
+  TemplateTypeID (nvarchar 50) — Template Type ID
+  TemplateDescription (nvarchar 30) — Template Description
+  TemplateAddToQuicklist (bit) — Template Add To Quicklist
+  Origin (nvarchar 20) — Origin
+
+## PT_Todo — To-Do Items
+  TaskID (int) — Task ID
+  TaskItemType (nvarchar 50) — Task Item Type
+  TaskItemID (nvarchar 50) — Task Item ID
+  TaskItemStatus (nvarchar 50) — Task Item Status
+  TaskDateAssigned (datetime) — Task Date Assigned
+  TaskDateCompleted (datetime) — Task Date Completed
+  TaskDescription (nvarchar 255) — Task Description
+  TaskStatus (nvarchar 50) — Task Status
+  TaskNotes (nvarchar MAX) — Task Notes
+  TaskUserID (nvarchar 50) — Task User ID
+  TaskRead (bit) — Task Read
+  TaskItemSourceID (nvarchar 50) — Task Item Source ID
+  TaskDateDue (datetime) — Task Date Due
+
+## PT_User_Code — User-Defined Codes
+  Type (nvarchar 30) — Type
+  Code (nvarchar 20) — Code
+  UserCodeID (int) — User Code ID
+  UserCodeGroup (nvarchar 30) — User Code Group
+
+## PT_User_Code_Module — Module (child of User-Defined Codes)
+  Type (nvarchar 50) — Type
+  Code (nvarchar 50) — Code
+  Order (smallint) — Order
