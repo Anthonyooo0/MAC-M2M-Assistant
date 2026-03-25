@@ -575,7 +575,7 @@ function App() {
         {/* Version tag */}
         {!sidebarCollapsed && (
           <div className="px-4 py-2 text-center">
-            <span className="text-[10px] font-mono text-blue-300/50">V1.1.0</span>
+            <span className="text-[10px] font-mono text-blue-300/50">V1.2.0</span>
           </div>
         )}
 
