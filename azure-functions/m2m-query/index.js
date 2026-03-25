@@ -359,45 +359,6 @@ function validateAgainstSchema(sqlQuery, schemaTables) {
     }
   }
 
-  // Also check unqualified columns against used tables for common hallucinations
-  // Extract columns from SELECT (before FROM) and WHERE/GROUP BY/ORDER BY
-  if (usedTables.size === 1) {
-    const theTable = [...usedTables][0];
-    const tableCols = schemaTables[theTable];
-    if (tableCols) {
-      // Get all identifiers that look like column references
-      const selectMatch = sqlQuery.match(/SELECT\s+(?:TOP\s+\d+\s+)?([\s\S]*?)\bFROM\b/i);
-      if (selectMatch) {
-        const selectPart = selectMatch[1];
-        // Extract bare column names (not functions, not aliases after AS, not string literals)
-        const bareColPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
-        let colMatch;
-        const skipWords = new Set(['select','top','as','from','where','and','or','not','in','is','null',
-          'like','between','case','when','then','else','end','cast','convert','count','sum','avg','min',
-          'max','distinct','asc','desc','order','by','group','having','dateadd','datediff','getdate',
-          'year','month','day','isnull','coalesce','left','right','substring','len','upper','lower',
-          'trim','ltrim','rtrim','nvarchar','int','float','bit','datetime','money']);
-        while ((colMatch = bareColPattern.exec(selectPart)) !== null) {
-          const word = colMatch[1].toLowerCase();
-          if (skipWords.has(word)) continue;
-          if (/^\d+$/.test(colMatch[1])) continue;
-          // Check if this looks like a column (not a string literal, not a number, not an alias)
-          // If it's not in the schema, flag it
-          if (!tableCols.has(word) && word !== theTable) {
-            // Could be an alias — check if it follows AS
-            const beforeMatch = selectPart.substring(0, colMatch.index);
-            if (/\bAS\s*$/i.test(beforeMatch)) continue; // It's an alias name, skip
-            if (/["']\s*$/.test(beforeMatch)) continue; // Inside a string literal
-            const similar = [...tableCols].filter(c => c.includes(word) || word.includes(c)).slice(0, 5);
-            if (similar.length > 0) {
-              errors.push(`Column '${colMatch[1]}' does not exist in table '${theTable}'. Did you mean: ${similar.join(', ')}?`);
-            }
-          }
-        }
-      }
-    }
-  }
-
   if (errors.length > 0) {
     return { ok: false, errors };
   }
