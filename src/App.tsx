@@ -52,7 +52,7 @@ const COMPANIES: Company[] = [
 const MULTI_COMPANY_USERS: Record<string, string[]> = {
   'henry.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
   'anthony.jimenez@macproducts.net': ['mac-products', 'mac-impulse', 'unipoint'],
-  'juan.ortiz@macproducts.net': ['mac-products', 'mac-impulse'],
+  'juan.ortiz@macproducts.net': ['mac-products', 'mac-impulse', 'unipoint'],
   'edward.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
   'chirag.patel@macproducts.net': ['mac-products', 'unipoint'],
 };
