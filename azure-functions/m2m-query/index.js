@@ -686,7 +686,36 @@ module.exports = async function (context, req) {
 
         context.log.warn(`[m2m-query] SQL error (attempt ${attempt + 1}/${MAX_RETRIES + 1}) — retrying: ${sqlErr.message}`);
 
-        // Build correction context with the exact error and failed SQL
+        // Build error-specific correction guidance
+        let fixGuidance = '';
+        const errMsg = sqlErr.message || '';
+        if (/Incorrect syntax near/i.test(errMsg)) {
+          const near = errMsg.match(/near '([^']+)'/i);
+          fixGuidance = `This is a SQL SYNTAX error near '${near ? near[1] : '?'}'. Common causes:\n` +
+            `- Missing comma between columns in SELECT\n` +
+            `- Unmatched parentheses in function calls like DATEADD()\n` +
+            `- Backslash \\ characters (SQL Server does not use backslash escaping)\n` +
+            `- Missing space between keywords\n` +
+            `Rewrite the query from scratch with correct syntax.`;
+        } else if (/Invalid column name/i.test(errMsg)) {
+          const col = errMsg.match(/Invalid column name '([^']+)'/i);
+          fixGuidance = `The column '${col ? col[1] : '?'}' does NOT exist. ` +
+            `Search the schema for the correct column name. Do NOT guess — use only columns explicitly listed under the table heading.`;
+        } else if (/Invalid object name/i.test(errMsg)) {
+          const obj = errMsg.match(/Invalid object name '([^']+)'/i);
+          fixGuidance = `The table '${obj ? obj[1] : '?'}' does NOT exist. ` +
+            `Check the schema for the correct table name.`;
+        } else if (/Ambiguous column name/i.test(errMsg)) {
+          const col = errMsg.match(/Ambiguous column name '([^']+)'/i);
+          fixGuidance = `The column '${col ? col[1] : '?'}' exists in multiple tables in your JOIN. ` +
+            `Prefix it with the table name, e.g., TableName.${col ? col[1] : 'ColumnName'}.`;
+        } else if (/conversion failed/i.test(errMsg)) {
+          fixGuidance = `There is a data type conversion error. Check that you are comparing the right types ` +
+            `(e.g., don't compare a date to a number, use proper date formats like '2025-01-01').`;
+        } else {
+          fixGuidance = `Check the schema carefully and make sure every table name, column name, and SQL syntax is correct.`;
+        }
+
         retryConversation = [
           ...retryConversation,
           { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
@@ -694,12 +723,10 @@ module.exports = async function (context, req) {
             role: 'user',
             parts: [{
               text: `The SQL query you generated failed with this database error:\n` +
-                `"${sqlErr.message}"\n\n` +
+                `"${errMsg}"\n\n` +
                 `The failed query was:\n${sqlQuery}\n\n` +
-                `IMPORTANT: Check the schema VERY carefully. ` +
-                `Make sure every table name, column name, and SQL syntax is correct. ` +
-                `Check for missing commas, unmatched parentheses, and invalid escape characters. ` +
-                `Use ONLY columns listed in the schema. Generate a corrected query.`,
+                `${fixGuidance}\n\n` +
+                `Generate a corrected query using ONLY columns from the schema.`,
             }],
           },
         ];
