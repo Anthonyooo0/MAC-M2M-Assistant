@@ -664,74 +664,88 @@ module.exports = async function (context, req) {
     await pool.connect();
 
     // -----------------------------------------------------------------------
-    // Execute SQL — with one silent retry on invalid column name errors
+    // Execute SQL — with up to 2 retries on any SQL error
     // -----------------------------------------------------------------------
+    const MAX_RETRIES = 2;
     let result;
-    try {
-      result = await pool.request().query(sqlQuery);
-    } catch (sqlErr) {
-      // Retry ANY SQL error by feeding it back to Gemini for self-correction
-      context.log.warn(`[m2m-query] SQL error — retrying with correction context: ${sqlErr.message}`);
+    let lastError = null;
+    let retryConversation = [...geminiMessages];
 
-      const correctionText = `The SQL query you just generated failed with this database error:\n` +
-        `"${sqlErr.message}"\n\n` +
-        `The failed query was:\n${sqlQuery}\n\n` +
-        `Please carefully fix the issue and regenerate a corrected SQL query. ` +
-        `Use ONLY table and column names that are explicitly listed in the schema. ` +
-        `Do not guess or infer any names. Double-check your syntax.`;
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        result = await pool.request().query(sqlQuery);
+        lastError = null;
+        break; // Success — exit the retry loop
+      } catch (sqlErr) {
+        lastError = sqlErr;
 
-      // Build retry conversation: feed the failed attempt back as context
-      const retryMessages = [
-        ...geminiMessages,
-        // What the model previously produced (the bad SQL)
-        { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-        // Correction from the "user" (automated, never shown to the human user)
-        {
-          role: 'user',
-          parts: [{ text: correctionText }],
-        },
-      ];
+        if (attempt >= MAX_RETRIES) {
+          // Out of retries — will throw below
+          break;
+        }
 
-      const retryGeminiBody = {
-        system_instruction: { parts: [{ text: activePrompt }] },
-        contents: retryMessages,
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
-      };
+        context.log.warn(`[m2m-query] SQL error (attempt ${attempt + 1}/${MAX_RETRIES + 1}) — retrying: ${sqlErr.message}`);
 
-      const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
+        // Build correction context with the exact error and failed SQL
+        retryConversation = [
+          ...retryConversation,
+          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+          {
+            role: 'user',
+            parts: [{
+              text: `The SQL query you generated failed with this database error:\n` +
+                `"${sqlErr.message}"\n\n` +
+                `The failed query was:\n${sqlQuery}\n\n` +
+                `IMPORTANT: Check the schema VERY carefully. ` +
+                `Make sure every table name, column name, and SQL syntax is correct. ` +
+                `Check for missing commas, unmatched parentheses, and invalid escape characters. ` +
+                `Use ONLY columns listed in the schema. Generate a corrected query.`,
+            }],
+          },
+        ];
 
-      if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
-        context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
-        throw sqlErr; // Fall back to original error
-      }
-
-      if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-        throw sqlErr;
-      }
-
-      const retryParsed = parseGeminiResponse(retryGeminiData);
-      explanation = retryParsed.explanation;
-      let retrySqlQuery = retryParsed.sqlQuery;
-      if (retrySqlQuery) retrySqlQuery = cleanSqlQuery(retrySqlQuery);
-
-      if (!retrySqlQuery) {
-        // Model responded with explanation-only on retry — return it
-        context.res = {
-          status: 200,
-          headers: CORS,
-          body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }),
+        const retryGeminiBody = {
+          system_instruction: { parts: [{ text: activePrompt }] },
+          contents: retryConversation,
+          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
         };
-        return;
-      }
 
-      const retrySafety = validateSqlSafety(retrySqlQuery);
-      if (!retrySafety.ok) {
-        throw sqlErr; // Unexpected — fall back to original error
-      }
+        const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
 
-      context.log.info(`[m2m-query] Retry SQL: ${retrySqlQuery}`);
-      result = await pool.request().query(retrySqlQuery);
-      sqlQuery = retrySqlQuery; // use the corrected SQL in the response
+        if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
+          context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
+          break;
+        }
+
+        if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+          break;
+        }
+
+        const retryParsed = parseGeminiResponse(retryGeminiData);
+        explanation = retryParsed.explanation;
+        let retrySqlQuery = retryParsed.sqlQuery;
+        if (retrySqlQuery) retrySqlQuery = cleanSqlQuery(retrySqlQuery);
+
+        if (!retrySqlQuery) {
+          // Model gave explanation-only — return it
+          context.res = {
+            status: 200,
+            headers: CORS,
+            body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }),
+          };
+          return;
+        }
+
+        const retrySafety = validateSqlSafety(retrySqlQuery);
+        if (!retrySafety.ok) break;
+
+        context.log.info(`[m2m-query] Retry ${attempt + 1} SQL: ${retrySqlQuery}`);
+        sqlQuery = retrySqlQuery;
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
     }
 
     const columns = result.recordset.length > 0 ? Object.keys(result.recordset[0]) : [];
