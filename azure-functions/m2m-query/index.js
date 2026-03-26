@@ -459,7 +459,7 @@ module.exports = async function (context, req) {
       system_instruction: { parts: [{ text: activePrompt }] },
       contents: geminiMessages,
       generationConfig: {
-        temperature: 0.1,
+        temperature: 0,
         maxOutputTokens: 2048,
       },
     };
@@ -519,7 +519,7 @@ module.exports = async function (context, req) {
       const safetyRetryBody = {
         system_instruction: { parts: [{ text: activePrompt }] },
         contents: safetyRetryMessages,
-        generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        generationConfig: { temperature: 0, maxOutputTokens: 2048 },
       };
 
       const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
@@ -567,7 +567,7 @@ module.exports = async function (context, req) {
         const schemaRetryBody = {
           system_instruction: { parts: [{ text: activePrompt }] },
           contents: schemaRetryMessages,
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+          generationConfig: { temperature: 0, maxOutputTokens: 2048 },
         };
 
         const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
@@ -697,7 +697,7 @@ module.exports = async function (context, req) {
         const retryGeminiBody = {
           system_instruction: { parts: [{ text: activePrompt }] },
           contents: retryConversation,
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+          generationConfig: { temperature: 0, maxOutputTokens: 2048 },
         };
 
         const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
