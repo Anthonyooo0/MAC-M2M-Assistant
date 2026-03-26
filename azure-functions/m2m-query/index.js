@@ -854,7 +854,7 @@ module.exports = async function (context, req) {
     if (pool) {
       try { await pool.close(); } catch { /* ignore */ }
     }
-    // Save cost to query_costs table (async, don't block response)
+    // Save cost to query_costs table
     if (geminiCalls > 0) {
       try {
         const chatConnStr = process.env.CHAT_DB_CONNECTION;
@@ -875,12 +875,14 @@ module.exports = async function (context, req) {
             requestTimeout: 10000,
           });
           await costPool.connect();
-          const userEmail = req.body?.userEmail || 'unknown';
-          const sessionId = req.body?.sessionId || null;
+          const costUserEmail = req.body?.userEmail || 'unknown';
+          const costSessionId = req.body?.sessionId || null;
+          const costDbName = req.body?.database || 'm2mdata99';
+          context.log.info(`[m2m-query] Saving cost: user=${costUserEmail} session=${costSessionId} db=${costDbName} input=${totalInputTokens} output=${totalOutputTokens} calls=${geminiCalls} cost=${calculateCost(totalInputTokens, totalOutputTokens)}`);
           await costPool.request()
-            .input('sessionId', sql.UniqueIdentifier, sessionId)
-            .input('userEmail', sql.NVarChar, userEmail)
-            .input('databaseName', sql.NVarChar, database || 'm2mdata99')
+            .input('sessionId', sql.UniqueIdentifier, costSessionId)
+            .input('userEmail', sql.NVarChar, costUserEmail)
+            .input('databaseName', sql.NVarChar, costDbName)
             .input('inputTokens', sql.Int, totalInputTokens)
             .input('outputTokens', sql.Int, totalOutputTokens)
             .input('geminiCalls', sql.Int, geminiCalls)
@@ -888,9 +890,12 @@ module.exports = async function (context, req) {
             .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost)
                     VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost)`);
           await costPool.close();
+          context.log.info('[m2m-query] Cost saved successfully');
+        } else {
+          context.log.warn('[m2m-query] CHAT_DB_CONNECTION not set — skipping cost save');
         }
       } catch (costErr) {
-        context.log.warn(`[m2m-query] Failed to save cost: ${costErr.message}`);
+        context.log.error(`[m2m-query] Failed to save cost: ${costErr.message}`);
       }
     }
   }

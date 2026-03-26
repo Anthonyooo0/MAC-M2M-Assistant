@@ -66,21 +66,21 @@ module.exports = async function (context, req) {
           return;
         }
         const result = await pool.request()
-          .query('SELECT id, user_email, title, created_at, updated_at FROM chat_sessions ORDER BY updated_at DESC');
+          .query('SELECT id, user_email, title, database_name, created_at, updated_at FROM chat_sessions ORDER BY updated_at DESC');
         context.res = { status: 200, headers: CORS, body: JSON.stringify(result.recordset) };
         return;
       }
 
       const result = await pool.request()
         .input('userEmail', sql.NVarChar, userEmail)
-        .query('SELECT id, title, created_at, updated_at FROM chat_sessions WHERE user_email = @userEmail ORDER BY updated_at DESC');
+        .query('SELECT id, title, database_name, created_at, updated_at FROM chat_sessions WHERE user_email = @userEmail ORDER BY updated_at DESC');
       context.res = { status: 200, headers: CORS, body: JSON.stringify(result.recordset) };
       return;
     }
 
     // POST — create new session
     if (req.method === 'POST') {
-      const { userEmail, title } = req.body || {};
+      const { userEmail, title, database } = req.body || {};
       if (!userEmail) {
         context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'userEmail required' }) };
         return;
@@ -88,7 +88,8 @@ module.exports = async function (context, req) {
       const result = await pool.request()
         .input('userEmail', sql.NVarChar, userEmail.trim().toLowerCase())
         .input('title', sql.NVarChar, (title || 'New Chat').substring(0, 255))
-        .query('INSERT INTO chat_sessions (user_email, title) OUTPUT INSERTED.id, INSERTED.title, INSERTED.created_at, INSERTED.updated_at VALUES (@userEmail, @title)');
+        .input('dbName', sql.NVarChar, database || 'm2mdata99')
+        .query('INSERT INTO chat_sessions (user_email, title, database_name) OUTPUT INSERTED.id, INSERTED.title, INSERTED.database_name, INSERTED.created_at, INSERTED.updated_at VALUES (@userEmail, @title, @dbName)');
       context.res = { status: 201, headers: CORS, body: JSON.stringify(result.recordset[0]) };
       return;
     }

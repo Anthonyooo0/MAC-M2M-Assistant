@@ -32,6 +32,7 @@ interface ChatSession {
   created_at: string;
   updated_at: string;
   user_email?: string;  // populated in admin mode
+  database_name?: string; // which database this chat is for
 }
 
 const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net'];
@@ -146,7 +147,7 @@ function App() {
       const res = await fetch(CHAT_SESSIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail: currentUser }),
+        body: JSON.stringify({ userEmail: currentUser, database: activeCompany.database }),
       });
       if (res.ok) {
         const session = await res.json();
@@ -382,6 +383,11 @@ function App() {
 
   const handleSelectSession = (session: ChatSession) => {
     if (session.id === activeSessionId) return;
+    // Auto-switch to the database this chat was created on
+    if (session.database_name) {
+      const company = COMPANIES.find(c => c.database === session.database_name);
+      if (company) setActiveCompanyId(company.id);
+    }
     loadSessionMessages(session.id);
   };
 
@@ -649,25 +655,33 @@ function App() {
             </div>
             {userCompanies.length > 1 && (
               <div className="flex bg-slate-100 rounded-lg p-1">
-                {userCompanies.map(company => (
+                {userCompanies.map(company => {
+                  const hasMessages = messages.length > 0;
+                  const isActive = company.id === activeCompanyId;
+                  const isLocked = hasMessages && !isActive;
+                  return (
                   <button
                     key={company.id}
+                    disabled={isLocked}
                     onClick={() => {
-                      if (company.id !== activeCompanyId) {
+                      if (!isLocked && company.id !== activeCompanyId) {
                         setActiveCompanyId(company.id);
                         handleNewChat();
                       }
                     }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${
-                      company.id === activeCompanyId
+                      isActive
                         ? 'bg-white text-mac-navy shadow-sm'
-                        : 'text-slate-400 hover:text-slate-600'
+                        : isLocked
+                          ? 'text-slate-300 cursor-not-allowed'
+                          : 'text-slate-400 hover:text-slate-600'
                     }`}
                   >
                     <img src={company.logo} alt={company.shortName} className="w-5 h-5 object-contain" />
                     {company.shortName}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
