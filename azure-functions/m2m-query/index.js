@@ -877,7 +877,7 @@ module.exports = async function (context, req) {
           await costPool.connect();
           const costUserEmail = req.body?.userEmail || 'unknown';
           const costSessionId = req.body?.sessionId || null;
-          const costDbName = req.body?.database || 'm2mdata99';
+          const costDbName = req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products';
           context.log.info(`[m2m-query] Saving cost: user=${costUserEmail} session=${costSessionId} db=${costDbName} input=${totalInputTokens} output=${totalOutputTokens} calls=${geminiCalls} cost=${calculateCost(totalInputTokens, totalOutputTokens)}`);
           await costPool.request()
             .input('sessionId', sql.UniqueIdentifier, costSessionId)

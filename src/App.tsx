@@ -147,7 +147,7 @@ function App() {
       const res = await fetch(CHAT_SESSIONS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail: currentUser, database: activeCompany.database }),
+        body: JSON.stringify({ userEmail: currentUser, database: activeCompany.database, companyName: activeCompany.name }),
       });
       if (res.ok) {
         const session = await res.json();
@@ -385,7 +385,7 @@ function App() {
     if (session.id === activeSessionId) return;
     // Auto-switch to the database this chat was created on
     if (session.database_name) {
-      const company = COMPANIES.find(c => c.database === session.database_name);
+      const company = COMPANIES.find(c => c.name === session.database_name);
       if (company) setActiveCompanyId(company.id);
     }
     loadSessionMessages(session.id);

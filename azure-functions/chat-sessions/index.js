@@ -80,7 +80,7 @@ module.exports = async function (context, req) {
 
     // POST — create new session
     if (req.method === 'POST') {
-      const { userEmail, title, database } = req.body || {};
+      const { userEmail, title, companyName } = req.body || {};
       if (!userEmail) {
         context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'userEmail required' }) };
         return;
@@ -88,7 +88,7 @@ module.exports = async function (context, req) {
       const result = await pool.request()
         .input('userEmail', sql.NVarChar, userEmail.trim().toLowerCase())
         .input('title', sql.NVarChar, (title || 'New Chat').substring(0, 255))
-        .input('dbName', sql.NVarChar, database || 'm2mdata99')
+        .input('dbName', sql.NVarChar, companyName || 'MAC Products')
         .query('INSERT INTO chat_sessions (user_email, title, database_name) OUTPUT INSERTED.id, INSERTED.title, INSERTED.database_name, INSERTED.created_at, INSERTED.updated_at VALUES (@userEmail, @title, @dbName)');
       context.res = { status: 201, headers: CORS, body: JSON.stringify(result.recordset[0]) };
       return;
