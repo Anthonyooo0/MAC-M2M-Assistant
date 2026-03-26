@@ -370,6 +370,29 @@ function validateAgainstSchema(sqlQuery, schemaTables) {
 }
 
 // ---------------------------------------------------------------------------
+// Token usage & cost tracking
+// ---------------------------------------------------------------------------
+
+// Gemini 3.1 Pro Preview pricing (per 1M tokens) — update if model changes
+const COST_PER_1M_INPUT = 1.25;   // $1.25 per 1M input tokens
+const COST_PER_1M_OUTPUT = 10.00; // $10.00 per 1M output tokens
+
+function extractTokenUsage(geminiResponse) {
+  const usage = geminiResponse?.usageMetadata;
+  if (!usage) return { input: 0, output: 0 };
+  return {
+    input: usage.promptTokenCount || 0,
+    output: usage.candidatesTokenCount || 0,
+  };
+}
+
+function calculateCost(inputTokens, outputTokens) {
+  const inputCost = (inputTokens / 1_000_000) * COST_PER_1M_INPUT;
+  const outputCost = (outputTokens / 1_000_000) * COST_PER_1M_OUTPUT;
+  return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000; // 6 decimal places
+}
+
+// ---------------------------------------------------------------------------
 // Main Azure Function
 // ---------------------------------------------------------------------------
 
@@ -397,6 +420,10 @@ module.exports = async function (context, req) {
   let explanation = '';
   let dbServer = '?';
   let dbName = '?';
+  // Token usage tracking for cost analysis
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let geminiCalls = 0;
 
   try {
     const { message, history } = req.body || {};
@@ -467,6 +494,7 @@ module.exports = async function (context, req) {
     };
 
     const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
+    { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
     if (geminiData._statusCode && geminiData._statusCode >= 400) {
       context.log.error('[m2m-query] Gemini error:', JSON.stringify(geminiData));
@@ -495,7 +523,7 @@ module.exports = async function (context, req) {
       context.res = {
         status: 200,
         headers: CORS,
-        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0 }),
+        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) } }),
       };
       return;
     }
@@ -525,6 +553,7 @@ module.exports = async function (context, req) {
       };
 
       const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
+      { const t = extractTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
       if (safetyRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
         const retryParsed = parseGeminiResponse(safetyRetryData);
         explanation = retryParsed.explanation;
@@ -573,6 +602,7 @@ module.exports = async function (context, req) {
         };
 
         const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
+        { const t = extractTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
         if (schemaRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
           const retryParsed = parseGeminiResponse(schemaRetryData);
           explanation = retryParsed.explanation;
@@ -703,6 +733,7 @@ module.exports = async function (context, req) {
         };
 
         const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
+        { const t = extractTokenUsage(retryGeminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
         if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
           context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
@@ -751,6 +782,7 @@ module.exports = async function (context, req) {
         columns,
         rows: result.recordset,
         rowCount: result.recordset.length,
+        _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) },
       }),
     };
 
@@ -759,7 +791,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '' }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) } }),
     };
   } finally {
     if (pool) {

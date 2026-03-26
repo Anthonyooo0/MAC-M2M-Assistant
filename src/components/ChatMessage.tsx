@@ -8,14 +8,16 @@ interface Message {
   error?: string;
   loading?: boolean;
   adminSender?: string;
+  cost?: { inputTokens: number; outputTokens: number; calls: number; cost: number };
 }
 
 interface ChatMessageProps {
   message: Message;
   logo?: string;
+  isAdmin?: boolean;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_logo.png' }) => {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_logo.png', isAdmin = false }) => {
   const isUser = message.role === 'user';
 
   if (message.loading) {
@@ -67,6 +69,21 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
               Admin
             </span>
             <span className="text-[9px] text-slate-400">{message.adminSender.split('@')[0]}</span>
+          </div>
+        )}
+
+        {/* Per-message cost (admin only) */}
+        {!isUser && isAdmin && message.cost && (
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
+              ${message.cost.cost.toFixed(6)}
+            </span>
+            <span className="text-[9px] text-slate-400">
+              {message.cost.inputTokens.toLocaleString()}in / {message.cost.outputTokens.toLocaleString()}out
+            </span>
+            {message.cost.calls > 1 && (
+              <span className="text-[9px] text-amber-500 font-bold">{message.cost.calls} calls (retried)</span>
+            )}
           </div>
         )}
 

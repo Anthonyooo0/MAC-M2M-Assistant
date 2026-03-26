@@ -21,6 +21,7 @@ interface Message {
   error?: string;
   loading?: boolean;
   adminSender?: string; // set when an admin sends a message in another user's chat
+  cost?: { inputTokens: number; outputTokens: number; calls: number; cost: number };
 }
 
 interface ChatSession {
@@ -327,6 +328,7 @@ function App() {
         rows: data.rows,
         rowCount: data.rowCount,
         error: data.error,
+        cost: data._cost,
       };
 
       setMessages(prev => {
@@ -654,7 +656,14 @@ function App() {
               </div>
             )}
           </div>
-          <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-1 rounded">Powered by Gemini</span>
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
+                Session: ${messages.reduce((sum, m) => sum + (m.cost?.cost || 0), 0).toFixed(6)} ({messages.filter(m => m.cost).reduce((sum, m) => sum + (m.cost?.calls || 0), 0)} calls)
+              </span>
+            )}
+            <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-1 rounded">Powered by Gemini</span>
+          </div>
         </header>
 
         {/* Admin View */}
@@ -707,7 +716,7 @@ function App() {
                 <div className="max-w-4xl mx-auto space-y-4">
                   {messages.map((msg) => (
                     <div key={msg.id}>
-                      <ChatMessage message={msg} logo={activeCompany.logo} />
+                      <ChatMessage message={msg} logo={activeCompany.logo} isAdmin={isAdmin} />
                       {msg.role === 'assistant' && !msg.loading && !msg.error && msg.rows && msg.columns && (
                         <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} />
                       )}
