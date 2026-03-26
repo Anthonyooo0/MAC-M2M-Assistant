@@ -7,6 +7,7 @@ interface Message {
   sql?: string;
   error?: string;
   loading?: boolean;
+  adminSender?: string;
 }
 
 interface ChatMessageProps {
@@ -56,8 +57,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
               ? 'bg-red-50 border border-red-200 text-red-700'
               : 'bg-white border border-slate-200 text-slate-700 shadow-sm'
         }`}>
-          {message.content}
+          {message.content.replace(/^\[ADMIN:[^\]]+\]\s*/, '')}
         </div>
+
+        {/* Admin badge */}
+        {isUser && message.adminSender && (
+          <div className="mt-1 flex items-center gap-1 justify-end">
+            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded text-[9px] font-bold uppercase tracking-wider">
+              Admin
+            </span>
+            <span className="text-[9px] text-slate-400">{message.adminSender.split('@')[0]}</span>
+          </div>
+        )}
 
         {/* Show SQL query */}
         {message.sql && !message.error && (

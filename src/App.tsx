@@ -20,6 +20,7 @@ interface Message {
   rowCount?: number;
   error?: string;
   loading?: boolean;
+  adminSender?: string; // set when an admin sends a message in another user's chat
 }
 
 interface ChatSession {
@@ -171,6 +172,7 @@ function App() {
             rows: m.rows,
             rowCount: m.rowCount,
             error: m.error,
+            adminSender: m.adminSender,
           })),
         }),
       });
@@ -258,10 +260,16 @@ function App() {
       if (sessionId) setActiveSessionId(sessionId);
     }
 
+    // Detect if admin is messaging in another user's chat
+    const activeSession = sessions.find(s => s.id === sessionId);
+    const isAdminInOtherChat = isAdmin && adminMode && activeSession?.user_email && activeSession.user_email !== currentUser;
+
+    const adminTag = isAdminInOtherChat ? `[ADMIN:${currentUser}] ` : '';
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: text,
+      content: adminTag + text,
+      ...(isAdminInOtherChat ? { adminSender: currentUser || undefined } : {}),
     };
 
     const loadingMsg: Message = {

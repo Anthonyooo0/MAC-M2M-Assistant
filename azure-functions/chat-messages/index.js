@@ -59,17 +59,27 @@ module.exports = async function (context, req) {
         .input('sessionId', sql.UniqueIdentifier, sessionId)
         .query('SELECT id, role, content, sql_query, columns, rows_data, row_count, error, created_at FROM chat_messages WHERE session_id = @sessionId ORDER BY created_at ASC');
 
-      // Parse JSON fields
-      const messages = result.recordset.map(row => ({
-        id: row.id,
-        role: row.role,
-        content: row.content,
-        sql: row.sql_query || undefined,
-        columns: row.columns ? JSON.parse(row.columns) : undefined,
-        rows: row.rows_data ? JSON.parse(row.rows_data) : undefined,
-        rowCount: row.row_count,
-        error: row.error || undefined,
-      }));
+      // Parse JSON fields and extract admin tags
+      const messages = result.recordset.map(row => {
+        let content = row.content || '';
+        let adminSender = undefined;
+        const adminMatch = content.match(/^\[ADMIN:([^\]]+)\]\s*/);
+        if (adminMatch) {
+          adminSender = adminMatch[1];
+          content = content.replace(adminMatch[0], '');
+        }
+        return {
+          id: row.id,
+          role: row.role,
+          content,
+          sql: row.sql_query || undefined,
+          columns: row.columns ? JSON.parse(row.columns) : undefined,
+          rows: row.rows_data ? JSON.parse(row.rows_data) : undefined,
+          rowCount: row.row_count,
+          error: row.error || undefined,
+          adminSender,
+        };
+      });
 
       context.res = { status: 200, headers: CORS, body: JSON.stringify(messages) };
       return;
