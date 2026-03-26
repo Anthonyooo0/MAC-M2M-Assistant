@@ -771,6 +771,63 @@ module.exports = async function (context, req) {
       throw lastError;
     }
 
+    // -----------------------------------------------------------------------
+    // Zero-row retry: if query returned no results, ask Gemini to broaden it
+    // -----------------------------------------------------------------------
+    if (result.recordset.length === 0) {
+      context.log.info('[m2m-query] Query returned 0 rows — retrying with broader criteria');
+
+      const zeroRowMessages = [
+        ...geminiMessages,
+        { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+        {
+          role: 'user',
+          parts: [{
+            text: `The query you generated ran successfully but returned ZERO rows. This likely means your WHERE filters are too restrictive. Common issues:\n` +
+              `- Text comparisons: use LIKE '%keyword%' instead of exact match (= 'value'). M2M uses CHAR fields with trailing spaces.\n` +
+              `- Date filters: try a wider date range, or check if you're using the right date column. POMAST has FORDDATE (order date) and FREQDATE (request date); POITEM has FREQDATE, FORGPDATE (original promise), FLSTPDATE (last promise).\n` +
+              `- Status filters: don't filter by status unless the user specifically asked for a status.\n` +
+              `- The data may exist but with slightly different spelling or format.\n\n` +
+              `Please regenerate the query with BROADER filters to find the data. Use LIKE with wildcards for text, widen date ranges, and remove unnecessary status filters.`,
+          }],
+        },
+      ];
+
+      const zeroRowBody = {
+        system_instruction: { parts: [{ text: activePrompt }] },
+        contents: zeroRowMessages,
+        generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+      };
+
+      const zeroRowData = await callGeminiAPI(geminiUrl, zeroRowBody);
+      { const t = extractTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+
+      if (zeroRowData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+        const zeroRowParsed = parseGeminiResponse(zeroRowData);
+        let zeroRowSql = zeroRowParsed.sqlQuery;
+        if (zeroRowSql) zeroRowSql = cleanSqlQuery(zeroRowSql);
+
+        if (zeroRowSql) {
+          const zeroRowSafety = validateSqlSafety(zeroRowSql);
+          if (zeroRowSafety.ok) {
+            try {
+              const zeroRowResult = await pool.request().query(zeroRowSql);
+              if (zeroRowResult.recordset.length > 0) {
+                // Broader query found results — use it
+                result = zeroRowResult;
+                sqlQuery = zeroRowSql;
+                explanation = zeroRowParsed.explanation || explanation;
+                context.log.info(`[m2m-query] Zero-row retry found ${zeroRowResult.recordset.length} rows`);
+              }
+            } catch (retryErr) {
+              context.log.warn(`[m2m-query] Zero-row retry SQL failed: ${retryErr.message}`);
+              // Keep original 0-row result
+            }
+          }
+        }
+      }
+    }
+
     const columns = result.recordset.length > 0 ? Object.keys(result.recordset[0]) : [];
 
     context.res = {
