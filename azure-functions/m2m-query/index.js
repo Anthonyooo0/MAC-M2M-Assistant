@@ -107,6 +107,8 @@ QUERY RULES:
    - POMAST/POITEM: there is NO FDUEDATE. Use POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
    - Inventory on hand: use INONHD table, FONHAND column for quantity on hand. Join to INMASTX via FPARTNO. Do NOT use INMASTX fields for on-hand qty.
    - Late sales orders: compare SOMAST.FDUEDATE to GETDATE(). A sales order is late when FDUEDATE < GETDATE() and FSTATUS is not 'Closed' or 'Cancelled'.
+   - SOITEM pricing: use FPRICE for unit price, FORDERQTY for quantity. There is NO FUNETPRICE in SOITEM — that column is in SORELS. Use FSHIPQTY for shipped qty.
+   - SORELS pricing: use FUNETPRICE for unit price, FNETPRICE for net price, FORDERQTY for quantity.
 
 IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
 
@@ -327,6 +329,7 @@ function parseSchemaFile(schemaText) {
 }
 
 // Parse once at startup
+const M2M_TABLES = parseSchemaFile(M2M_SCHEMA);
 const UNIPOINT_TABLES = parseSchemaFile(UNIPOINT_SCHEMA);
 
 function validateAgainstSchema(sqlQuery, schemaTables) {
@@ -576,9 +579,10 @@ module.exports = async function (context, req) {
       }
     }
 
-    // UniPoint only: validate SQL against schema before executing
-    if (database === 'unipoint_live' && sqlQuery) {
-      const schemaCheck = validateAgainstSchema(sqlQuery, UNIPOINT_TABLES);
+    // Validate SQL against schema before executing (all databases)
+    const activeSchemaTables = database === 'unipoint_live' ? UNIPOINT_TABLES : M2M_TABLES;
+    if (sqlQuery && Object.keys(activeSchemaTables).length > 0) {
+      const schemaCheck = validateAgainstSchema(sqlQuery, activeSchemaTables);
       if (!schemaCheck.ok) {
         context.log.warn(`[m2m-query] Schema validation failed: ${schemaCheck.errors.join('; ')} — retrying`);
 
@@ -610,7 +614,7 @@ module.exports = async function (context, req) {
           if (retrySql) retrySql = cleanSqlQuery(retrySql);
 
           if (retrySql) {
-            const retrySchemaCheck = validateAgainstSchema(retrySql, UNIPOINT_TABLES);
+            const retrySchemaCheck = validateAgainstSchema(retrySql, activeSchemaTables);
             if (retrySchemaCheck.ok) {
               sqlQuery = retrySql;
             } else {
