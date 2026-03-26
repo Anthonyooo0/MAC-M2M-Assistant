@@ -105,6 +105,8 @@ QUERY RULES:
 8. Key column corrections (common mistakes to avoid):
    - SOITEM: use FQUANTITY (not fshipqty). SOMAST: use FSTATUS for status.
    - POMAST/POITEM: there is NO FDUEDATE. Use POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
+   - Inventory on hand: use INONHD table, FONHAND column for quantity on hand. Join to INMASTX via FPARTNO. Do NOT use INMASTX fields for on-hand qty.
+   - Late sales orders: compare SOMAST.FDUEDATE to GETDATE(). A sales order is late when FDUEDATE < GETDATE() and FSTATUS is not 'Closed' or 'Cancelled'.
 
 IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
 
