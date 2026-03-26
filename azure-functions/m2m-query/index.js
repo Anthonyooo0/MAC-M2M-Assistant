@@ -854,5 +854,44 @@ module.exports = async function (context, req) {
     if (pool) {
       try { await pool.close(); } catch { /* ignore */ }
     }
+    // Save cost to query_costs table (async, don't block response)
+    if (geminiCalls > 0) {
+      try {
+        const chatConnStr = process.env.CHAT_DB_CONNECTION;
+        if (chatConnStr) {
+          const costParts = {};
+          for (const seg of chatConnStr.split(';')) {
+            const idx = seg.indexOf('=');
+            if (idx === -1) continue;
+            costParts[seg.substring(0, idx).trim().toLowerCase()] = seg.substring(idx + 1).trim();
+          }
+          const costPool = new sql.ConnectionPool({
+            server: costParts['server'] || costParts['data source'] || '',
+            database: costParts['database'] || costParts['initial catalog'] || '',
+            user: costParts['user id'] || costParts['uid'] || '',
+            password: costParts['password'] || costParts['pwd'] || '',
+            options: { encrypt: true, trustServerCertificate: false },
+            connectionTimeout: 10000,
+            requestTimeout: 10000,
+          });
+          await costPool.connect();
+          const userEmail = req.body?.userEmail || 'unknown';
+          const sessionId = req.body?.sessionId || null;
+          await costPool.request()
+            .input('sessionId', sql.UniqueIdentifier, sessionId)
+            .input('userEmail', sql.NVarChar, userEmail)
+            .input('databaseName', sql.NVarChar, database || 'm2mdata99')
+            .input('inputTokens', sql.Int, totalInputTokens)
+            .input('outputTokens', sql.Int, totalOutputTokens)
+            .input('geminiCalls', sql.Int, geminiCalls)
+            .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens))
+            .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost)
+                    VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost)`);
+          await costPool.close();
+        }
+      } catch (costErr) {
+        context.log.warn(`[m2m-query] Failed to save cost: ${costErr.message}`);
+      }
+    }
   }
 };

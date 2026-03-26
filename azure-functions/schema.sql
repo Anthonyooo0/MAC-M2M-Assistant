@@ -25,3 +25,20 @@ CREATE TABLE chat_messages (
 );
 
 CREATE INDEX IX_chat_messages_session ON chat_messages (session_id, created_at ASC);
+
+-- Cost tracking for API usage
+CREATE TABLE query_costs (
+  id              UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+  session_id      UNIQUEIDENTIFIER NULL REFERENCES chat_sessions(id) ON DELETE SET NULL,
+  user_email      NVARCHAR(255)    NOT NULL,
+  database_name   NVARCHAR(50)     NULL,
+  input_tokens    INT              NOT NULL DEFAULT 0,
+  output_tokens   INT              NOT NULL DEFAULT 0,
+  gemini_calls    INT              NOT NULL DEFAULT 1,
+  cost            FLOAT            NOT NULL DEFAULT 0,
+  created_at      DATETIME2        NOT NULL DEFAULT GETUTCDATE()
+);
+
+CREATE INDEX IX_query_costs_date ON query_costs (created_at DESC);
+CREATE INDEX IX_query_costs_session ON query_costs (session_id);
+CREATE INDEX IX_query_costs_user ON query_costs (user_email, created_at DESC);
