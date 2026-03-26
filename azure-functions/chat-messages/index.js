@@ -59,6 +59,31 @@ module.exports = async function (context, req) {
         .input('sessionId', sql.UniqueIdentifier, sessionId)
         .query('SELECT id, role, content, sql_query, columns, rows_data, row_count, error, created_at FROM chat_messages WHERE session_id = @sessionId ORDER BY created_at ASC');
 
+      // Get per-query costs for this session
+      let costMap = {};
+      try {
+        const costResult = await pool.request()
+          .input('costSessionId', sql.UniqueIdentifier, sessionId)
+          .query('SELECT input_tokens, output_tokens, gemini_calls, cost, created_at FROM query_costs WHERE session_id = @costSessionId ORDER BY created_at ASC');
+        // Build array of costs to match with assistant messages in order
+        const costs = costResult.recordset;
+        let costIdx = 0;
+        // We'll assign costs to assistant messages with SQL in order
+        result.recordset.forEach(row => {
+          if (row.role === 'assistant' && row.sql_query && costIdx < costs.length) {
+            costMap[row.id] = {
+              inputTokens: costs[costIdx].input_tokens,
+              outputTokens: costs[costIdx].output_tokens,
+              calls: costs[costIdx].gemini_calls,
+              cost: costs[costIdx].cost,
+            };
+            costIdx++;
+          }
+        });
+      } catch (costErr) {
+        // Cost data not available — continue without it
+      }
+
       // Parse JSON fields and extract admin tags
       const messages = result.recordset.map(row => {
         let content = row.content || '';
@@ -78,6 +103,7 @@ module.exports = async function (context, req) {
           rowCount: row.row_count,
           error: row.error || undefined,
           adminSender,
+          cost: costMap[row.id] || undefined,
         };
       });
 
