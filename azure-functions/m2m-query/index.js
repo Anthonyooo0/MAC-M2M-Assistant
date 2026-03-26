@@ -450,7 +450,7 @@ module.exports = async function (context, req) {
 
     geminiMessages.push({ role: 'user', parts: [{ text: message.trim() }] });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro:generateContent?key=${geminiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${geminiKey}`;
 
     // -----------------------------------------------------------------------
     // First Gemini call
