@@ -296,8 +296,12 @@ function App() {
       let content = '';
       if (data.error) {
         content = isAdmin && data.sql
-          ? `Error: ${data.error}\n\nSQL Query:\n${data.sql}`
+          ? `Error: ${data.error}. SQL Query: ${data.sql}`
           : `Error: ${data.error}`;
+      } else if (data.sql && data.rowCount === 0) {
+        content = explanation
+          ? `${explanation}\n\nThe query ran successfully but returned no results. Try broadening your search criteria.`
+          : 'The query ran successfully but returned no results. Try broadening your search criteria.';
       } else if (explanation) {
         content = explanation;
       } else if (data.rowCount != null) {
