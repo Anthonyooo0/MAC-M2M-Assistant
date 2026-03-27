@@ -35,7 +35,7 @@ interface ChatSession {
   database_name?: string; // which database this chat is for
 }
 
-const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net'];
+const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net', 'juan.ortiz@macproducts.net', 'jerson.fulgencio@macproducts.net'];
 
 // Company/tenant configuration
 interface Company {
