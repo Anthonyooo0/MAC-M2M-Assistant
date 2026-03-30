@@ -2,6 +2,163 @@ const sql = require('mssql');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
+
+// Prompt version — increment when system instructions or few-shot examples change.
+// Logged with every cost record so prompt changes can be correlated with accuracy shifts.
+const PROMPT_VERSION = '2.1.0';
+
+// Shared generation config for all Gemini calls — single source of truth.
+// responseMimeType + responseSchema enforce structured JSON output at the API level,
+// eliminating the need for the parseGeminiResponse fallback path.
+const GEMINI_GENERATION_CONFIG = {
+  temperature: 0,
+  maxOutputTokens: 2048,
+  responseMimeType: 'application/json',
+  responseSchema: {
+    type: 'OBJECT',
+    properties: {
+      explanation: { type: 'STRING', description: 'A helpful plain-English explanation' },
+      sql: { type: 'STRING', description: 'The SQL SELECT query, or empty string if no query needed' },
+    },
+    required: ['explanation', 'sql'],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Cost persistence pool — reused across invocations (same pattern as chat-sessions).
+// Eliminates ~200-500ms per request from opening a fresh connection every time.
+// ---------------------------------------------------------------------------
+let costPoolPromise = null;
+
+function getCostPool() {
+  if (!costPoolPromise) {
+    const connString = process.env.CHAT_DB_CONNECTION;
+    if (!connString) return null;
+    const parts = {};
+    for (const segment of connString.split(';')) {
+      const idx = segment.indexOf('=');
+      if (idx === -1) continue;
+      parts[segment.substring(0, idx).trim().toLowerCase()] = segment.substring(idx + 1).trim();
+    }
+    const pool = new sql.ConnectionPool({
+      server: parts['server'] || parts['data source'] || '',
+      database: parts['database'] || parts['initial catalog'] || '',
+      user: parts['user id'] || parts['uid'] || '',
+      password: parts['password'] || parts['pwd'] || '',
+      options: { encrypt: true, trustServerCertificate: false },
+      connectionTimeout: 10000,
+      requestTimeout: 10000,
+      pool: { max: 5, min: 1, idleTimeoutMillis: 30000 },
+    });
+    costPoolPromise = pool.connect().catch(err => {
+      costPoolPromise = null;
+      throw err;
+    });
+  }
+  return costPoolPromise;
+}
+
+// ---------------------------------------------------------------------------
+// Semantic query cache — avoids redundant Gemini calls for identical questions.
+// Keyed by (question_lowercase + database). TTL-based expiry.
+// ---------------------------------------------------------------------------
+const QUERY_CACHE = new Map();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_CACHE_SIZE = 200;
+
+function getCacheKey(question, database) {
+  return `${database}::${question.trim().toLowerCase()}`;
+}
+
+function getCachedResult(question, database) {
+  const key = getCacheKey(question, database);
+  const entry = QUERY_CACHE.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
+    QUERY_CACHE.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function setCachedResult(question, database, explanation, sqlQuery) {
+  // Only cache queries that produced SQL and executed successfully
+  if (!sqlQuery) return;
+  const key = getCacheKey(question, database);
+  // Evict oldest entries if cache is full
+  if (QUERY_CACHE.size >= MAX_CACHE_SIZE) {
+    const oldest = QUERY_CACHE.keys().next().value;
+    QUERY_CACHE.delete(oldest);
+  }
+  QUERY_CACHE.set(key, { explanation, sqlQuery, timestamp: Date.now() });
+}
+
+// ---------------------------------------------------------------------------
+// Cost caps — per-user daily limit and global daily ceiling.
+// Checked before each Gemini call. Rejects requests that would exceed budget.
+// ---------------------------------------------------------------------------
+const DAILY_USER_COST_LIMIT = 5.00;    // $5/day per user
+const DAILY_GLOBAL_COST_LIMIT = 25.00; // $25/day global across all users
+
+async function checkCostCap(costPool, userEmail) {
+  if (!costPool) return { ok: true }; // No cost DB — skip check
+  try {
+    const result = await costPool.request()
+      .input('userEmail', sql.NVarChar, userEmail)
+      .query(`
+        SELECT
+          SUM(CASE WHEN user_email = @userEmail THEN cost ELSE 0 END) AS user_today,
+          SUM(cost) AS global_today
+        FROM query_costs
+        WHERE created_at >= CAST(GETUTCDATE() AS DATE)
+      `);
+    const row = result.recordset[0] || {};
+    const userToday = row.user_today || 0;
+    const globalToday = row.global_today || 0;
+
+    if (userToday >= DAILY_USER_COST_LIMIT) {
+      return { ok: false, reason: `Daily cost limit reached ($${userToday.toFixed(2)}/$${DAILY_USER_COST_LIMIT.toFixed(2)}). Try again tomorrow or contact an admin.` };
+    }
+    if (globalToday >= DAILY_GLOBAL_COST_LIMIT) {
+      return { ok: false, reason: `System daily cost limit reached. Try again tomorrow or contact an admin.` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: true }; // If cost check fails, allow the request (fail open)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Model tiering — route simple questions to Flash (cheaper/faster),
+// complex SQL generation to Pro.
+// ---------------------------------------------------------------------------
+const GEMINI_PRO_MODEL = 'gemini-3.1-pro-preview';
+const GEMINI_FLASH_MODEL = 'gemini-2.0-flash';
+
+// Heuristic: if the question looks conversational (no SQL needed) or is
+// extremely simple (single table, basic lookup), use Flash.
+function selectModel(userMessage, hasHistory) {
+  const q = userMessage.toLowerCase();
+
+  // Conversational patterns — clearly no SQL needed
+  const conversational = /\b(what does|what is|explain|help me understand|what do you|how does|tell me about|what are the fields|what columns)\b/;
+  if (conversational.test(q) && !/\b(show|list|find|get|count|how many|query|select)\b/.test(q)) {
+    return GEMINI_FLASH_MODEL;
+  }
+
+  // Greetings and meta-questions
+  if (/^(hi|hello|hey|thanks|thank you|ok|got it)\b/.test(q) && q.length < 50) {
+    return GEMINI_FLASH_MODEL;
+  }
+
+  // Everything else (SQL generation) uses Pro
+  return GEMINI_PRO_MODEL;
+}
+
+function getGeminiUrl(model, apiKey) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+}
 
 // Load schemas at startup
 const m2mSchemaPath = path.join(__dirname, '..', 'm2m-schema-slim.txt');
@@ -20,7 +177,9 @@ try {
   console.error('Could not load unipoint-schema-slim.txt:', e.message);
 }
 
-const SYSTEM_PROMPT = `You are an AI assistant for MAC Products employees that helps them query the M2M ERP database (Made2Manage version 7.51).
+// Static instructions (no schema) — cacheable by the provider
+const M2M_STATIC_INSTRUCTIONS = `<system_role>
+You are an AI assistant for MAC Products employees that helps them query the M2M ERP database (Made2Manage version 7.51).
 Your SQL queries ARE executed automatically against the live database and results are shown to the user. You are NOT just generating SQL for the user to copy — the system runs your queries and displays results. Never tell users to copy SQL or run it themselves.
 
 You MUST respond with valid JSON in this exact format:
@@ -28,8 +187,15 @@ You MUST respond with valid JSON in this exact format:
 
 If the user asks a general question that does NOT need a database query (like 'what am I looking at', 'explain this', 'what does this field mean', etc.), respond with:
 {"explanation":"Your helpful answer here","sql":""}
+</system_role>
 
-=== RESTRICTED TABLES — NEVER QUERY THESE ===
+<output_format>
+{"explanation":"...","sql":"..."}
+If no query needed: {"explanation":"...","sql":""}
+IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
+</output_format>
+
+<restricted_tables>
 The following tables contain sensitive information and must NEVER be queried, referenced, or included in any SQL:
 
 HR, Payroll & Labor (PII):
@@ -62,8 +228,9 @@ Corporate Financials:
 - PLBUDG (Budgets per GL Account)
 
 If a user asks for data from ANY of these tables, politely explain that the table contains restricted information and cannot be queried.
+</restricted_tables>
 
-=== RESTRICTED COLUMNS — NEVER SELECT THESE FIELDS ===
+<restricted_columns>
 Even on tables that ARE allowed, NEVER include these columns in any query:
 - INMASTX: F2LABCOST, F2MATLCOST, F2OVHDCOST, FAVGCOST (internal cost data)
 - INPROD: FCOGSLAB, FCOGSMATL, FCOGSOVHD (COGS breakdowns)
@@ -71,17 +238,19 @@ Even on tables that ARE allowed, NEVER include these columns in any query:
 - JOPACT: FLABACT, FMATLACT, FOTHRACT (actual job costs)
 - BLQOC / BLQOP: FNBLPROFIT, FNQUPROFIT (backlog/quote profit)
 If a user asks for cost, margin, or profit data from these fields, explain that internal cost/profit data is restricted.
+</restricted_columns>
 
-=== ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
-The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
-- You may ONLY use table names and column names that are EXPLICITLY listed in the schema below.
+<schema_rules>
+The COMPLETE database schema is provided in the first message of the conversation. It lists every table (## TABLENAME) and every column under each table.
+- You may ONLY use table names and column names that are EXPLICITLY listed in the schema.
 - Do NOT guess, infer, or assume ANY column name exists. If a column is not listed directly under a table heading, it DOES NOT EXIST.
 - Do NOT use column names you know from general M2M/ERP knowledge. This database may differ from standard M2M.
 - Do NOT use column names mentioned inside the DESCRIPTION text of other columns. Descriptions are informational only — they do not define columns on the current table.
 - If you cannot find the right column for what the user wants, DO NOT write SQL. Instead, set sql to "" and in your explanation list the available columns for that table and ask the user which one to use.
 - NEVER fabricate a column name. When in doubt, don't query — explain what's available instead.
+</schema_rules>
 
-QUERY RULES:
+<query_rules>
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
 2. Always use TOP 500 to limit results unless the user asks for a count/aggregate.
 3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name. Users do not know internal field names like FSONO or FCOMPANY. Use the description from the schema as a guide.
@@ -90,10 +259,10 @@ QUERY RULES:
    - Use double quotes around aliases that contain spaces.
    - For aggregates: COUNT(*) AS "Total Count", SUM(FORDERQTY) AS "Total Qty"
 4. M2M uses fixed-width CHAR fields — always use RTRIM() when displaying or comparing text values.
-4. Use proper JOIN syntax when linking tables.
-5. When searching text, use LIKE with wildcards: WHERE RTRIM(fcompany) LIKE '%search%'
-6. Dates of 1899-12-31 or 1900-01-01 mean "not set" — filter these out when showing dates.
-7. Common table relationships:
+5. Use proper JOIN syntax when linking tables.
+6. When searching text, use LIKE with wildcards: WHERE RTRIM(fcompany) LIKE '%search%'
+7. Dates of 1899-12-31 or 1900-01-01 mean "not set" — filter these out when showing dates.
+8. Common table relationships:
    - SOMAST.fsono = SOITEM.fsono (Sales Order -> Line Items)
    - SOMAST.fsono = JOMAST.fsono (Sales Order -> Job Orders)
    - JOMAST.fjobno = JODRTG.fjobno (Job Order -> Routing Steps)
@@ -102,22 +271,31 @@ QUERY RULES:
    - POITEM.fsokey = SOMAST.fsono (PO Items -> Sales Order)
    - INMAST.fpartno = part number lookups across all tables
    - ARCUST.fcustno = customer lookups
-8. Key column corrections (common mistakes to avoid):
-   - SOITEM: use FQUANTITY (not fshipqty). SOMAST: use FSTATUS for status.
-   - POMAST/POITEM: there is NO FDUEDATE. Use POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
-   - Inventory on hand: use INONHD table, FONHAND column for quantity on hand. Join to INMASTX via FPARTNO. Do NOT use INMASTX fields for on-hand qty.
-   - Late sales orders: compare SOMAST.FDUEDATE to GETDATE(). A sales order is late when FDUEDATE < GETDATE() and FSTATUS is not 'Closed' or 'Cancelled'.
-   - SOITEM pricing: use FPRICE for unit price, FORDERQTY for quantity. There is NO FUNETPRICE in SOITEM — that column is in SORELS. Use FSHIPQTY for shipped qty.
-   - SORELS pricing: use FUNETPRICE for unit price, FNETPRICE for net price, FORDERQTY for quantity.
+</query_rules>
 
-IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
+<common_corrections>
+Key column corrections (common mistakes to avoid):
+- SOITEM: use FQUANTITY (not fshipqty). SOMAST: use FSTATUS for status.
+- POMAST/POITEM: there is NO FDUEDATE. Use POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
+- Inventory on hand: use INONHD table, FONHAND column for quantity on hand. Join to INMASTX via FPARTNO. Do NOT use INMASTX fields for on-hand qty.
+- Late sales orders: compare SOMAST.FDUEDATE to GETDATE(). A sales order is late when FDUEDATE < GETDATE() and FSTATUS is not 'Closed' or 'Cancelled'.
+- SOITEM pricing: use FPRICE for unit price, FORDERQTY for quantity. There is NO FUNETPRICE in SOITEM — that column is in SORELS. Use FSHIPQTY for shipped qty.
+- SORELS pricing: use FUNETPRICE for unit price, FNETPRICE for net price, FORDERQTY for quantity.
+</common_corrections>
 
-Here is the COMPLETE M2M database schema with all tables and fields:
+<examples>
+User: "Show me all open sales orders"
+{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT TOP 500 RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled') ORDER BY FORDDATE DESC"}
 
-${M2M_SCHEMA}
-`;
+User: "How many POs did we place this month?"
+{"explanation":"Here is the count of purchase orders created so far this month.","sql":"SELECT COUNT(*) AS \"PO Count\" FROM POMAST WHERE FORDDATE >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)"}
 
-const UNIPOINT_SYSTEM_PROMPT = `You are an AI assistant for MAC Products quality team members that helps them query the UniPoint Quality Management database.
+User: "What does the FSTATUS field mean?"
+{"explanation":"The FSTATUS field on the SOMAST (Sales Order Master) table indicates the current lifecycle status of a sales order. Common values include: 'Open' (active, not yet fulfilled), 'Closed' (fully shipped and invoiced), 'Cancelled' (voided before completion), and 'Started' (in progress). You can use this field to filter for active or completed orders.","sql":""}
+</examples>`;
+
+const UNIPOINT_STATIC_INSTRUCTIONS = `<system_role>
+You are an AI assistant for MAC Products quality team members that helps them query the UniPoint Quality Management database.
 Your SQL queries ARE executed automatically against the live database and results are shown to the user. You are NOT just generating SQL for the user to copy — the system runs your queries and displays results. Never tell users to copy SQL or run it themselves.
 
 You MUST respond with valid JSON in this exact format:
@@ -125,32 +303,34 @@ You MUST respond with valid JSON in this exact format:
 
 If the user asks a general question that does NOT need a database query (like 'what am I looking at', 'explain this', 'what does this field mean', etc.), respond with:
 {"explanation":"Your helpful answer here","sql":""}
+</system_role>
 
-=== RESTRICTED TABLES — NEVER QUERY THESE ===
+<output_format>
+{"explanation":"...","sql":"..."}
+If no query needed: {"explanation":"...","sql":""}
+IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
+</output_format>
+
+<restricted_tables>
 - PT_Security_Users (user accounts, passwords)
 - PT_Employee (SSN, pay rates, personal data)
 - PT_Employee_Extended (passwords, login credentials)
 - PT_Cashflow and all PT_Cashflow_* tables (financial data)
 - PT_GST (tax configuration)
 If a user asks for data from these tables, politely explain that they contain restricted information.
+</restricted_tables>
 
-=== ABSOLUTE RULE — SCHEMA IS YOUR ONLY SOURCE OF TRUTH ===
-The COMPLETE database schema is provided below. It lists every table (## TABLENAME) and every column under each table.
-- You may ONLY use table names and column names that are EXPLICITLY listed in the schema below.
+<schema_rules>
+The COMPLETE database schema is provided in the first message of the conversation. It lists every table (## TABLENAME) and every column under each table.
+- You may ONLY use table names and column names that are EXPLICITLY listed in the schema.
 - Do NOT guess, infer, or assume ANY column name exists. If a column is not listed under a table heading, it DOES NOT EXIST.
 - Do NOT use column names from general UniPoint knowledge. This database may differ.
 - Do NOT invent column names like "NC_Date", "Orig_Date", "Date_Reported", "Total_Cost", "Cause_Code", "Cause", "NC_No" — these do NOT exist.
 - If you cannot find the right column, set sql to "" and in your explanation list the ACTUAL available columns for that table so the user can pick one.
 - NEVER fabricate a column name. When in doubt, don't query — explain what's available instead.
+</schema_rules>
 
-=== KEY COLUMN CORRECTIONS (common mistakes to avoid) ===
-- PT_NC: The date column is NCR_Date (NOT NC_Date, NOT Orig_Date, NOT Date_Reported). The cost column is NC_processing_cost (NOT Total_Cost). The ID column is NCR (NOT NC_No, NOT NC_Number). The cause/reason column is Origin_cause (NOT Cause_Code, NOT Cause). The category column is Origin_category.
-- PT_CPA: The ID is CPA_no (NOT CPA_No with capital N, NOT CPA_Number). The date is CPA_date.
-- PT_Inspection: The ID is Inspection_No. The date is InspectionDate.
-- PT_Equip: The ID is Equip_num. The description is Equip_Desc.
-- PT_Equip_Maint: The ID is Maint_num. The date is Create_date.
-
-QUERY RULES:
+<query_rules>
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
 2. Always use TOP 500 to limit results unless the user asks for a count/aggregate.
 3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name.
@@ -172,19 +352,34 @@ QUERY RULES:
    - PT_Attach links to various records via AttachType/AttachReference
    - PT_SignOff links via SignoffType/SignoffTypeID
    - PT_History tracks changes via ObjectType/ObjectKey
+</query_rules>
 
-IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code blocks, no extra text. Just the JSON.
+<common_corrections>
+Key column corrections (common mistakes to avoid):
+- PT_NC: The date column is NCR_Date (NOT NC_Date, NOT Orig_Date, NOT Date_Reported). The cost column is NC_processing_cost (NOT Total_Cost). The ID column is NCR (NOT NC_No, NOT NC_Number). The cause/reason column is Origin_cause (NOT Cause_Code, NOT Cause). The category column is Origin_category.
+- PT_CPA: The ID is CPA_no (NOT CPA_No with capital N, NOT CPA_Number). The date is CPA_date.
+- PT_Inspection: The ID is Inspection_No. The date is InspectionDate.
+- PT_Equip: The ID is Equip_num. The description is Equip_Desc.
+- PT_Equip_Maint: The ID is Maint_num. The date is Create_date.
+</common_corrections>
 
-Here is the COMPLETE UniPoint database schema with all tables and fields:
+<examples>
+User: "Show me all open non-conformance reports"
+{"explanation":"Here are all currently open NCRs, showing the NCR number, status, date reported, customer, and description.","sql":"SELECT TOP 500 NCR AS \"NCR Number\", Status AS \"Status\", NCR_Date AS \"Date Reported\", Customer AS \"Customer\", Description AS \"Description\" FROM PT_NC WHERE Status NOT IN ('Closed', 'Void') ORDER BY NCR_Date DESC"}
 
-${UNIPOINT_SCHEMA}
-`;
+User: "How many inspections were done this month?"
+{"explanation":"Here is the count of inspections recorded so far this month.","sql":"SELECT COUNT(*) AS \"Inspection Count\" FROM PT_Inspection WHERE InspectionDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)"}
+
+User: "What is a CPA?"
+{"explanation":"A CPA (Corrective/Preventive Action) is a formal response to a quality issue. In UniPoint, CPAs are tracked in the PT_CPA table. Each CPA is linked to one or more Non-Conformance Reports (NCRs) via the CPA_No field on PT_NC. CPAs document the root cause, corrective action taken, preventive measures, and verification steps. You can ask me to look up specific CPAs or find all CPAs for a given customer or vendor.","sql":""}
+</examples>`;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function callGeminiAPI(geminiUrl, geminiBody) {
+// Low-level Gemini HTTP call — no retry logic, just transport.
+function callGeminiAPIOnce(geminiUrl, geminiBody) {
   return new Promise((resolve, reject) => {
     const payload = JSON.stringify(geminiBody);
     const urlObj = new URL(geminiUrl);
@@ -216,34 +411,88 @@ function callGeminiAPI(geminiUrl, geminiBody) {
   });
 }
 
+// Retryable status codes — transient errors that may resolve on a second attempt.
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
+
+// Resilient wrapper: retries on transient API errors (429 rate limit, 503 unavailable,
+// 500 server error) and network failures, with exponential backoff.
+// Non-retryable errors (400 bad request, 401 auth, 404) are returned immediately.
+async function callGeminiAPI(geminiUrl, geminiBody, maxRetries = 3) {
+  const delays = [1000, 2000, 4000]; // 1s, 2s, 4s exponential backoff
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await callGeminiAPIOnce(geminiUrl, geminiBody);
+
+      // Success or non-retryable error — return immediately
+      if (!result._statusCode || result._statusCode < 400 || !RETRYABLE_STATUS_CODES.has(result._statusCode)) {
+        return result;
+      }
+
+      // Retryable status code — retry if attempts remain
+      if (attempt < maxRetries) {
+        const delay = delays[Math.min(attempt, delays.length - 1)];
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      // Out of retries — return the error response as-is
+      return result;
+
+    } catch (networkErr) {
+      // Network-level failure (ECONNREFUSED, ETIMEDOUT, DNS failure, etc.)
+      if (attempt < maxRetries) {
+        const delay = delays[Math.min(attempt, delays.length - 1)];
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw networkErr; // Out of retries — propagate the error
+    }
+  }
+}
+
+// Scrub potential PII from text before sending to Gemini (a third-party API).
+// This is a best-effort filter — it catches common PII patterns but cannot
+// detect all possible sensitive data (e.g., a name alone is not scrubbable).
+// The goal is to prevent accidental leakage of structured PII like SSNs,
+// phone numbers, and email addresses in user questions or conversation history.
+function scrubPII(text) {
+  return text
+    // SSN patterns: 123-45-6789, 123 45 6789, 123456789 (9 consecutive digits)
+    .replace(/\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g, '[SSN_REDACTED]')
+    // Email addresses
+    .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[EMAIL_REDACTED]')
+    // US phone numbers: (123) 456-7890, 123-456-7890, 123.456.7890, 1234567890
+    .replace(/\b\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, '[PHONE_REDACTED]')
+    // Credit card numbers: 16 digits with optional separators
+    .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[CC_REDACTED]');
+}
+
 function parseGeminiResponse(geminiData) {
   const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!generatedText) throw new Error('Gemini returned no response.');
 
-  let aiResponse;
+  let cleaned = generatedText
+    .replace(/^\uFEFF/, '')           // BOM
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
   try {
-    let cleaned = generatedText
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
-    aiResponse = JSON.parse(cleaned);
+    const parsed = JSON.parse(cleaned);
+    return {
+      explanation: parsed.explanation || '',
+      sqlQuery: (parsed.sql || '').trim(),
+    };
   } catch (e) {
-    // Fallback: treat entire response as SQL (backward compat)
-    aiResponse = {
-      explanation: '',
-      sql: generatedText
-        .replace(/^```sql\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim(),
+    // Do NOT fall back to treating raw text as SQL.
+    // Return error state so the system can retry or inform the user.
+    return {
+      explanation: 'The AI returned an improperly formatted response. Please try rephrasing your question.',
+      sqlQuery: '',
     };
   }
-
-  return {
-    explanation: aiResponse.explanation || '',
-    sqlQuery: (aiResponse.sql || '').trim(),
-  };
 }
 
 function cleanSqlQuery(sqlQuery) {
@@ -272,19 +521,25 @@ function validateSqlSafety(sqlQuery) {
     return { ok: false, reason: 'Only SELECT queries are allowed.' };
   }
   const RESTRICTED_TABLES = [
-    // HR, Payroll & Labor
+    // M2M — HR, Payroll & Labor
     'PREMPL','CSPAYR','PRDIST','PRDEPT','CRHEAD','CRMAST','LADETAIL','LADETAILVIEW','LAMAST',
-    // Banking & EFT
+    // M2M — Banking & EFT
     'APCHAC','APEFTMAST','VENDEFT','CCINFO','CCSETUPMAST',
-    // System Security
+    // M2M — System Security
     'UTUSER','UTPASSWD','UTPREF',
-    // Corporate Financials
+    // M2M — Corporate Financials
     'GLMAST','GLITEM','GLSTMT','PLBUDG',
+    // UniPoint — Security & PII
+    'PT_SECURITY_USERS','PT_EMPLOYEE','PT_EMPLOYEE_EXTENDED','PT_GST',
   ];
   for (const table of RESTRICTED_TABLES) {
     if (new RegExp('\\b' + table + '\\b', 'i').test(sqlQuery)) {
       return { ok: false, reason: `This query references a restricted table (${table}) containing sensitive information.` };
     }
+  }
+  // UniPoint — PT_Cashflow wildcard (matches PT_Cashflow, PT_Cashflow_Detail, etc.)
+  if (/\bPT_CASHFLOW\w*/i.test(sqlQuery)) {
+    return { ok: false, reason: 'This query references a restricted table (PT_Cashflow) containing financial data.' };
   }
   const RESTRICTED_COLUMNS = [
     'F2LABCOST','F2MATLCOST','F2OVHDCOST','FAVGCOST',   // INMASTX costs
@@ -303,11 +558,104 @@ function validateSqlSafety(sqlQuery) {
   if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|EXEC|EXECUTE|TRUNCATE|MERGE|GRANT|REVOKE)\b/i.test(sqlQuery)) {
     return { ok: false, reason: 'Query contains forbidden keywords.' };
   }
+  // Block SELECT * — forces Gemini to specify explicit columns with aliases.
+  // This prevents accidental exposure of sensitive columns on otherwise-allowed tables
+  // (e.g., SELECT * FROM ARCUST could return columns not covered by the restricted list).
+  // The prompt instructs Gemini to always use aliases, which precludes *, but we enforce it here.
+  if (/\bSELECT\s+(TOP\s+\d+\s+)?\*/i.test(sqlQuery)) {
+    return { ok: false, reason: 'SELECT * is not allowed. You must specify explicit column names with aliases (AS) for every column.' };
+  }
   return { ok: true };
 }
 
 // ---------------------------------------------------------------------------
-// UniPoint schema validator — checks SQL against actual schema before execution
+// Context architecture — token budgeting, selective schema, conversation trim
+// ---------------------------------------------------------------------------
+
+// Rough token estimate: ~4 characters per token for English/SQL mixed content.
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
+// Build a table-of-contents from a schema file: just the "## TABLE — DESCRIPTION" lines.
+// Used for the first phase of selective schema injection.
+function buildSchemaTableOfContents(schemaText) {
+  return schemaText.split('\n')
+    .filter(line => line.startsWith('## '))
+    .join('\n');
+}
+
+// Extract the full column block for specific tables from a schema file.
+// Returns only the requested tables' definitions (header + all columns until next header).
+function extractTablesFromSchema(schemaText, tableNames) {
+  const lowerNames = new Set(tableNames.map(t => t.toLowerCase()));
+  const lines = schemaText.split('\n');
+  const result = [];
+  let capturing = false;
+
+  for (const line of lines) {
+    const tableMatch = line.match(/^## (\S+)/);
+    if (tableMatch) {
+      capturing = lowerNames.has(tableMatch[1].toLowerCase());
+    }
+    if (capturing) {
+      result.push(line);
+    }
+  }
+  return result.join('\n');
+}
+
+// Parse Gemini's table selection response into an array of table names.
+// Expects a JSON array or comma-separated list; handles both gracefully.
+function parseTableSelection(text) {
+  const cleaned = text.trim();
+  // Try JSON array first
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) return parsed.map(t => String(t).trim().toUpperCase()).filter(Boolean);
+    // If Gemini returned {tables: [...]} via responseSchema override
+    if (parsed.tables && Array.isArray(parsed.tables)) return parsed.tables.map(t => String(t).trim().toUpperCase()).filter(Boolean);
+  } catch { /* not JSON */ }
+  // Fall back to extracting ## TABLE names or bare words that look like table names
+  const matches = cleaned.match(/\b[A-Z_][A-Z0-9_]{2,}\b/g);
+  return matches ? [...new Set(matches)] : [];
+}
+
+// Gemini 3.1 Pro context window: 1,048,576 tokens.
+// We budget 80% to leave headroom for the response and safety margin.
+const MAX_CONTEXT_TOKENS = Math.floor(1_048_576 * 0.80);
+
+// Trim conversation history to fit within the token budget.
+// Preserves the most recent turns (users care about recent context).
+// Always keeps at least the last user message.
+function trimConversationToFit(systemTokens, schemaTokens, geminiMessages) {
+  const overhead = systemTokens + schemaTokens + 200; // 200 tokens for schemaAck + structural JSON
+  const available = MAX_CONTEXT_TOKENS - overhead;
+
+  // Calculate total conversation tokens
+  let totalConvTokens = 0;
+  for (const m of geminiMessages) {
+    totalConvTokens += estimateTokens(m.parts[0].text);
+  }
+
+  if (totalConvTokens <= available) {
+    return geminiMessages; // Fits — no trimming needed
+  }
+
+  // Trim from the front (oldest messages), always keep the last message (current user input)
+  let trimmed = [...geminiMessages];
+  let currentTokens = totalConvTokens;
+  // Keep removing the oldest pair (user + model) until we fit
+  while (currentTokens > available && trimmed.length > 1) {
+    const removed = trimmed.shift();
+    currentTokens -= estimateTokens(removed.parts[0].text);
+  }
+
+  return trimmed;
+}
+
+// ---------------------------------------------------------------------------
+// Schema validator — checks SQL against actual schema before execution
 // ---------------------------------------------------------------------------
 
 function parseSchemaFile(schemaText) {
@@ -331,6 +679,10 @@ function parseSchemaFile(schemaText) {
 // Parse once at startup
 const M2M_TABLES = parseSchemaFile(M2M_SCHEMA);
 const UNIPOINT_TABLES = parseSchemaFile(UNIPOINT_SCHEMA);
+
+// Pre-computed table-of-contents for selective schema injection
+const M2M_SCHEMA_TOC = buildSchemaTableOfContents(M2M_SCHEMA);
+const UNIPOINT_SCHEMA_TOC = buildSchemaTableOfContents(UNIPOINT_SCHEMA);
 
 function validateAgainstSchema(sqlQuery, schemaTables) {
   const errors = [];
@@ -373,6 +725,119 @@ function validateAgainstSchema(sqlQuery, schemaTables) {
 }
 
 // ---------------------------------------------------------------------------
+// Semantic critic — lightweight post-execution sanity check
+// ---------------------------------------------------------------------------
+
+// Detects obvious semantic mismatches between the user's question and the SQL.
+// This is a heuristic filter, NOT a full NLU system. It catches the most common
+// class of "technically valid but wrong" queries — missing WHERE filters when
+// the user clearly asked for a filtered subset.
+//
+// Returns { ok: true } or { ok: false, issue: '...' } with a human-readable description.
+function semanticSanityCheck(userMessage, sqlQuery, rowCount) {
+  const q = userMessage.toLowerCase();
+  const s = sqlQuery.toUpperCase();
+
+  const issues = [];
+
+  // User asked for "late" or "overdue" but SQL has no date comparison
+  if (/\b(late|overdue|past due|behind schedule)\b/.test(q)) {
+    if (!/\bGETDATE\b/.test(s) && !/\bCURRENT_TIMESTAMP\b/.test(s) && !/\bDATEADD\b/.test(s)) {
+      issues.push('You asked about late/overdue items, but the query does not compare any date to the current date.');
+    }
+  }
+
+  // User asked for "open" / "active" / "pending" but SQL has no status filter
+  if (/\b(open|active|pending|in progress|not closed|not cancelled)\b/.test(q)) {
+    if (!/\bWHERE\b/.test(s) || (!/STATUS/.test(s) && !/FSTATUS/.test(s) && !/FCITEMSTATUS/.test(s))) {
+      // Only flag if there IS a WHERE but it doesn't touch status, or no WHERE at all
+      if (!/\bWHERE\b/.test(s)) {
+        issues.push('You asked for open/active items, but the query has no WHERE clause to filter by status.');
+      }
+    }
+  }
+
+  // User asked for a specific time period but SQL has no date filter
+  if (/\b(this month|this week|this year|last month|last week|today|yesterday|this quarter)\b/.test(q)) {
+    if (!/\bWHERE\b/.test(s) || (!/DATE/.test(s) && !/GETDATE/.test(s) && !/DATEADD/.test(s))) {
+      issues.push('You asked about a specific time period, but the query does not filter by date.');
+    }
+  }
+
+  // Suspiciously high row count for a filtered question (heuristic: >200 rows for a
+  // question that includes a specific entity name suggests the filter didn't work)
+  if (rowCount > 200) {
+    // Check if the user mentioned a specific entity (customer, part, vendor, SO number)
+    const hasSpecificEntity = /\b(for|from|by|named|called|number|#)\s+\S+/i.test(q);
+    if (hasSpecificEntity && !/\bWHERE\b/.test(s)) {
+      issues.push('You asked about a specific entity, but the query returned a large number of rows without filtering. The WHERE clause may be missing.');
+    }
+  }
+
+  if (issues.length > 0) {
+    return { ok: false, issue: issues[0] }; // Return the first/most relevant issue
+  }
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Confidence scoring — heuristic signal based on SQL structural complexity
+// ---------------------------------------------------------------------------
+
+// Scores generated SQL from 0.0 (no confidence) to 1.0 (high confidence).
+// Based on structural complexity indicators, not semantic understanding.
+// Returned to the frontend in _cost.confidence so it can display a signal.
+//
+// Scoring factors (each lowers confidence):
+//   - Number of JOINs (each join is a hallucination surface)
+//   - Subqueries / CTEs (higher complexity = more room for error)
+//   - CASE expressions (conditional logic Gemini often gets wrong)
+//   - Number of columns (broad SELECTs are less likely to be precisely right)
+//   - Date math functions (common source of errors)
+//   - Aggregate + GROUP BY (grouping logic is error-prone)
+function scoreConfidence(sqlQuery) {
+  if (!sqlQuery) return 1.0; // No SQL = conversational response, high confidence
+
+  const s = sqlQuery.toUpperCase();
+  let score = 1.0;
+
+  // Count JOINs — each one reduces confidence
+  const joinCount = (s.match(/\bJOIN\b/g) || []).length;
+  score -= joinCount * 0.08; // 1 join = 0.92, 2 joins = 0.84, 3+ joins = 0.76+
+
+  // Subqueries (SELECT inside SELECT)
+  const subqueryCount = (s.match(/\bSELECT\b/g) || []).length - 1; // first SELECT doesn't count
+  if (subqueryCount > 0) score -= subqueryCount * 0.10;
+
+  // CTEs
+  if (/\bWITH\b.*\bAS\s*\(/i.test(s)) score -= 0.10;
+
+  // CASE expressions
+  const caseCount = (s.match(/\bCASE\b/g) || []).length;
+  score -= caseCount * 0.07;
+
+  // Date math (DATEADD, DATEDIFF, DATEPART, CONVERT with dates)
+  const dateFnCount = (s.match(/\b(DATEADD|DATEDIFF|DATEPART|CONVERT)\b/g) || []).length;
+  if (dateFnCount > 1) score -= (dateFnCount - 1) * 0.05; // First date fn is fine
+
+  // GROUP BY + HAVING
+  if (/\bGROUP BY\b/.test(s)) score -= 0.05;
+  if (/\bHAVING\b/.test(s)) score -= 0.05;
+
+  // Column count (rough estimate: count commas in the SELECT ... FROM span)
+  const selectToFrom = s.match(/SELECT\s+(.*?)\s+FROM/s);
+  if (selectToFrom) {
+    const commaCount = (selectToFrom[1].match(/,/g) || []).length;
+    if (commaCount > 8) score -= 0.05; // Many columns = broader query
+  }
+
+  // UNION
+  if (/\bUNION\b/.test(s)) score -= 0.10;
+
+  return Math.max(0.0, Math.round(score * 100) / 100); // Clamp to [0, 1], 2 decimal places
+}
+
+// ---------------------------------------------------------------------------
 // Token usage & cost tracking
 // ---------------------------------------------------------------------------
 
@@ -393,6 +858,58 @@ function calculateCost(inputTokens, outputTokens) {
   const inputCost = (inputTokens / 1_000_000) * COST_PER_1M_INPUT;
   const outputCost = (outputTokens / 1_000_000) * COST_PER_1M_OUTPUT;
   return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000; // 6 decimal places
+}
+
+// ---------------------------------------------------------------------------
+// Error guidance lookup table — maps SQL error patterns to corrective prompts
+// ---------------------------------------------------------------------------
+
+const SQL_ERROR_PATTERNS = [
+  {
+    pattern: /Incorrect syntax near/i,
+    extract: /near '([^']+)'/i,
+    guidance: (match) => `SQL SYNTAX error near '${match}'. Common causes:\n` +
+      `- Missing comma between columns in SELECT\n` +
+      `- Unmatched parentheses in function calls like DATEADD()\n` +
+      `- Backslash characters (SQL Server does not use backslash escaping)\n` +
+      `- Missing space between keywords\n` +
+      `Rewrite the query from scratch with correct syntax.`
+  },
+  {
+    pattern: /Invalid column name/i,
+    extract: /Invalid column name '([^']+)'/i,
+    guidance: (match) => `Column '${match}' does NOT exist. ` +
+      `Search the schema for the correct column name. Use only columns explicitly listed under the table heading.`
+  },
+  {
+    pattern: /Invalid object name/i,
+    extract: /Invalid object name '([^']+)'/i,
+    guidance: (match) => `Table '${match}' does NOT exist. Check the schema for the correct table name.`
+  },
+  {
+    pattern: /Ambiguous column name/i,
+    extract: /Ambiguous column name '([^']+)'/i,
+    guidance: (match) => `Column '${match}' exists in multiple tables in your JOIN. ` +
+      `Prefix it with the table name, e.g., TableName.${match}.`
+  },
+  {
+    pattern: /conversion failed/i,
+    extract: null,
+    guidance: () => `Data type conversion error. Check that you are comparing the right types ` +
+      `(e.g., don't compare a date to a number, use proper date formats like '2025-01-01').`
+  },
+];
+
+const DEFAULT_ERROR_GUIDANCE = `Check the schema carefully and make sure every table name, column name, and SQL syntax is correct.`;
+
+function getErrorGuidance(errorMessage) {
+  for (const entry of SQL_ERROR_PATTERNS) {
+    if (entry.pattern.test(errorMessage)) {
+      const match = entry.extract ? (errorMessage.match(entry.extract)?.[1] || '?') : null;
+      return entry.guidance(match);
+    }
+  }
+  return DEFAULT_ERROR_GUIDANCE;
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +934,9 @@ module.exports = async function (context, req) {
     'Access-Control-Allow-Origin': '*',
     'Content-Type': 'application/json',
   };
+
+  // Request tracing — unique ID that links every log line, cost record, and API response
+  const requestId = crypto.randomUUID();
 
   let pool = null;
   let sqlQuery = '';
@@ -445,7 +965,9 @@ module.exports = async function (context, req) {
     // Pick connection string and system prompt based on requested database
     const { database } = req.body || {};
     let connString;
-    let activePrompt = SYSTEM_PROMPT;
+    let activeStaticInstructions = M2M_STATIC_INSTRUCTIONS;
+    let activeSchema = M2M_SCHEMA;
+    let activeSchemaTOC = M2M_SCHEMA_TOC;
     if (database === 'm2mdata66') {
       connString = process.env.M2M_IMPULSE_CONNECTION_STRING;
       if (!connString) {
@@ -454,7 +976,9 @@ module.exports = async function (context, req) {
       }
     } else if (database === 'unipoint_live') {
       connString = process.env.UNIPOINT_CONNECTION_STRING;
-      activePrompt = UNIPOINT_SYSTEM_PROMPT;
+      activeStaticInstructions = UNIPOINT_STATIC_INSTRUCTIONS;
+      activeSchema = UNIPOINT_SCHEMA;
+      activeSchemaTOC = UNIPOINT_SCHEMA_TOC;
       if (!connString) {
         context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'UniPoint database connection is not configured.' }) };
         return;
@@ -467,74 +991,158 @@ module.exports = async function (context, req) {
       }
     }
 
-    // Build conversation for Gemini
+    // Build conversation for Gemini — scrub PII from all user messages before
+    // they leave the network to the third-party Gemini API.
     const geminiMessages = [];
 
     if (Array.isArray(history)) {
       for (const turn of history) {
         if (turn.role === 'user') {
-          geminiMessages.push({ role: 'user', parts: [{ text: turn.content }] });
+          geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(turn.content) }] });
         } else if (turn.role === 'model') {
           geminiMessages.push({ role: 'model', parts: [{ text: turn.content }] });
         }
       }
     }
 
-    geminiMessages.push({ role: 'user', parts: [{ text: message.trim() }] });
+    geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(message.trim()) }] });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${geminiKey}`;
+    // Cost cap check — reject early if daily budget is exceeded
+    const costPool = getCostPool() ? await getCostPool() : null;
+    const costUserEmail = req.body?.userEmail || 'unknown';
+    if (costPool) {
+      const cap = await checkCostCap(costPool, costUserEmail);
+      if (!cap.ok) {
+        context.res = { status: 429, headers: CORS, body: JSON.stringify({ error: cap.reason }) };
+        return;
+      }
+    }
+
+    // Semantic cache check — skip Gemini entirely for repeated questions
+    const cached = getCachedResult(message, database || 'm2mdata99');
+    if (cached) {
+      context.log.info(`[m2m-query][${requestId}] Cache hit for: "${message.trim().substring(0, 50)}..."`);
+      // Re-execute the cached SQL (data may have changed since last query)
+      sqlQuery = cached.sqlQuery;
+      explanation = cached.explanation;
+      // Skip Gemini calls — jump straight to validation and execution below.
+      // Note: sqlQuery and explanation are already set, so the flow continues
+      // past the Gemini call blocks into safety validation.
+    }
+
+    // Model tiering — route conversational questions to Flash, SQL generation to Pro
+    const selectedModel = selectModel(message, Array.isArray(history) && history.length > 0);
+    const geminiUrl = getGeminiUrl(selectedModel, geminiKey);
+    if (selectedModel !== GEMINI_PRO_MODEL) {
+      context.log.info(`[m2m-query][${requestId}] Routed to ${selectedModel} (conversational)`);
+    }
+
+    // Variables used by both the Gemini generation path and retry paths.
+    // Assigned during Phase 1/2 (Gemini) or defaulted for cache hits.
+    let selectedSchema = activeSchema;
+    let schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+    let schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+    let systemTokens = estimateTokens(activeStaticInstructions);
+    let schemaTokens = estimateTokens(activeSchema);
 
     // -----------------------------------------------------------------------
-    // First Gemini call
+    // LLM generation — skipped on cache hits (sqlQuery already set above)
     // -----------------------------------------------------------------------
-    const geminiBody = {
-      system_instruction: { parts: [{ text: activePrompt }] },
-      contents: geminiMessages,
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 2048,
-      },
-    };
+    if (!cached) {
 
-    const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
-    { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+      // Phase 1: Table selection (lightweight TOC-only call)
+      try {
+        const tableSelectBody = {
+          system_instruction: { parts: [{ text:
+            `You are a database schema router. Given a user question and a list of database tables, ` +
+            `return a JSON array of table names that would be needed to answer the question. ` +
+            `Include tables for JOINs. Return at most 15 tables. ` +
+            `Respond with ONLY a JSON array like: ["TABLE1","TABLE2"]`
+          }] },
+          contents: [
+            { role: 'user', parts: [{ text:
+              `Tables available:\n${activeSchemaTOC}\n\n` +
+              `User question: "${message.trim()}"\n\n` +
+              `Which tables are needed to answer this question? Return a JSON array of table names.`
+            }] },
+          ],
+          generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json' },
+        };
 
-    if (geminiData._statusCode && geminiData._statusCode >= 400) {
-      context.log.error('[m2m-query] Gemini error:', JSON.stringify(geminiData));
-      context.res = {
-        status: 500,
-        headers: CORS,
-        body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
+        const tableSelectData = await callGeminiAPI(geminiUrl, tableSelectBody);
+        { const t = extractTokenUsage(tableSelectData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+
+        const tableSelectText = tableSelectData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (tableSelectText) {
+          const selectedTables = parseTableSelection(tableSelectText);
+          if (selectedTables.length > 0 && selectedTables.length <= 15) {
+            const extracted = extractTablesFromSchema(activeSchema, selectedTables);
+            if (extracted.length > 200) {
+              selectedSchema = extracted;
+              context.log.info(`[m2m-query][${requestId}] Selective schema: ${selectedTables.length} tables (${estimateTokens(extracted)} tokens vs ${estimateTokens(activeSchema)} full)`);
+            }
+          }
+        }
+      } catch (selectErr) {
+        context.log.warn(`[m2m-query][${requestId}] Table selection failed, using full schema: ${selectErr.message}`);
+      }
+
+      // Phase 2: SQL generation with selected schema + token-budgeted history
+      schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${selectedSchema}\n</database_schema>` }] };
+      schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+      systemTokens = estimateTokens(activeStaticInstructions);
+      schemaTokens = estimateTokens(selectedSchema);
+      const trimmedMessages = trimConversationToFit(systemTokens, schemaTokens, geminiMessages);
+      if (trimmedMessages.length < geminiMessages.length) {
+        context.log.info(`[m2m-query][${requestId}] Trimmed conversation from ${geminiMessages.length} to ${trimmedMessages.length} messages to fit context window`);
+      }
+
+      const geminiBody = {
+        system_instruction: { parts: [{ text: activeStaticInstructions }] },
+        contents: [schemaMessage, schemaAck, ...trimmedMessages],
+        generationConfig: GEMINI_GENERATION_CONFIG,
       };
-      return;
-    }
 
-    if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-      context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
-      return;
-    }
+      const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
+      { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
-    ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
+      if (geminiData._statusCode && geminiData._statusCode >= 400) {
+        context.log.error(`[m2m-query][${requestId}] Gemini error:`, JSON.stringify(geminiData));
+        context.res = {
+          status: 500,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
+        };
+        return;
+      }
 
-    // Clean SQL: strip comments, extract SELECT if wrapped in other statements
-    if (sqlQuery) {
-      sqlQuery = cleanSqlQuery(sqlQuery);
-    }
+      if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
+        return;
+      }
 
-    // If no SQL query, just return the explanation (conversational response)
-    if (!sqlQuery) {
-      context.res = {
-        status: 200,
-        headers: CORS,
-        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) } }),
-      };
-      return;
-    }
+      ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
+
+      // Clean SQL: strip comments, extract SELECT if wrapped in other statements
+      if (sqlQuery) {
+        sqlQuery = cleanSqlQuery(sqlQuery);
+      }
+
+      // If no SQL query, just return the explanation (conversational response)
+      if (!sqlQuery) {
+        context.res = {
+          status: 200,
+          headers: CORS,
+          body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens), confidence: 1.0 } }),
+        };
+        return;
+      }
+    } // end if (!cached)
 
     // Safety checks — retry once if Gemini generated non-SELECT SQL
     let safety = validateSqlSafety(sqlQuery);
     if (!safety.ok) {
-      context.log.warn(`[m2m-query] Safety check failed: ${safety.reason} — retrying`);
+      context.log.warn(`[m2m-query][${requestId}] Safety check failed: ${safety.reason} — retrying`);
 
       const safetyRetryMessages = [
         ...geminiMessages,
@@ -550,9 +1158,9 @@ module.exports = async function (context, req) {
       ];
 
       const safetyRetryBody = {
-        system_instruction: { parts: [{ text: activePrompt }] },
-        contents: safetyRetryMessages,
-        generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+        system_instruction: { parts: [{ text: activeStaticInstructions }] },
+        contents: [schemaMessage, schemaAck, ...safetyRetryMessages],
+        generationConfig: GEMINI_GENERATION_CONFIG,
       };
 
       const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
@@ -584,7 +1192,7 @@ module.exports = async function (context, req) {
     if (sqlQuery && Object.keys(activeSchemaTables).length > 0) {
       const schemaCheck = validateAgainstSchema(sqlQuery, activeSchemaTables);
       if (!schemaCheck.ok) {
-        context.log.warn(`[m2m-query] Schema validation failed: ${schemaCheck.errors.join('; ')} — retrying`);
+        context.log.warn(`[m2m-query][${requestId}] Schema validation failed: ${schemaCheck.errors.join('; ')} — retrying`);
 
         const schemaRetryMessages = [
           ...geminiMessages,
@@ -600,9 +1208,9 @@ module.exports = async function (context, req) {
         ];
 
         const schemaRetryBody = {
-          system_instruction: { parts: [{ text: activePrompt }] },
-          contents: schemaRetryMessages,
-          generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+          system_instruction: { parts: [{ text: activeStaticInstructions }] },
+          contents: [schemaMessage, schemaAck, ...schemaRetryMessages],
+          generationConfig: GEMINI_GENERATION_CONFIG,
         };
 
         const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
@@ -657,7 +1265,7 @@ module.exports = async function (context, req) {
 
     dbServer = config.server;
     dbName = config.database;
-    context.log.info(`[m2m-query] Connecting to server="${dbServer}" database="${dbName}" user="${config.user}"`);
+    context.log.info(`[m2m-query][${requestId}] Connecting to server="${dbServer}" database="${dbName}" user="${config.user}"`);
 
     pool = new sql.ConnectionPool(config);
     await pool.connect();
@@ -683,37 +1291,10 @@ module.exports = async function (context, req) {
           break;
         }
 
-        context.log.warn(`[m2m-query] SQL error (attempt ${attempt + 1}/${MAX_RETRIES + 1}) — retrying: ${sqlErr.message}`);
+        context.log.warn(`[m2m-query][${requestId}] SQL error (attempt ${attempt + 1}/${MAX_RETRIES + 1}) — retrying: ${sqlErr.message}`);
 
-        // Build error-specific correction guidance
-        let fixGuidance = '';
         const errMsg = sqlErr.message || '';
-        if (/Incorrect syntax near/i.test(errMsg)) {
-          const near = errMsg.match(/near '([^']+)'/i);
-          fixGuidance = `This is a SQL SYNTAX error near '${near ? near[1] : '?'}'. Common causes:\n` +
-            `- Missing comma between columns in SELECT\n` +
-            `- Unmatched parentheses in function calls like DATEADD()\n` +
-            `- Backslash \\ characters (SQL Server does not use backslash escaping)\n` +
-            `- Missing space between keywords\n` +
-            `Rewrite the query from scratch with correct syntax.`;
-        } else if (/Invalid column name/i.test(errMsg)) {
-          const col = errMsg.match(/Invalid column name '([^']+)'/i);
-          fixGuidance = `The column '${col ? col[1] : '?'}' does NOT exist. ` +
-            `Search the schema for the correct column name. Do NOT guess — use only columns explicitly listed under the table heading.`;
-        } else if (/Invalid object name/i.test(errMsg)) {
-          const obj = errMsg.match(/Invalid object name '([^']+)'/i);
-          fixGuidance = `The table '${obj ? obj[1] : '?'}' does NOT exist. ` +
-            `Check the schema for the correct table name.`;
-        } else if (/Ambiguous column name/i.test(errMsg)) {
-          const col = errMsg.match(/Ambiguous column name '([^']+)'/i);
-          fixGuidance = `The column '${col ? col[1] : '?'}' exists in multiple tables in your JOIN. ` +
-            `Prefix it with the table name, e.g., TableName.${col ? col[1] : 'ColumnName'}.`;
-        } else if (/conversion failed/i.test(errMsg)) {
-          fixGuidance = `There is a data type conversion error. Check that you are comparing the right types ` +
-            `(e.g., don't compare a date to a number, use proper date formats like '2025-01-01').`;
-        } else {
-          fixGuidance = `Check the schema carefully and make sure every table name, column name, and SQL syntax is correct.`;
-        }
+        const fixGuidance = getErrorGuidance(errMsg);
 
         retryConversation = [
           ...retryConversation,
@@ -730,17 +1311,20 @@ module.exports = async function (context, req) {
           },
         ];
 
+        // Apply token budget to retry conversation (it grows with each attempt)
+        const trimmedRetryConv = trimConversationToFit(systemTokens, schemaTokens, retryConversation);
+
         const retryGeminiBody = {
-          system_instruction: { parts: [{ text: activePrompt }] },
-          contents: retryConversation,
-          generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+          system_instruction: { parts: [{ text: activeStaticInstructions }] },
+          contents: [schemaMessage, schemaAck, ...trimmedRetryConv],
+          generationConfig: GEMINI_GENERATION_CONFIG,
         };
 
         const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
         { const t = extractTokenUsage(retryGeminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
         if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
-          context.log.error('[m2m-query] Gemini retry error:', JSON.stringify(retryGeminiData));
+          context.log.error(`[m2m-query][${requestId}] Gemini retry error:`, JSON.stringify(retryGeminiData));
           break;
         }
 
@@ -766,7 +1350,7 @@ module.exports = async function (context, req) {
         const retrySafety = validateSqlSafety(retrySqlQuery);
         if (!retrySafety.ok) break;
 
-        context.log.info(`[m2m-query] Retry ${attempt + 1} SQL: ${retrySqlQuery}`);
+        context.log.info(`[m2m-query][${requestId}] Retry ${attempt + 1} SQL: ${retrySqlQuery}`);
         sqlQuery = retrySqlQuery;
       }
     }
@@ -779,7 +1363,7 @@ module.exports = async function (context, req) {
     // Zero-row retry: if query returned no results, ask Gemini to broaden it
     // -----------------------------------------------------------------------
     if (result.recordset.length === 0) {
-      context.log.info('[m2m-query] Query returned 0 rows — retrying with broader criteria');
+      context.log.info(`[m2m-query][${requestId}] Query returned 0 rows — retrying with broader criteria`);
 
       const zeroRowMessages = [
         ...geminiMessages,
@@ -798,9 +1382,9 @@ module.exports = async function (context, req) {
       ];
 
       const zeroRowBody = {
-        system_instruction: { parts: [{ text: activePrompt }] },
-        contents: zeroRowMessages,
-        generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+        system_instruction: { parts: [{ text: activeStaticInstructions }] },
+        contents: [schemaMessage, schemaAck, ...zeroRowMessages],
+        generationConfig: GEMINI_GENERATION_CONFIG,
       };
 
       const zeroRowData = await callGeminiAPI(geminiUrl, zeroRowBody);
@@ -821,15 +1405,33 @@ module.exports = async function (context, req) {
                 result = zeroRowResult;
                 sqlQuery = zeroRowSql;
                 explanation = zeroRowParsed.explanation || explanation;
-                context.log.info(`[m2m-query] Zero-row retry found ${zeroRowResult.recordset.length} rows`);
+                context.log.info(`[m2m-query][${requestId}] Zero-row retry found ${zeroRowResult.recordset.length} rows`);
               }
             } catch (retryErr) {
-              context.log.warn(`[m2m-query] Zero-row retry SQL failed: ${retryErr.message}`);
+              context.log.warn(`[m2m-query][${requestId}] Zero-row retry SQL failed: ${retryErr.message}`);
               // Keep original 0-row result
             }
           }
         }
       }
+    }
+
+    // -----------------------------------------------------------------------
+    // Semantic critic — lightweight sanity check on the query vs user intent.
+    // Appends a warning to the explanation if a mismatch is detected.
+    // Advisory only — never blocks the response.
+    // -----------------------------------------------------------------------
+    if (sqlQuery && result.recordset.length > 0) {
+      const sanity = semanticSanityCheck(message, sqlQuery, result.recordset.length);
+      if (!sanity.ok) {
+        context.log.warn(`[m2m-query][${requestId}] Semantic critic flagged: ${sanity.issue}`);
+        explanation += `\n\nNote: ${sanity.issue} You may want to refine your question if the results don't look right.`;
+      }
+    }
+
+    // Cache successful SQL generation for future identical questions
+    if (!cached && sqlQuery && result.recordset.length > 0) {
+      setCachedResult(message, database || 'm2mdata99', explanation, sqlQuery);
     }
 
     const columns = result.recordset.length > 0 ? Object.keys(result.recordset[0]) : [];
@@ -843,64 +1445,69 @@ module.exports = async function (context, req) {
         columns,
         rows: result.recordset,
         rowCount: result.recordset.length,
-        _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) },
+        _requestId: requestId,
+        _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens), confidence: scoreConfidence(sqlQuery) },
       }),
     };
 
   } catch (err) {
-    context.log.error('[m2m-query] Error:', err);
+    context.log.error(`[m2m-query][${requestId}] Error:`, err);
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) } }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) } }),
     };
   } finally {
     if (pool) {
       try { await pool.close(); } catch { /* ignore */ }
     }
-    // Save cost to query_costs table
+    // Save cost to query_costs table using the module-scoped connection pool
     if (geminiCalls > 0) {
       try {
-        const chatConnStr = process.env.CHAT_DB_CONNECTION;
-        if (chatConnStr) {
-          const costParts = {};
-          for (const seg of chatConnStr.split(';')) {
-            const idx = seg.indexOf('=');
-            if (idx === -1) continue;
-            costParts[seg.substring(0, idx).trim().toLowerCase()] = seg.substring(idx + 1).trim();
-          }
-          const costPool = new sql.ConnectionPool({
-            server: costParts['server'] || costParts['data source'] || '',
-            database: costParts['database'] || costParts['initial catalog'] || '',
-            user: costParts['user id'] || costParts['uid'] || '',
-            password: costParts['password'] || costParts['pwd'] || '',
-            options: { encrypt: true, trustServerCertificate: false },
-            connectionTimeout: 10000,
-            requestTimeout: 10000,
-          });
-          await costPool.connect();
-          const costUserEmail = req.body?.userEmail || 'unknown';
+        const cPool = getCostPool() ? await getCostPool() : null;
+        if (cPool) {
           const costSessionId = req.body?.sessionId || null;
           const costDbName = req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products';
-          context.log.info(`[m2m-query] Saving cost: user=${costUserEmail} session=${costSessionId} db=${costDbName} input=${totalInputTokens} output=${totalOutputTokens} calls=${geminiCalls} cost=${calculateCost(totalInputTokens, totalOutputTokens)}`);
-          await costPool.request()
+          const cEmail = req.body?.userEmail || 'unknown';
+          await cPool.request()
             .input('sessionId', sql.UniqueIdentifier, costSessionId)
-            .input('userEmail', sql.NVarChar, costUserEmail)
+            .input('userEmail', sql.NVarChar, cEmail)
             .input('databaseName', sql.NVarChar, costDbName)
             .input('inputTokens', sql.Int, totalInputTokens)
             .input('outputTokens', sql.Int, totalOutputTokens)
             .input('geminiCalls', sql.Int, geminiCalls)
             .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens))
-            .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost)
-                    VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost)`);
-          await costPool.close();
-          context.log.info('[m2m-query] Cost saved successfully');
-        } else {
-          context.log.warn('[m2m-query] CHAT_DB_CONNECTION not set — skipping cost save');
+            .input('promptVersion', sql.NVarChar, PROMPT_VERSION)
+            .input('requestId', sql.NVarChar, requestId)
+            .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
+                    VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);
         }
       } catch (costErr) {
-        context.log.error(`[m2m-query] Failed to save cost: ${costErr.message}`);
+        // Reset pool on connection errors so next request reconnects
+        if (costErr.code === 'ECONNCLOSED' || costErr.code === 'ENOTOPEN') {
+          costPoolPromise = null;
+        }
+        context.log.error(`[m2m-query][${requestId}] Failed to save cost: ${costErr.message}`);
       }
     }
   }
+};
+
+// Expose internals for the eval harness (test-only). The Azure Functions runtime
+// uses the default export (the handler function above); tests use ._internals.
+module.exports._internals = {
+  validateSqlSafety,
+  validateAgainstSchema,
+  parseGeminiResponse,
+  cleanSqlQuery,
+  getErrorGuidance,
+  semanticSanityCheck,
+  scoreConfidence,
+  scrubPII,
+  parseSchemaFile,
+  M2M_TABLES,
+  UNIPOINT_TABLES,
+  M2M_SCHEMA,
+  UNIPOINT_SCHEMA,
+  PROMPT_VERSION,
 };

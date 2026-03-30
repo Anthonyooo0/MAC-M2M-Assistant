@@ -23,6 +23,7 @@ interface Message {
   error?: string;
   loading?: boolean;
   adminSender?: string; // set when an admin sends a message in another user's chat
+  feedback?: 'good' | 'bad' | null;
   cost?: { inputTokens: number; outputTokens: number; calls: number; cost: number };
 }
 
@@ -372,6 +373,29 @@ function App() {
       handleSend();
     }
   };
+
+  const handleFeedback = useCallback(async (messageId: string, feedback: 'good' | 'bad') => {
+    // Optimistic update
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, feedback } : m));
+    // Update cache
+    if (activeSessionId && messageCacheRef.current[activeSessionId]) {
+      messageCacheRef.current[activeSessionId] = messageCacheRef.current[activeSessionId].map(
+        m => m.id === messageId ? { ...m, feedback } : m
+      );
+    }
+    // Persist to backend
+    if (CHAT_MESSAGES_URL) {
+      try {
+        await fetch(CHAT_MESSAGES_URL, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messageId, feedback }),
+        });
+      } catch (err) {
+        console.error('Failed to save feedback:', err);
+      }
+    }
+  }, [activeSessionId]);
 
   const handleNewChat = () => {
     setMessages([]);
@@ -750,7 +774,7 @@ function App() {
                 <div className="max-w-4xl mx-auto space-y-4">
                   {messages.map((msg) => (
                     <div key={msg.id}>
-                      <ChatMessage message={msg} logo={activeCompany.logo} isAdmin={isAdmin} />
+                      <ChatMessage message={msg} logo={activeCompany.logo} isAdmin={isAdmin} onFeedback={handleFeedback} />
                       {msg.role === 'assistant' && !msg.loading && !msg.error && msg.rows && msg.columns && (
                         <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} />
                       )}

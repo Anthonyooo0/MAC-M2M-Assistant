@@ -21,6 +21,7 @@ CREATE TABLE chat_messages (
   rows_data   NVARCHAR(MAX)    NULL,      -- JSON array of row objects
   row_count   INT              NULL,
   error       NVARCHAR(MAX)    NULL,
+  feedback    NVARCHAR(10)     NULL,      -- 'good', 'bad', or NULL (no feedback)
   created_at  DATETIME2        NOT NULL DEFAULT GETUTCDATE()
 );
 
@@ -36,8 +37,15 @@ CREATE TABLE query_costs (
   output_tokens   INT              NOT NULL DEFAULT 0,
   gemini_calls    INT              NOT NULL DEFAULT 1,
   cost            FLOAT            NOT NULL DEFAULT 0,
+  prompt_version  NVARCHAR(20)     NULL,
+  request_id      NVARCHAR(36)     NULL,
   created_at      DATETIME2        NOT NULL DEFAULT GETUTCDATE()
 );
+
+-- Migration: add columns to existing tables
+-- ALTER TABLE query_costs ADD prompt_version NVARCHAR(20) NULL;
+-- ALTER TABLE query_costs ADD request_id NVARCHAR(36) NULL;
+-- ALTER TABLE chat_messages ADD feedback NVARCHAR(10) NULL;
 
 CREATE INDEX IX_query_costs_date ON query_costs (created_at DESC);
 CREATE INDEX IX_query_costs_session ON query_costs (session_id);

@@ -3,7 +3,7 @@ const sql = require('mssql');
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
   'Content-Type': 'application/json',
 };
 
@@ -153,6 +153,21 @@ module.exports = async function (context, req) {
       }
 
       context.res = { status: 201, headers: CORS, body: JSON.stringify({ ok: true, title: newTitle }) };
+      return;
+    }
+
+    // PUT — submit feedback on a message (thumbs up/down)
+    if (req.method === 'PUT') {
+      const { messageId, feedback } = req.body || {};
+      if (!messageId || !feedback || !['good', 'bad'].includes(feedback)) {
+        context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'messageId and feedback ("good" or "bad") required' }) };
+        return;
+      }
+      await pool.request()
+        .input('id', sql.UniqueIdentifier, messageId)
+        .input('feedback', sql.NVarChar, feedback)
+        .query('UPDATE chat_messages SET feedback = @feedback WHERE id = @id');
+      context.res = { status: 200, headers: CORS, body: JSON.stringify({ ok: true }) };
       return;
     }
 
