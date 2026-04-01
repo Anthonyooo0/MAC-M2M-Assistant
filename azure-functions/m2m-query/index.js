@@ -2,7 +2,22 @@ const sql = require('mssql');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const crypto = require('crypto');
+// Generate UUID — use crypto.randomUUID() if available (Node 19+),
+// fall back to manual generation for older Node runtimes (Azure Functions may use Node 16/18).
+function generateRequestId() {
+  try {
+    return require('crypto').randomUUID();
+  } catch {
+    // Fallback: manual UUID v4 using random bytes
+    const hex = require('crypto').randomBytes(16).toString('hex');
+    return [
+      hex.slice(0, 8), hex.slice(8, 12),
+      '4' + hex.slice(13, 16),              // version 4
+      ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16) + hex.slice(17, 20), // variant
+      hex.slice(20, 32),
+    ].join('-');
+  }
+}
 
 // Prompt version — increment when system instructions or few-shot examples change.
 // Logged with every cost record so prompt changes can be correlated with accuracy shifts.
@@ -936,7 +951,7 @@ module.exports = async function (context, req) {
   };
 
   // Request tracing — unique ID that links every log line, cost record, and API response
-  const requestId = crypto.randomUUID();
+  const requestId = generateRequestId();
 
   let pool = null;
   let sqlQuery = '';
