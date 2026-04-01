@@ -1036,99 +1036,92 @@ module.exports = async function (context, req) {
 
     geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(message.trim()) }] });
 
-    // Cost cap check — reject early if daily budget is exceeded
-    const costPool = await getCostPoolSafe();
-    const costUserEmail = req.body?.userEmail || 'unknown';
-    if (costPool) {
-      const cap = await checkCostCap(costPool, costUserEmail);
-      if (!cap.ok) {
-        context.res = { status: 429, headers: CORS, body: JSON.stringify({ error: cap.reason }) };
-        return;
-      }
-    }
-
-    // Semantic cache check — skip Gemini entirely for repeated questions
+    // Semantic cache check — skip all Gemini calls on exact repeat questions
     const cached = getCachedResult(message, database || 'm2mdata99');
     if (cached) {
-      context.log.info(`[m2m-query][${requestId}] Cache hit for: "${message.trim().substring(0, 50)}..."`);
-      // Re-execute the cached SQL (data may have changed since last query)
+      context.log.info(`[m2m-query][${requestId}] Cache hit`);
       sqlQuery = cached.sqlQuery;
       explanation = cached.explanation;
-      // Skip Gemini calls — jump straight to validation and execution below.
-      // Note: sqlQuery and explanation are already set, so the flow continues
-      // past the Gemini call blocks into safety validation.
     }
 
-    // Model tiering — route conversational questions to Flash, SQL generation to Pro
+    // Model tiering
     const selectedModel = selectModel(message, Array.isArray(history) && history.length > 0);
     const geminiUrl = getGeminiUrl(selectedModel, geminiKey);
-    if (selectedModel !== GEMINI_PRO_MODEL) {
-      context.log.info(`[m2m-query][${requestId}] Routed to ${selectedModel} (conversational)`);
-    }
 
-    // Variables used by both the Gemini generation path and retry paths.
-    // Assigned during Phase 1/2 (Gemini) or defaulted for cache hits.
-    let selectedSchema = activeSchema;
-    let schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-    let schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-    let systemTokens = estimateTokens(activeStaticInstructions);
-    let schemaTokens = estimateTokens(activeSchema);
+    // Schema context for Gemini calls and retries
+    const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+    const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+    const systemTokens = estimateTokens(activeStaticInstructions);
+    const schemaTokens = estimateTokens(activeSchema);
 
     // -----------------------------------------------------------------------
-    // LLM generation — skipped on cache hits (sqlQuery already set above)
+    // Parallel execution: cost cap + Phase 1 table selection run simultaneously,
+    // then Phase 2 SQL generation uses the results. No step blocks another
+    // unless it actually needs the result.
     // -----------------------------------------------------------------------
     if (!cached) {
 
-      // Phase 1: Table selection (lightweight TOC-only call)
-      try {
-        const tableSelectBody = {
-          system_instruction: { parts: [{ text:
-            `You are a database schema router. Given a user question and a list of database tables, ` +
-            `return a JSON array of table names that would be needed to answer the question. ` +
-            `Include tables for JOINs. Return at most 15 tables. ` +
-            `Respond with ONLY a JSON array like: ["TABLE1","TABLE2"]`
-          }] },
-          contents: [
-            { role: 'user', parts: [{ text:
-              `Tables available:\n${activeSchemaTOC}\n\n` +
-              `User question: "${message.trim()}"\n\n` +
-              `Which tables are needed to answer this question? Return a JSON array of table names.`
+      // Launch cost cap check and table selection IN PARALLEL — don't await yet
+      const costCapPromise = getCostPoolSafe().then(pool => {
+        if (!pool) return { ok: true };
+        return checkCostCap(pool, req.body?.userEmail || 'unknown');
+      }).catch(() => ({ ok: true })); // fail open
+
+      const tableSelectPromise = (async () => {
+        try {
+          const tableSelectBody = {
+            system_instruction: { parts: [{ text:
+              `You are a database schema router. Given a user question and a list of database tables, ` +
+              `return a JSON array of table names that would be needed to answer the question. ` +
+              `Include tables for JOINs. Return at most 15 tables. ` +
+              `Respond with ONLY a JSON array like: ["TABLE1","TABLE2"]`
             }] },
-          ],
-          generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json' },
-        };
+            contents: [
+              { role: 'user', parts: [{ text:
+                `Tables available:\n${activeSchemaTOC}\n\n` +
+                `User question: "${message.trim()}"\n\n` +
+                `Which tables are needed to answer this question? Return a JSON array of table names.`
+              }] },
+            ],
+            generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json' },
+          };
 
-        const tableSelectData = await callGeminiAPI(geminiUrl, tableSelectBody);
-        { const t = extractTokenUsage(tableSelectData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+          const tableSelectData = await callGeminiAPIOnce(geminiUrl, tableSelectBody);
+          { const t = extractTokenUsage(tableSelectData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
-        const tableSelectText = tableSelectData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (tableSelectText) {
-          const selectedTables = parseTableSelection(tableSelectText);
-          if (selectedTables.length > 0 && selectedTables.length <= 15) {
-            const extracted = extractTablesFromSchema(activeSchema, selectedTables);
-            if (extracted.length > 200) {
-              selectedSchema = extracted;
-              context.log.info(`[m2m-query][${requestId}] Selective schema: ${selectedTables.length} tables (${estimateTokens(extracted)} tokens vs ${estimateTokens(activeSchema)} full)`);
+          const tableSelectText = tableSelectData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+          if (tableSelectText) {
+            const selectedTables = parseTableSelection(tableSelectText);
+            if (selectedTables.length > 0 && selectedTables.length <= 15) {
+              const extracted = extractTablesFromSchema(activeSchema, selectedTables);
+              if (extracted.length > 200) {
+                context.log.info(`[m2m-query][${requestId}] Selective schema: ${selectedTables.length} tables`);
+                return extracted;
+              }
             }
           }
+        } catch (err) {
+          context.log.warn(`[m2m-query][${requestId}] Table selection failed: ${err.message}`);
         }
-      } catch (selectErr) {
-        context.log.warn(`[m2m-query][${requestId}] Table selection failed, using full schema: ${selectErr.message}`);
+        return activeSchema; // fallback: full schema
+      })();
+
+      // Await BOTH in parallel — total wait = max(costCap, tableSelect), not sum
+      const [costCap, selectedSchema] = await Promise.all([costCapPromise, tableSelectPromise]);
+
+      // Check cost cap result
+      if (!costCap.ok) {
+        context.res = { status: 429, headers: CORS, body: JSON.stringify({ error: costCap.reason }) };
+        return;
       }
 
-      // Phase 2: SQL generation with selected schema + token-budgeted history
-      schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${selectedSchema}\n</database_schema>` }] };
-      schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-      systemTokens = estimateTokens(activeStaticInstructions);
-      schemaTokens = estimateTokens(selectedSchema);
-      const trimmedMessages = trimConversationToFit(systemTokens, schemaTokens, geminiMessages);
-      if (trimmedMessages.length < geminiMessages.length) {
-        context.log.info(`[m2m-query][${requestId}] Trimmed conversation from ${geminiMessages.length} to ${trimmedMessages.length} messages to fit context window`);
-      }
+      // Phase 2: SQL generation with the selected schema
+      const phase2SchemaMsg = { role: 'user', parts: [{ text: `<database_schema>\n${selectedSchema}\n</database_schema>` }] };
+      const trimmedMessages = trimConversationToFit(systemTokens, estimateTokens(selectedSchema), geminiMessages);
 
       const geminiBody = {
         system_instruction: { parts: [{ text: activeStaticInstructions }] },
-        contents: [schemaMessage, schemaAck, ...trimmedMessages],
+        contents: [phase2SchemaMsg, schemaAck, ...trimmedMessages],
         generationConfig: GEMINI_GENERATION_CONFIG,
       };
 
@@ -1152,12 +1145,10 @@ module.exports = async function (context, req) {
 
       ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
 
-      // Clean SQL: strip comments, extract SELECT if wrapped in other statements
       if (sqlQuery) {
         sqlQuery = cleanSqlQuery(sqlQuery);
       }
 
-      // If no SQL query, just return the explanation (conversational response)
       if (!sqlQuery) {
         context.res = {
           status: 200,
@@ -1490,50 +1481,51 @@ module.exports = async function (context, req) {
     if (pool) {
       try { await pool.close(); } catch { /* ignore */ }
     }
-    // Save cost to query_costs table — uses a dedicated connection per request
-    // to guarantee cost data is never lost. The ~200ms overhead is acceptable
-    // because this runs AFTER the response is already sent to the user.
+    // Save cost — fire-and-forget so the user doesn't wait for it.
+    // Uses a dedicated connection. If it fails, cost is logged but not lost
+    // (the _cost is already in the API response and chat_messages).
     if (geminiCalls > 0) {
-      let costPool = null;
-      try {
-        const chatConnStr = process.env.CHAT_DB_CONNECTION;
-        if (chatConnStr) {
-          const costParts = {};
-          for (const seg of chatConnStr.split(';')) {
-            const idx = seg.indexOf('=');
-            if (idx === -1) continue;
-            costParts[seg.substring(0, idx).trim().toLowerCase()] = seg.substring(idx + 1).trim();
+      const chatConnStr = process.env.CHAT_DB_CONNECTION;
+      if (chatConnStr) {
+        // Don't await — let it run in the background
+        (async () => {
+          let cp = null;
+          try {
+            const costParts = {};
+            for (const seg of chatConnStr.split(';')) {
+              const idx = seg.indexOf('=');
+              if (idx === -1) continue;
+              costParts[seg.substring(0, idx).trim().toLowerCase()] = seg.substring(idx + 1).trim();
+            }
+            cp = new sql.ConnectionPool({
+              server: costParts['server'] || costParts['data source'] || '',
+              database: costParts['database'] || costParts['initial catalog'] || '',
+              user: costParts['user id'] || costParts['uid'] || '',
+              password: costParts['password'] || costParts['pwd'] || '',
+              options: { encrypt: true, trustServerCertificate: false },
+              connectionTimeout: 10000,
+              requestTimeout: 10000,
+            });
+            await cp.connect();
+            await cp.request()
+              .input('sessionId', sql.UniqueIdentifier, req.body?.sessionId || null)
+              .input('userEmail', sql.NVarChar, req.body?.userEmail || 'unknown')
+              .input('databaseName', sql.NVarChar, req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products')
+              .input('inputTokens', sql.Int, totalInputTokens)
+              .input('outputTokens', sql.Int, totalOutputTokens)
+              .input('geminiCalls', sql.Int, geminiCalls)
+              .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens))
+              .input('promptVersion', sql.NVarChar, PROMPT_VERSION)
+              .input('requestId', sql.NVarChar, requestId)
+              .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
+                      VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);
+          } catch (costErr) {
+            // Log but don't crash — cost data is also in the API response
+            console.error(`[m2m-query][${requestId}] Cost save failed: ${costErr.message}`);
+          } finally {
+            if (cp) { try { await cp.close(); } catch { /* ignore */ } }
           }
-          costPool = new sql.ConnectionPool({
-            server: costParts['server'] || costParts['data source'] || '',
-            database: costParts['database'] || costParts['initial catalog'] || '',
-            user: costParts['user id'] || costParts['uid'] || '',
-            password: costParts['password'] || costParts['pwd'] || '',
-            options: { encrypt: true, trustServerCertificate: false },
-            connectionTimeout: 10000,
-            requestTimeout: 10000,
-          });
-          await costPool.connect();
-          const costSessionId = req.body?.sessionId || null;
-          const costDbName = req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products';
-          const cEmail = req.body?.userEmail || 'unknown';
-          await costPool.request()
-            .input('sessionId', sql.UniqueIdentifier, costSessionId)
-            .input('userEmail', sql.NVarChar, cEmail)
-            .input('databaseName', sql.NVarChar, costDbName)
-            .input('inputTokens', sql.Int, totalInputTokens)
-            .input('outputTokens', sql.Int, totalOutputTokens)
-            .input('geminiCalls', sql.Int, geminiCalls)
-            .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens))
-            .input('promptVersion', sql.NVarChar, PROMPT_VERSION)
-            .input('requestId', sql.NVarChar, requestId)
-            .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
-                    VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);
-        }
-      } catch (costErr) {
-        context.log.error(`[m2m-query][${requestId}] Failed to save cost: ${costErr.message}`);
-      } finally {
-        if (costPool) { try { await costPool.close(); } catch { /* ignore */ } }
+        })();
       }
     }
   }
