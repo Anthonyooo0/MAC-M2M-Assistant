@@ -62,8 +62,8 @@ function getCostPool() {
       user: parts['user id'] || parts['uid'] || '',
       password: parts['password'] || parts['pwd'] || '',
       options: { encrypt: true, trustServerCertificate: false },
-      connectionTimeout: 10000,
-      requestTimeout: 10000,
+      connectionTimeout: 5000,
+      requestTimeout: 5000,
       pool: { max: 5, min: 1, idleTimeoutMillis: 30000 },
     });
     costPoolPromise = pool.connect().catch(err => {
@@ -72,6 +72,20 @@ function getCostPool() {
     });
   }
   return costPoolPromise;
+}
+
+// Safe wrapper — resolves to the pool or null (never blocks, never throws).
+// Uses a 3-second timeout so a hung cost DB never delays the user's query.
+async function getCostPoolSafe() {
+  try {
+    const promise = getCostPool();
+    if (!promise) return null;
+    const timeout = new Promise(resolve => setTimeout(() => resolve(null), 3000));
+    return await Promise.race([promise, timeout]);
+  } catch {
+    costPoolPromise = null;
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1023,7 +1037,7 @@ module.exports = async function (context, req) {
     geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(message.trim()) }] });
 
     // Cost cap check — reject early if daily budget is exceeded
-    const costPool = getCostPool() ? await getCostPool() : null;
+    const costPool = await getCostPoolSafe();
     const costUserEmail = req.body?.userEmail || 'unknown';
     if (costPool) {
       const cap = await checkCostCap(costPool, costUserEmail);
@@ -1479,7 +1493,7 @@ module.exports = async function (context, req) {
     // Save cost to query_costs table using the module-scoped connection pool
     if (geminiCalls > 0) {
       try {
-        const cPool = getCostPool() ? await getCostPool() : null;
+        const cPool = await getCostPoolSafe();
         if (cPool) {
           const costSessionId = req.body?.sessionId || null;
           const costDbName = req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products';
