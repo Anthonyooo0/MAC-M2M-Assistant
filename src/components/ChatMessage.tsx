@@ -61,7 +61,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
               ? 'bg-red-50 border border-red-200 text-red-700'
               : 'bg-white border border-slate-200 text-slate-700 shadow-sm'
         }`}>
-          {message.content.replace(/^\[ADMIN:[^\]]+\]\s*/, '')}
+          {/* Admin error diagnostics: render with monospace formatting */}
+          {message.error && isAdmin && message.content.includes('\n') ? (
+            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed m-0">
+              {message.content.replace(/^\[ADMIN:[^\]]+\]\s*/, '')}
+            </pre>
+          ) : (
+            message.content.replace(/^\[ADMIN:[^\]]+\]\s*/, '')
+          )}
         </div>
 
         {/* Admin badge */}

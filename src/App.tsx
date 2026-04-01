@@ -308,9 +308,21 @@ function App() {
       const explanation = data.explanation || '';
       let content = '';
       if (data.error) {
-        content = isAdmin && data.sql
-          ? `Error: ${data.error}. SQL Query: ${data.sql}`
-          : `Error: ${data.error}`;
+        if (isAdmin) {
+          // Admin: full diagnostic view
+          const diag = [
+            `Error: ${data.error}`,
+            data.sql ? `\nSQL: ${data.sql}` : null,
+            data._requestId ? `\nRequest ID: ${data._requestId}` : null,
+            `\nHTTP Status: ${res.status}`,
+            data._cost ? `\nGemini Calls: ${data._cost.calls} | Tokens: ${data._cost.inputTokens}in / ${data._cost.outputTokens}out | Cost: $${data._cost.cost?.toFixed(6)}` : null,
+            data._cost?.confidence != null ? `\nConfidence: ${data._cost.confidence}` : null,
+          ].filter(Boolean).join('');
+          content = diag;
+        } else {
+          // User: friendly message
+          content = 'Something went wrong processing your request. Please try rephrasing your question or try again in a moment.';
+        }
       } else if (data.sql && data.rowCount === 0) {
         content = explanation
           ? `${explanation}\n\nThe query ran successfully but returned no results. Try broadening your search criteria.`
@@ -346,10 +358,20 @@ function App() {
         saveMessages(sessionId, [userMsg, assistantMsg]);
       }
     } catch (err: any) {
+      const userContent = 'Unable to reach the server. Please check your connection and try again.';
+      const adminContent = [
+        `Network Error: ${err.message}`,
+        `\nType: ${err.name || 'Unknown'}`,
+        `\nEndpoint: ${M2M_QUERY_URL?.split('?')[0] || 'not set'}`,
+        `\nDatabase: ${activeCompany.database}`,
+        `\nTimestamp: ${new Date().toISOString()}`,
+        err.cause ? `\nCause: ${JSON.stringify(err.cause)}` : null,
+      ].filter(Boolean).join('');
+
       const errorMsg: Message = {
         id: loadingMsg.id,
         role: 'assistant',
-        content: `Error: ${err.message}`,
+        content: isAdmin ? adminContent : userContent,
         error: err.message,
       };
       setMessages(prev => {
