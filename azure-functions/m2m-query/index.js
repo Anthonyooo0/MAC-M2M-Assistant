@@ -1380,7 +1380,7 @@ module.exports = async function (context, req) {
     }
 
     // Cache successful SQL generation for future identical questions
-    if (!cached && sqlQuery && result.recordset.length > 0) {
+    if (sqlQuery && result.recordset.length > 0) {
       setCachedResult(message, database || 'm2mdata99', explanation, sqlQuery);
     }
 
