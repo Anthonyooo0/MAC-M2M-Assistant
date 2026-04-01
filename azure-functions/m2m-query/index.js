@@ -1490,15 +1490,34 @@ module.exports = async function (context, req) {
     if (pool) {
       try { await pool.close(); } catch { /* ignore */ }
     }
-    // Save cost to query_costs table using the module-scoped connection pool
+    // Save cost to query_costs table — uses a dedicated connection per request
+    // to guarantee cost data is never lost. The ~200ms overhead is acceptable
+    // because this runs AFTER the response is already sent to the user.
     if (geminiCalls > 0) {
+      let costPool = null;
       try {
-        const cPool = await getCostPoolSafe();
-        if (cPool) {
+        const chatConnStr = process.env.CHAT_DB_CONNECTION;
+        if (chatConnStr) {
+          const costParts = {};
+          for (const seg of chatConnStr.split(';')) {
+            const idx = seg.indexOf('=');
+            if (idx === -1) continue;
+            costParts[seg.substring(0, idx).trim().toLowerCase()] = seg.substring(idx + 1).trim();
+          }
+          costPool = new sql.ConnectionPool({
+            server: costParts['server'] || costParts['data source'] || '',
+            database: costParts['database'] || costParts['initial catalog'] || '',
+            user: costParts['user id'] || costParts['uid'] || '',
+            password: costParts['password'] || costParts['pwd'] || '',
+            options: { encrypt: true, trustServerCertificate: false },
+            connectionTimeout: 10000,
+            requestTimeout: 10000,
+          });
+          await costPool.connect();
           const costSessionId = req.body?.sessionId || null;
           const costDbName = req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products';
           const cEmail = req.body?.userEmail || 'unknown';
-          await cPool.request()
+          await costPool.request()
             .input('sessionId', sql.UniqueIdentifier, costSessionId)
             .input('userEmail', sql.NVarChar, cEmail)
             .input('databaseName', sql.NVarChar, costDbName)
@@ -1512,11 +1531,9 @@ module.exports = async function (context, req) {
                     VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);
         }
       } catch (costErr) {
-        // Reset pool on connection errors so next request reconnects
-        if (costErr.code === 'ECONNCLOSED' || costErr.code === 'ENOTOPEN') {
-          costPoolPromise = null;
-        }
         context.log.error(`[m2m-query][${requestId}] Failed to save cost: ${costErr.message}`);
+      } finally {
+        if (costPool) { try { await costPool.close(); } catch { /* ignore */ } }
       }
     }
   }
