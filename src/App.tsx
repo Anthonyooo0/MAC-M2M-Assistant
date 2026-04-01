@@ -424,7 +424,7 @@ function App() {
   };
 
   // Maintenance mode — set to true to block all users. Remove to restore access.
-  const MAINTENANCE_MODE = true;
+  const MAINTENANCE_MODE = false;
 
   if (MAINTENANCE_MODE) {
     return (
