@@ -423,6 +423,30 @@ function App() {
     }
   };
 
+  // Maintenance mode — set to true to block all users. Remove to restore access.
+  const MAINTENANCE_MODE = true;
+
+  if (MAINTENANCE_MODE) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-mac-light">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 mx-auto mb-6">
+            <img src="/mac_logo.png" alt="MAC Products" className="w-full h-full object-contain" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-3">Scheduled Maintenance</h1>
+          <p className="text-slate-500 text-sm leading-relaxed mb-6">
+            The M2M Assistant is currently undergoing maintenance and upgrades.
+            The system will be back online shortly. Thank you for your patience.
+          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+            <span className="text-amber-700 text-xs font-bold uppercase tracking-wider">Maintenance In Progress</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Auth gate
   if (!isAuthenticated || !currentUser) {
     if (isAuthenticated && accounts.length > 0) {
