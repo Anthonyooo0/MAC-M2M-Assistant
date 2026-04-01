@@ -70,6 +70,7 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const sendLockRef = useRef(false); // Synchronous guard — prevents duplicate API calls
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -256,7 +257,8 @@ function App() {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isLoading) return;
+    if (!text || isLoading || sendLockRef.current) return;
+    sendLockRef.current = true; // Immediate synchronous lock — blocks duplicate clicks
 
     // Auto-create session if none active
     let sessionId = activeSessionId;
@@ -385,6 +387,7 @@ function App() {
       }
     } finally {
       setIsLoading(false);
+      sendLockRef.current = false; // Release lock
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
