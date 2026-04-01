@@ -1036,128 +1036,58 @@ module.exports = async function (context, req) {
 
     geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(message.trim()) }] });
 
-    // Semantic cache check — skip all Gemini calls on exact repeat questions
-    const cached = getCachedResult(message, database || 'm2mdata99');
-    if (cached) {
-      context.log.info(`[m2m-query][${requestId}] Cache hit`);
-      sqlQuery = cached.sqlQuery;
-      explanation = cached.explanation;
-    }
+    const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
 
-    // Model tiering
-    const selectedModel = selectModel(message, Array.isArray(history) && history.length > 0);
-    const geminiUrl = getGeminiUrl(selectedModel, geminiKey);
-
-    // Schema context for Gemini calls and retries
+    // -----------------------------------------------------------------------
+    // Single Gemini call with full schema — proven stable baseline.
+    // Phase 1 table selection, cost cap, semantic cache, and model tiering
+    // are defined above but disabled in the hot path to maintain reliability.
+    // Re-enable individually once each is proven stable in production.
+    // -----------------------------------------------------------------------
     const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
     const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
     const systemTokens = estimateTokens(activeStaticInstructions);
     const schemaTokens = estimateTokens(activeSchema);
+    const trimmedMessages = trimConversationToFit(systemTokens, schemaTokens, geminiMessages);
 
-    // -----------------------------------------------------------------------
-    // Parallel execution: cost cap + Phase 1 table selection run simultaneously,
-    // then Phase 2 SQL generation uses the results. No step blocks another
-    // unless it actually needs the result.
-    // -----------------------------------------------------------------------
-    if (!cached) {
+    const geminiBody = {
+      system_instruction: { parts: [{ text: activeStaticInstructions }] },
+      contents: [schemaMessage, schemaAck, ...trimmedMessages],
+      generationConfig: GEMINI_GENERATION_CONFIG,
+    };
 
-      // Launch cost cap check and table selection IN PARALLEL — don't await yet
-      const costCapPromise = getCostPoolSafe().then(pool => {
-        if (!pool) return { ok: true };
-        return checkCostCap(pool, req.body?.userEmail || 'unknown');
-      }).catch(() => ({ ok: true })); // fail open
+    const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
+    { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
-      const tableSelectPromise = (async () => {
-        try {
-          const tableSelectBody = {
-            system_instruction: { parts: [{ text:
-              `You are a database schema router. Given a user question and a list of database tables, ` +
-              `return a JSON array of table names that would be needed to answer the question. ` +
-              `Include tables for JOINs. Return at most 15 tables. ` +
-              `Respond with ONLY a JSON array like: ["TABLE1","TABLE2"]`
-            }] },
-            contents: [
-              { role: 'user', parts: [{ text:
-                `Tables available:\n${activeSchemaTOC}\n\n` +
-                `User question: "${message.trim()}"\n\n` +
-                `Which tables are needed to answer this question? Return a JSON array of table names.`
-              }] },
-            ],
-            generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json' },
-          };
-
-          const tableSelectData = await callGeminiAPIOnce(geminiUrl, tableSelectBody);
-          { const t = extractTokenUsage(tableSelectData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-
-          const tableSelectText = tableSelectData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (tableSelectText) {
-            const selectedTables = parseTableSelection(tableSelectText);
-            if (selectedTables.length > 0 && selectedTables.length <= 15) {
-              const extracted = extractTablesFromSchema(activeSchema, selectedTables);
-              if (extracted.length > 200) {
-                context.log.info(`[m2m-query][${requestId}] Selective schema: ${selectedTables.length} tables`);
-                return extracted;
-              }
-            }
-          }
-        } catch (err) {
-          context.log.warn(`[m2m-query][${requestId}] Table selection failed: ${err.message}`);
-        }
-        return activeSchema; // fallback: full schema
-      })();
-
-      // Await BOTH in parallel — total wait = max(costCap, tableSelect), not sum
-      const [costCap, selectedSchema] = await Promise.all([costCapPromise, tableSelectPromise]);
-
-      // Check cost cap result
-      if (!costCap.ok) {
-        context.res = { status: 429, headers: CORS, body: JSON.stringify({ error: costCap.reason }) };
-        return;
-      }
-
-      // Phase 2: SQL generation with the selected schema
-      const phase2SchemaMsg = { role: 'user', parts: [{ text: `<database_schema>\n${selectedSchema}\n</database_schema>` }] };
-      const trimmedMessages = trimConversationToFit(systemTokens, estimateTokens(selectedSchema), geminiMessages);
-
-      const geminiBody = {
-        system_instruction: { parts: [{ text: activeStaticInstructions }] },
-        contents: [phase2SchemaMsg, schemaAck, ...trimmedMessages],
-        generationConfig: GEMINI_GENERATION_CONFIG,
+    if (geminiData._statusCode && geminiData._statusCode >= 400) {
+      context.log.error(`[m2m-query][${requestId}] Gemini error:`, JSON.stringify(geminiData));
+      context.res = {
+        status: 500,
+        headers: CORS,
+        body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
       };
+      return;
+    }
 
-      const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
-      { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+    if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+      context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
+      return;
+    }
 
-      if (geminiData._statusCode && geminiData._statusCode >= 400) {
-        context.log.error(`[m2m-query][${requestId}] Gemini error:`, JSON.stringify(geminiData));
-        context.res = {
-          status: 500,
-          headers: CORS,
-          body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
-        };
-        return;
-      }
+    ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
 
-      if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
-        return;
-      }
+    if (sqlQuery) {
+      sqlQuery = cleanSqlQuery(sqlQuery);
+    }
 
-      ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
-
-      if (sqlQuery) {
-        sqlQuery = cleanSqlQuery(sqlQuery);
-      }
-
-      if (!sqlQuery) {
-        context.res = {
-          status: 200,
-          headers: CORS,
-          body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens), confidence: 1.0 } }),
-        };
-        return;
-      }
-    } // end if (!cached)
+    if (!sqlQuery) {
+      context.res = {
+        status: 200,
+        headers: CORS,
+        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens), confidence: 1.0 } }),
+      };
+      return;
+    }
 
     // Safety checks — retry once if Gemini generated non-SELECT SQL
     let safety = validateSqlSafety(sqlQuery);
