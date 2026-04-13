@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
-import { ALLOWED_DOMAIN } from './authConfig';
+import { ALLOWED_DOMAINS } from './authConfig';
 import { Login } from './components/Login';
 import { ChatMessage } from './components/ChatMessage';
 import { ResultsTable } from './components/ResultsTable';
@@ -88,7 +88,8 @@ function App() {
   const messageCacheRef = useRef<Record<string, Message[]>>({});
 
   // Company/tenant state
-  const userCompanyIds = MULTI_COMPANY_USERS[currentUser || ''] || ['mac-products'];
+  const defaultCompany = (currentUser || '').endsWith('@macimpulse.net') ? ['mac-impulse'] : ['mac-products'];
+  const userCompanyIds = MULTI_COMPANY_USERS[currentUser || ''] || defaultCompany;
   const userCompanies = COMPANIES.filter(c => userCompanyIds.includes(c.id));
   const [activeCompanyId, setActiveCompanyId] = useState('mac-products');
   const activeCompany = COMPANIES.find(c => c.id === activeCompanyId) || COMPANIES[0];
@@ -100,11 +101,17 @@ function App() {
   useEffect(() => {
     if (isAuthenticated && accounts.length > 0) {
       const email = accounts[0].username?.toLowerCase() || '';
-      if (email.endsWith(`@${ALLOWED_DOMAIN}`)) {
+      if (ALLOWED_DOMAINS.some(domain => email.endsWith(`@${domain}`))) {
         setCurrentUser(email);
       }
     }
   }, [isAuthenticated, accounts]);
+
+  useEffect(() => {
+    if (currentUser && currentUser.endsWith('@macimpulse.net')) {
+      setActiveCompanyId('mac-impulse');
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -476,11 +483,11 @@ function App() {
   if (!isAuthenticated || !currentUser) {
     if (isAuthenticated && accounts.length > 0) {
       const email = accounts[0].username?.toLowerCase() || '';
-      if (!email.endsWith(`@${ALLOWED_DOMAIN}`)) {
+      if (!ALLOWED_DOMAINS.some(domain => email.endsWith(`@${domain}`))) {
         return (
           <div className="flex h-screen items-center justify-center bg-mac-light">
             <div className="text-center">
-              <p className="text-red-600 font-bold">Access denied. Only @macproducts.net accounts allowed.</p>
+              <p className="text-red-600 font-bold">Access denied. Only @macproducts.net and @macimpulse.net accounts allowed.</p>
               <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-mac-navy text-white rounded-lg">Sign Out</button>
             </div>
           </div>

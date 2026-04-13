@@ -11,4 +11,4 @@ export const msalConfig: Configuration = {
 };
 
 export const loginRequest = { scopes: [] };
-export const ALLOWED_DOMAIN = "macproducts.net";
+export const ALLOWED_DOMAINS = ["macproducts.net", "macimpulse.net"];
