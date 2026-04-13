@@ -498,7 +498,7 @@ function App() {
   }
 
   // Loading screen — wait for sessions and app data to be ready
-  if (!appReady) {
+  if (!appReady || loadingSessions) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <div className="text-center">
