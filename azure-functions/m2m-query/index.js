@@ -7,7 +7,7 @@ const https = require('https');
 function generateRequestId() {
   try {
     return require('crypto').randomUUID();
-  } catch {
+  } catch (_e) {
     // Fallback: manual UUID v4 using random bytes
     const hex = require('crypto').randomBytes(16).toString('hex');
     return [
@@ -82,7 +82,7 @@ async function getCostPoolSafe() {
     if (!promise) return null;
     const timeout = new Promise(resolve => setTimeout(() => resolve(null), 3000));
     return await Promise.race([promise, timeout]);
-  } catch {
+  } catch (_e) {
     costPoolPromise = null;
     return null;
   }
@@ -153,7 +153,7 @@ async function checkCostCap(costPool, userEmail) {
       return { ok: false, reason: `System daily cost limit reached. Try again tomorrow or contact an admin.` };
     }
     return { ok: true };
-  } catch {
+  } catch (_e) {
     return { ok: true }; // If cost check fails, allow the request (fail open)
   }
 }
@@ -644,7 +644,7 @@ function parseTableSelection(text) {
     if (Array.isArray(parsed)) return parsed.map(t => String(t).trim().toUpperCase()).filter(Boolean);
     // If Gemini returned {tables: [...]} via responseSchema override
     if (parsed.tables && Array.isArray(parsed.tables)) return parsed.tables.map(t => String(t).trim().toUpperCase()).filter(Boolean);
-  } catch { /* not JSON */ }
+  } catch (_e) { /* not JSON */ }
   // Fall back to extracting ## TABLE names or bare words that look like table names
   const matches = cleaned.match(/\b[A-Z_][A-Z0-9_]{2,}\b/g);
   return matches ? [...new Set(matches)] : [];
@@ -1409,7 +1409,7 @@ module.exports = async function (context, req) {
     };
   } finally {
     if (pool) {
-      try { await pool.close(); } catch { /* ignore */ }
+      try { await pool.close(); } catch (_e) { /* ignore */ }
     }
     // Save cost — fire-and-forget so the user doesn't wait for it.
     // Uses a dedicated connection. If it fails, cost is logged but not lost
@@ -1453,7 +1453,7 @@ module.exports = async function (context, req) {
             // Log but don't crash — cost data is also in the API response
             console.error(`[m2m-query][${requestId}] Cost save failed: ${costErr.message}`);
           } finally {
-            if (cp) { try { await cp.close(); } catch { /* ignore */ } }
+            if (cp) { try { await cp.close(); } catch (_e) { /* ignore */ } }
           }
         })();
       }

@@ -192,7 +192,7 @@ module.exports = async function (context, req) {
     };
   } finally {
     if (pool) {
-      try { await pool.close(); } catch { /* ignore */ }
+      try { await pool.close(); } catch (_e) { /* ignore */ }
     }
   }
 };
