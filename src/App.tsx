@@ -119,13 +119,46 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load sessions when user logs in, then mark app as ready
+  // Load sessions when user logs in, then mark app as ready.
+  // Retries once on failure to handle race conditions with MSAL auth.
   useEffect(() => {
-    if (currentUser && chatHistoryEnabled) {
-      loadSessions().then(() => setAppReady(true));
-    } else if (currentUser) {
-      setAppReady(true);
+    if (!currentUser || !chatHistoryEnabled) {
+      if (currentUser) setAppReady(true);
+      return;
     }
+    let cancelled = false;
+    const fetchSessions = async () => {
+      try {
+        const url = `${CHAT_SESSIONS_URL}&userEmail=${encodeURIComponent(currentUser)}${adminMode && isAdmin ? '&admin=true' : ''}`;
+        const res = await fetch(url);
+        if (res.ok && !cancelled) {
+          setSessions(await res.json());
+          setAppReady(true);
+        } else if (!cancelled) {
+          // Retry once
+          setTimeout(async () => {
+            try {
+              const r2 = await fetch(url);
+              if (r2.ok && !cancelled) setSessions(await r2.json());
+            } catch (_e) { /* give up */ }
+            if (!cancelled) setAppReady(true);
+          }, 1500);
+        }
+      } catch (_e) {
+        if (!cancelled) {
+          setTimeout(async () => {
+            try {
+              const url = `${CHAT_SESSIONS_URL}&userEmail=${encodeURIComponent(currentUser)}`;
+              const r2 = await fetch(url);
+              if (r2.ok && !cancelled) setSessions(await r2.json());
+            } catch (_e2) { /* give up */ }
+            if (!cancelled) setAppReady(true);
+          }, 1500);
+        }
+      }
+    };
+    fetchSessions();
+    return () => { cancelled = true; };
   }, [currentUser]);
 
   // Focus rename input
