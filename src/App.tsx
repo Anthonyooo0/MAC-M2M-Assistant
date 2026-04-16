@@ -170,38 +170,34 @@ function App() {
     return null;
   }, [currentUser]);
 
-  const saveMessages = useCallback(async (sessionId: string, msgs: Message[]) => {
+  const saveMessages = useCallback((sessionId: string, msgs: Message[]) => {
     if (!chatHistoryEnabled) return;
-    try {
-      const res = await fetch(CHAT_MESSAGES_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          messages: msgs.map(m => ({
-            role: m.role,
-            content: m.content,
-            sql: m.sql,
-            columns: m.columns,
-            rows: m.rows,
-            rowCount: m.rowCount,
-            error: m.error,
-            adminSender: m.adminSender,
-          })),
-        }),
-      });
-      // Update session title locally from response instead of re-fetching all sessions
-      if (res.ok) {
-        const data = await res.json();
-        if (data.title) {
-          setSessions(prev => prev.map(s =>
-            s.id === sessionId ? { ...s, title: data.title, updated_at: new Date().toISOString() } : s
-          ));
-        }
+    // Fire-and-forget — don't block the UI waiting for the save
+    fetch(CHAT_MESSAGES_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId,
+        messages: msgs.map(m => ({
+          role: m.role,
+          content: m.content,
+          sql: m.sql,
+          columns: m.columns,
+          rows: m.rows,
+          rowCount: m.rowCount,
+          error: m.error,
+          adminSender: m.adminSender,
+        })),
+      }),
+    }).then(res => {
+      if (res.ok) return res.json();
+    }).then(data => {
+      if (data?.title) {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId ? { ...s, title: data.title, updated_at: new Date().toISOString() } : s
+        ));
       }
-    } catch (err) {
-      console.error('Failed to save messages:', err);
-    }
+    }).catch(err => console.error('Failed to save messages:', err));
   }, []);
 
   const loadSessionMessages = useCallback(async (sessionId: string) => {
@@ -213,49 +209,48 @@ function App() {
       setActiveSessionId(sessionId);
       return;
     }
+    // Show loading state while fetching
+    setActiveSessionId(sessionId);
+    setMessages([]);
+    setIsLoading(true);
     try {
       const res = await fetch(`${CHAT_MESSAGES_URL}&sessionId=${encodeURIComponent(sessionId)}`);
       if (res.ok) {
         const data = await res.json();
-        messageCacheRef.current[sessionId] = data; // Cache it
+        messageCacheRef.current[sessionId] = data;
         setMessages(data);
-        setActiveSessionId(sessionId);
       }
     } catch (err) {
       console.error('Failed to load messages:', err);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  const renameSession = useCallback(async (sessionId: string, title: string) => {
+  const renameSession = useCallback((sessionId: string, title: string) => {
     if (!chatHistoryEnabled) return;
-    try {
-      await fetch(CHAT_SESSIONS_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, title }),
-      });
-      setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
-    } catch (err) {
-      console.error('Failed to rename session:', err);
-    }
+    // Optimistic — update UI immediately
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title } : s));
     setEditingSessionId(null);
+    fetch(CHAT_SESSIONS_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, title }),
+    }).catch(err => console.error('Failed to rename session:', err));
   }, []);
 
-  const deleteSession = useCallback(async (sessionId: string) => {
+  const deleteSession = useCallback((sessionId: string) => {
     if (!chatHistoryEnabled) return;
-    try {
-      delete messageCacheRef.current[sessionId];
-      await fetch(`${CHAT_SESSIONS_URL}&sessionId=${encodeURIComponent(sessionId)}`, {
-        method: 'DELETE',
-      });
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      if (activeSessionId === sessionId) {
-        setActiveSessionId(null);
-        setMessages([]);
-      }
-    } catch (err) {
-      console.error('Failed to delete session:', err);
+    // Optimistic — update UI immediately, persist in background
+    delete messageCacheRef.current[sessionId];
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null);
+      setMessages([]);
     }
+    fetch(`${CHAT_SESSIONS_URL}&sessionId=${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+    }).catch(err => console.error('Failed to delete session:', err));
   }, [activeSessionId]);
 
   const handleLogout = async () => {
