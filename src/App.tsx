@@ -97,7 +97,8 @@ function App() {
   const chatHistoryEnabled = !!CHAT_SESSIONS_URL && !!CHAT_MESSAGES_URL;
   const isAdmin = ADMIN_EMAILS.includes(currentUser || '');
   const [appReady, setAppReady] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'claude-sonnet' | 'gemini-pro'>('claude-sonnet');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [selectedModel, _setSelectedModel] = useState<'claude-sonnet' | 'gemini-pro'>('claude-sonnet');
 
   useEffect(() => {
     if (isAuthenticated && accounts.length > 0) {
