@@ -456,7 +456,25 @@ function App() {
     }
   };
 
-  // Maintenance mode — set to true to block users. Bypass list can still access.
+  // Auth gate — must run first so currentUser is set before maintenance check
+  if (!isAuthenticated || !currentUser) {
+    if (isAuthenticated && accounts.length > 0) {
+      const email = accounts[0].username?.toLowerCase() || '';
+      if (!ALLOWED_DOMAINS.some(domain => email.endsWith(`@${domain}`))) {
+        return (
+          <div className="flex h-screen items-center justify-center bg-mac-light">
+            <div className="text-center">
+              <p className="text-red-600 font-bold">Access denied. Only @macproducts.net and @macimpulse.net accounts allowed.</p>
+              <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-mac-navy text-white rounded-lg">Sign Out</button>
+            </div>
+          </div>
+        );
+      }
+    }
+    return <Login />;
+  }
+
+  // Maintenance mode — runs after auth so currentUser is available for bypass check
   const MAINTENANCE_MODE = true;
   const MAINTENANCE_BYPASS = ['anthony.jimenez@macproducts.net'];
 
@@ -479,24 +497,6 @@ function App() {
         </div>
       </div>
     );
-  }
-
-  // Auth gate
-  if (!isAuthenticated || !currentUser) {
-    if (isAuthenticated && accounts.length > 0) {
-      const email = accounts[0].username?.toLowerCase() || '';
-      if (!ALLOWED_DOMAINS.some(domain => email.endsWith(`@${domain}`))) {
-        return (
-          <div className="flex h-screen items-center justify-center bg-mac-light">
-            <div className="text-center">
-              <p className="text-red-600 font-bold">Access denied. Only @macproducts.net and @macimpulse.net accounts allowed.</p>
-              <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-mac-navy text-white rounded-lg">Sign Out</button>
-            </div>
-          </div>
-        );
-      }
-    }
-    return <Login />;
   }
 
   // Loading screen — wait for sessions and app data to be ready
