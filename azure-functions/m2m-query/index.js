@@ -580,11 +580,29 @@ function getAnthropicClient() {
 }
 
 // Call Claude API with retry logic matching Gemini's pattern
-async function callClaudeAPI(systemPrompt, messages, maxRetries = 3) {
+async function callClaudeAPI(systemPrompt, schema, messages, maxRetries = 3) {
   const client = getAnthropicClient();
   if (!client) throw new Error('Anthropic API key is not configured.');
 
   const delays = [1000, 2000, 4000];
+
+  // Prompt caching: system prompt is split into two blocks.
+  // Block 1: static instructions (cached after first request)
+  // Block 2: schema (cached after first request)
+  // Both are identical across requests so Anthropic caches them server-side.
+  // Requests 2+ pay 90% less for these tokens and process faster.
+  const system = [
+    {
+      type: 'text',
+      text: systemPrompt,
+      cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text: `<database_schema>\n${schema}\n</database_schema>`,
+      cache_control: { type: 'ephemeral' },
+    },
+  ];
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -592,12 +610,11 @@ async function callClaudeAPI(systemPrompt, messages, maxRetries = 3) {
         model: CLAUDE_SONNET_MODEL,
         max_tokens: 2048,
         temperature: 0,
-        system: systemPrompt,
+        system,
         messages,
       });
       return response;
     } catch (err) {
-      // Retry on rate limits and server errors
       const status = err.status || err.statusCode;
       const retryable = status === 429 || status === 500 || status === 503 || status === 529;
       if (retryable && attempt < maxRetries) {
@@ -1189,17 +1206,8 @@ module.exports = async function (context, req) {
     // Initial LLM call — route to Claude or Gemini based on user selection
     // -----------------------------------------------------------------------
     if (useClaudeModel) {
-      // --- Claude path ---
-      const claudeSystemPrompt = activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`;
-
-      // Inject schema context into conversation for Claude
-      const claudeConv = [
-        { role: 'user', content: `<database_schema>\n${activeSchema}\n</database_schema>\n\nSchema loaded. I will now ask you questions about this database.` },
-        { role: 'assistant', content: 'Schema loaded. Ready to help with database queries. Ask me anything about your data.' },
-        ...claudeMessages,
-      ];
-
-      const claudeData = await callClaudeAPI(activeStaticInstructions, claudeConv);
+      // --- Claude path (with prompt caching — schema cached after first request) ---
+      const claudeData = await callClaudeAPI(activeStaticInstructions, activeSchema, claudeMessages);
       { const t = extractClaudeTokenUsage(claudeData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
       ({ explanation, sqlQuery } = parseClaudeResponse(claudeData));
@@ -1270,7 +1278,7 @@ module.exports = async function (context, req) {
           { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
           { role: 'user', content: safetyRetryText },
         ];
-        const safetyRetryData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, safetyRetryClaude);
+        const safetyRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, safetyRetryClaude);
         { const t = extractClaudeTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
         const retryParsed = parseClaudeResponse(safetyRetryData);
         explanation = retryParsed.explanation;
@@ -1333,7 +1341,7 @@ module.exports = async function (context, req) {
             { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
             { role: 'user', content: schemaRetryText },
           ];
-          const schemaRetryData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, schemaRetryClaude);
+          const schemaRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, schemaRetryClaude);
           { const t = extractClaudeTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
           retryParsed = parseClaudeResponse(schemaRetryData);
         } else {
@@ -1446,7 +1454,7 @@ module.exports = async function (context, req) {
             { role: 'user', content: retryText },
           ];
           try {
-            const retryData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, retryConversationClaude);
+            const retryData = await callClaudeAPI(activeStaticInstructions, activeSchema, retryConversationClaude);
             { const t = extractClaudeTokenUsage(retryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
             retryParsed = parseClaudeResponse(retryData);
           } catch (retryErr) {
@@ -1540,7 +1548,7 @@ module.exports = async function (context, req) {
           { role: 'user', content: zeroRowText },
         ];
         try {
-          const zeroRowData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, zeroRowClaude);
+          const zeroRowData = await callClaudeAPI(activeStaticInstructions, activeSchema, zeroRowClaude);
           { const t = extractClaudeTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
           zeroRowParsed = parseClaudeResponse(zeroRowData);
         } catch (zeroErr) {
