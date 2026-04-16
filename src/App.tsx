@@ -97,6 +97,7 @@ function App() {
   const chatHistoryEnabled = !!CHAT_SESSIONS_URL && !!CHAT_MESSAGES_URL;
   const isAdmin = ADMIN_EMAILS.includes(currentUser || '');
   const [appReady, setAppReady] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<'claude-sonnet' | 'gemini-pro'>('gemini-pro');
 
   useEffect(() => {
     if (isAuthenticated && accounts.length > 0) {
@@ -309,7 +310,7 @@ function App() {
       const res = await fetch(M2M_QUERY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, database: activeCompany.database, userEmail: currentUser, sessionId }),
+        body: JSON.stringify({ message: text, history, database: activeCompany.database, userEmail: currentUser, sessionId, model: selectedModel }),
       });
 
       const data = await res.json();
@@ -324,7 +325,7 @@ function App() {
             data.sql ? `\nSQL: ${data.sql}` : null,
             data._requestId ? `\nRequest ID: ${data._requestId}` : null,
             `\nHTTP Status: ${res.status}`,
-            data._cost ? `\nGemini Calls: ${data._cost.calls} | Tokens: ${data._cost.inputTokens}in / ${data._cost.outputTokens}out | Cost: $${data._cost.cost?.toFixed(6)}` : null,
+            data._cost ? `\nAPI Calls: ${data._cost.calls} | Model: ${data._cost.model || 'gemini'} | Tokens: ${data._cost.inputTokens}in / ${data._cost.outputTokens}out | Cost: $${data._cost.cost?.toFixed(6)}` : null,
             data._cost?.confidence != null ? `\nConfidence: ${data._cost.confidence}` : null,
           ].filter(Boolean).join('');
           content = diag;
@@ -456,7 +457,7 @@ function App() {
   };
 
   // Maintenance mode — set to true to block users. Bypass list can still access.
-  const MAINTENANCE_MODE = false;
+  const MAINTENANCE_MODE = true;
   const MAINTENANCE_BYPASS = ['anthony.jimenez@macproducts.net'];
 
   if (MAINTENANCE_MODE && !MAINTENANCE_BYPASS.includes(currentUser || '')) {
@@ -731,7 +732,7 @@ function App() {
                 {viewMode === 'admin' ? 'Admin Dashboard' : viewMode === 'costs' ? 'API Costs' : 'M2M Assistant'}
               </h2>
               <p className="text-xs text-slate-400">
-                {viewMode === 'admin' ? 'View all user sessions and SQL queries' : viewMode === 'costs' ? 'Gemini API usage and cost tracking' : 'Ask questions about your M2M ERP data in plain English'}
+                {viewMode === 'admin' ? 'View all user sessions and SQL queries' : viewMode === 'costs' ? 'API usage and cost tracking' : 'Ask questions about your M2M ERP data in plain English'}
               </p>
             </div>
             {userCompanies.length > 1 && (
@@ -772,7 +773,28 @@ function App() {
                 Session: ${messages.reduce((sum, m) => sum + (m.cost?.cost || 0), 0).toFixed(6)} ({messages.filter(m => m.cost).reduce((sum, m) => sum + (m.cost?.calls || 0), 0)} calls)
               </span>
             )}
-            <span className="text-[10px] font-mono text-slate-300 bg-slate-50 px-2 py-1 rounded">Powered by Gemini</span>
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setSelectedModel('gemini-pro')}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                  selectedModel === 'gemini-pro'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Gemini 3.1
+              </button>
+              <button
+                onClick={() => setSelectedModel('claude-sonnet')}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                  selectedModel === 'claude-sonnet'
+                    ? 'bg-white text-orange-700 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                Claude Sonnet
+              </button>
+            </div>
           </div>
         </header>
 

@@ -2,6 +2,7 @@ const sql = require('mssql');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const Anthropic = require('@anthropic-ai/sdk');
 // Generate UUID — use crypto.randomUUID() if available (Node 19+),
 // fall back to manual generation for older Node runtimes (Azure Functions may use Node 16/18).
 function generateRequestId() {
@@ -524,6 +525,91 @@ function parseGeminiResponse(geminiData) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Claude API integration — mirrors Gemini call pattern but uses Anthropic SDK
+// ---------------------------------------------------------------------------
+
+const CLAUDE_SONNET_MODEL = 'claude-sonnet-4-20250514';
+
+// Lazy-initialized Anthropic client (reused across invocations)
+let anthropicClient = null;
+function getAnthropicClient() {
+  if (!anthropicClient) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return null;
+    anthropicClient = new Anthropic({ apiKey });
+  }
+  return anthropicClient;
+}
+
+// Call Claude API with retry logic matching Gemini's pattern
+async function callClaudeAPI(systemPrompt, messages, maxRetries = 3) {
+  const client = getAnthropicClient();
+  if (!client) throw new Error('Anthropic API key is not configured.');
+
+  const delays = [1000, 2000, 4000];
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await client.messages.create({
+        model: CLAUDE_SONNET_MODEL,
+        max_tokens: 2048,
+        temperature: 0,
+        system: systemPrompt,
+        messages,
+      });
+      return response;
+    } catch (err) {
+      // Retry on rate limits and server errors
+      const status = err.status || err.statusCode;
+      const retryable = status === 429 || status === 500 || status === 503 || status === 529;
+      if (retryable && attempt < maxRetries) {
+        const delay = delays[Math.min(attempt, delays.length - 1)];
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+// Parse Claude response — expects JSON { explanation, sql } in the text content
+function parseClaudeResponse(claudeData) {
+  const textBlock = claudeData.content?.find(b => b.type === 'text');
+  const generatedText = textBlock?.text?.trim();
+  if (!generatedText) throw new Error('Claude returned no response.');
+
+  let cleaned = generatedText
+    .replace(/^\uFEFF/, '')
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    return {
+      explanation: parsed.explanation || '',
+      sqlQuery: (parsed.sql || '').trim(),
+    };
+  } catch (e) {
+    return {
+      explanation: 'The AI returned an improperly formatted response. Please try rephrasing your question.',
+      sqlQuery: '',
+    };
+  }
+}
+
+// Extract token usage from Claude response
+function extractClaudeTokenUsage(claudeResponse) {
+  const usage = claudeResponse?.usage;
+  if (!usage) return { input: 0, output: 0 };
+  return {
+    input: usage.input_tokens || 0,
+    output: usage.output_tokens || 0,
+  };
+}
+
 function cleanSqlQuery(sqlQuery) {
   // Strip SQL comments
   let cleaned = sqlQuery
@@ -871,8 +957,16 @@ function scoreConfidence(sqlQuery) {
 // ---------------------------------------------------------------------------
 
 // Gemini 3.1 Pro Preview pricing (per 1M tokens) — update if model changes
-const COST_PER_1M_INPUT = 1.25;   // $1.25 per 1M input tokens
-const COST_PER_1M_OUTPUT = 10.00; // $10.00 per 1M output tokens
+const GEMINI_COST_PER_1M_INPUT = 1.25;   // $1.25 per 1M input tokens
+const GEMINI_COST_PER_1M_OUTPUT = 10.00; // $10.00 per 1M output tokens
+
+// Claude Sonnet 4 pricing (per 1M tokens)
+const CLAUDE_COST_PER_1M_INPUT = 3.00;   // $3.00 per 1M input tokens
+const CLAUDE_COST_PER_1M_OUTPUT = 15.00; // $15.00 per 1M output tokens
+
+// Legacy aliases — keep for backward compatibility with calculateCost calls
+const COST_PER_1M_INPUT = GEMINI_COST_PER_1M_INPUT;
+const COST_PER_1M_OUTPUT = GEMINI_COST_PER_1M_OUTPUT;
 
 function extractTokenUsage(geminiResponse) {
   const usage = geminiResponse?.usageMetadata;
@@ -883,9 +977,12 @@ function extractTokenUsage(geminiResponse) {
   };
 }
 
-function calculateCost(inputTokens, outputTokens) {
-  const inputCost = (inputTokens / 1_000_000) * COST_PER_1M_INPUT;
-  const outputCost = (outputTokens / 1_000_000) * COST_PER_1M_OUTPUT;
+function calculateCost(inputTokens, outputTokens, modelProvider) {
+  const isClaudeModel = modelProvider === 'claude';
+  const costIn = isClaudeModel ? CLAUDE_COST_PER_1M_INPUT : GEMINI_COST_PER_1M_INPUT;
+  const costOut = isClaudeModel ? CLAUDE_COST_PER_1M_OUTPUT : GEMINI_COST_PER_1M_OUTPUT;
+  const inputCost = (inputTokens / 1_000_000) * costIn;
+  const outputCost = (outputTokens / 1_000_000) * costOut;
   return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000; // 6 decimal places
 }
 
@@ -978,17 +1075,26 @@ module.exports = async function (context, req) {
   let geminiCalls = 0;
 
   try {
-    const { message, history } = req.body || {};
+    const { message, history, model: requestedModel } = req.body || {};
+    const useClaudeModel = requestedModel === 'claude-sonnet';
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'message is required' }) };
       return;
     }
 
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
-      context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini API key is not configured.' }) };
-      return;
+    // Validate API key for the selected provider
+    if (useClaudeModel) {
+      if (!process.env.ANTHROPIC_API_KEY) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Anthropic API key is not configured.' }) };
+        return;
+      }
+    } else {
+      const geminiKey = process.env.GEMINI_API_KEY;
+      if (!geminiKey) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini API key is not configured.' }) };
+        return;
+      }
     }
 
     // Pick connection string and system prompt based on requested database
@@ -1020,61 +1126,84 @@ module.exports = async function (context, req) {
       }
     }
 
-    // Build conversation for Gemini — scrub PII from all user messages before
-    // they leave the network to the third-party Gemini API.
+    // Build conversation — scrub PII from all user messages before
+    // they leave the network to the third-party API.
     const geminiMessages = [];
+    const claudeMessages = [];
 
     if (Array.isArray(history)) {
       for (const turn of history) {
         if (turn.role === 'user') {
           geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(turn.content) }] });
+          claudeMessages.push({ role: 'user', content: scrubPII(turn.content) });
         } else if (turn.role === 'model') {
           geminiMessages.push({ role: 'model', parts: [{ text: turn.content }] });
+          claudeMessages.push({ role: 'assistant', content: turn.content });
         }
       }
     }
 
     geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(message.trim()) }] });
+    claudeMessages.push({ role: 'user', content: scrubPII(message.trim()) });
 
-    const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
+    const modelProvider = useClaudeModel ? 'claude' : 'gemini';
 
     // -----------------------------------------------------------------------
-    // Single Gemini call with full schema — proven stable baseline.
-    // Phase 1 table selection, cost cap, semantic cache, and model tiering
-    // are defined above but disabled in the hot path to maintain reliability.
-    // Re-enable individually once each is proven stable in production.
+    // Initial LLM call — route to Claude or Gemini based on user selection
     // -----------------------------------------------------------------------
-    const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-    const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-    const systemTokens = estimateTokens(activeStaticInstructions);
-    const schemaTokens = estimateTokens(activeSchema);
-    const trimmedMessages = trimConversationToFit(systemTokens, schemaTokens, geminiMessages);
+    if (useClaudeModel) {
+      // --- Claude path ---
+      const claudeSystemPrompt = activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`;
 
-    const geminiBody = {
-      system_instruction: { parts: [{ text: activeStaticInstructions }] },
-      contents: [schemaMessage, schemaAck, ...trimmedMessages],
-      generationConfig: GEMINI_GENERATION_CONFIG,
-    };
+      // Inject schema context into conversation for Claude
+      const claudeConv = [
+        { role: 'user', content: `<database_schema>\n${activeSchema}\n</database_schema>\n\nSchema loaded. I will now ask you questions about this database.` },
+        { role: 'assistant', content: 'Schema loaded. Ready to help with database queries. Ask me anything about your data.' },
+        ...claudeMessages,
+      ];
 
-    const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
-    { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+      const claudeData = await callClaudeAPI(activeStaticInstructions, claudeConv);
+      { const t = extractClaudeTokenUsage(claudeData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
-    if (geminiData._statusCode && geminiData._statusCode >= 400) {
-      context.log.error(`[m2m-query][${requestId}] Gemini error:`, JSON.stringify(geminiData));
-      context.res = {
-        status: 500,
-        headers: CORS,
-        body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
+      ({ explanation, sqlQuery } = parseClaudeResponse(claudeData));
+
+    } else {
+      // --- Gemini path (unchanged) ---
+      const geminiKey = process.env.GEMINI_API_KEY;
+      const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
+
+      const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+      const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+      const systemTokens = estimateTokens(activeStaticInstructions);
+      const schemaTokens = estimateTokens(activeSchema);
+      const trimmedMessages = trimConversationToFit(systemTokens, schemaTokens, geminiMessages);
+
+      const geminiBody = {
+        system_instruction: { parts: [{ text: activeStaticInstructions }] },
+        contents: [schemaMessage, schemaAck, ...trimmedMessages],
+        generationConfig: GEMINI_GENERATION_CONFIG,
       };
-      return;
-    }
 
-    if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-      context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
-      return;
-    }
+      const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
+      { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
-    ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
+      if (geminiData._statusCode && geminiData._statusCode >= 400) {
+        context.log.error(`[m2m-query][${requestId}] Gemini error:`, JSON.stringify(geminiData));
+        context.res = {
+          status: 500,
+          headers: CORS,
+          body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
+        };
+        return;
+      }
+
+      if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
+        return;
+      }
+
+      ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
+    }
 
     if (sqlQuery) {
       sqlQuery = cleanSqlQuery(sqlQuery);
@@ -1084,46 +1213,58 @@ module.exports = async function (context, req) {
       context.res = {
         status: 200,
         headers: CORS,
-        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens), confidence: 1.0 } }),
+        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider, confidence: 1.0 } }),
       };
       return;
     }
 
-    // Safety checks — retry once if Gemini generated non-SELECT SQL
+    // Safety checks — retry once if the model generated non-SELECT SQL
     let safety = validateSqlSafety(sqlQuery);
     if (!safety.ok) {
       context.log.warn(`[m2m-query][${requestId}] Safety check failed: ${safety.reason} — retrying`);
 
-      const safetyRetryMessages = [
-        ...geminiMessages,
-        { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-        {
-          role: 'user',
-          parts: [{
-            text: `Your query was rejected: "${safety.reason}". ` +
-              `You MUST only generate SELECT queries. Do not use INSERT, UPDATE, DELETE, DROP, or any other statement type. ` +
-              `Please regenerate as a SELECT query only.`,
-          }],
-        },
-      ];
+      const safetyRetryText = `Your query was rejected: "${safety.reason}". ` +
+        `You MUST only generate SELECT queries. Do not use INSERT, UPDATE, DELETE, DROP, or any other statement type. ` +
+        `Please regenerate as a SELECT query only.`;
 
-      const safetyRetryBody = {
-        system_instruction: { parts: [{ text: activeStaticInstructions }] },
-        contents: [schemaMessage, schemaAck, ...safetyRetryMessages],
-        generationConfig: GEMINI_GENERATION_CONFIG,
-      };
-
-      const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
-      { const t = extractTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-      if (safetyRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-        const retryParsed = parseGeminiResponse(safetyRetryData);
+      if (useClaudeModel) {
+        const safetyRetryClaude = [
+          ...claudeMessages,
+          { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
+          { role: 'user', content: safetyRetryText },
+        ];
+        const safetyRetryData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, safetyRetryClaude);
+        { const t = extractClaudeTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+        const retryParsed = parseClaudeResponse(safetyRetryData);
         explanation = retryParsed.explanation;
         let retrySql = retryParsed.sqlQuery;
         if (retrySql) retrySql = cleanSqlQuery(retrySql);
+        if (retrySql) { sqlQuery = retrySql; safety = validateSqlSafety(sqlQuery); }
+      } else {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
+        const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+        const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+        const safetyRetryMessages = [
+          ...geminiMessages,
+          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+          { role: 'user', parts: [{ text: safetyRetryText }] },
+        ];
 
-        if (retrySql) {
-          sqlQuery = retrySql;
-          safety = validateSqlSafety(sqlQuery);
+        const safetyRetryBody = {
+          system_instruction: { parts: [{ text: activeStaticInstructions }] },
+          contents: [schemaMessage, schemaAck, ...safetyRetryMessages],
+          generationConfig: GEMINI_GENERATION_CONFIG,
+        };
+
+        const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
+        { const t = extractTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+        if (safetyRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+          const retryParsed = parseGeminiResponse(safetyRetryData);
+          explanation = retryParsed.explanation;
+          let retrySql = retryParsed.sqlQuery;
+          if (retrySql) retrySql = cleanSqlQuery(retrySql);
+          if (retrySql) { sqlQuery = retrySql; safety = validateSqlSafety(sqlQuery); }
         }
       }
 
@@ -1144,29 +1285,43 @@ module.exports = async function (context, req) {
       if (!schemaCheck.ok) {
         context.log.warn(`[m2m-query][${requestId}] Schema validation failed: ${schemaCheck.errors.join('; ')} — retrying`);
 
-        const schemaRetryMessages = [
-          ...geminiMessages,
-          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-          {
-            role: 'user',
-            parts: [{
-              text: `Your SQL query failed schema validation before execution. The following problems were found:\n` +
-                schemaCheck.errors.map(e => `- ${e}`).join('\n') + '\n\n' +
-                `You MUST only use table and column names from the schema. Please fix these errors and regenerate the query.`,
-            }],
-          },
-        ];
+        const schemaRetryText = `Your SQL query failed schema validation before execution. The following problems were found:\n` +
+          schemaCheck.errors.map(e => `- ${e}`).join('\n') + '\n\n' +
+          `You MUST only use table and column names from the schema. Please fix these errors and regenerate the query.`;
 
-        const schemaRetryBody = {
-          system_instruction: { parts: [{ text: activeStaticInstructions }] },
-          contents: [schemaMessage, schemaAck, ...schemaRetryMessages],
-          generationConfig: GEMINI_GENERATION_CONFIG,
-        };
+        let retryParsed;
+        if (useClaudeModel) {
+          const schemaRetryClaude = [
+            ...claudeMessages,
+            { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
+            { role: 'user', content: schemaRetryText },
+          ];
+          const schemaRetryData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, schemaRetryClaude);
+          { const t = extractClaudeTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+          retryParsed = parseClaudeResponse(schemaRetryData);
+        } else {
+          const geminiKey = process.env.GEMINI_API_KEY;
+          const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
+          const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+          const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+          const schemaRetryMessages = [
+            ...geminiMessages,
+            { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+            { role: 'user', parts: [{ text: schemaRetryText }] },
+          ];
+          const schemaRetryBody = {
+            system_instruction: { parts: [{ text: activeStaticInstructions }] },
+            contents: [schemaMessage, schemaAck, ...schemaRetryMessages],
+            generationConfig: GEMINI_GENERATION_CONFIG,
+          };
+          const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
+          { const t = extractTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+          if (schemaRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+            retryParsed = parseGeminiResponse(schemaRetryData);
+          }
+        }
 
-        const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
-        { const t = extractTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-        if (schemaRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-          const retryParsed = parseGeminiResponse(schemaRetryData);
+        if (retryParsed) {
           explanation = retryParsed.explanation;
           let retrySql = retryParsed.sqlQuery;
           if (retrySql) retrySql = cleanSqlQuery(retrySql);
@@ -1176,7 +1331,6 @@ module.exports = async function (context, req) {
             if (retrySchemaCheck.ok) {
               sqlQuery = retrySql;
             } else {
-              // Still invalid after retry — return the errors to user
               context.res = {
                 status: 400,
                 headers: CORS,
@@ -1226,7 +1380,8 @@ module.exports = async function (context, req) {
     const MAX_RETRIES = 2;
     let result;
     let lastError = null;
-    let retryConversation = [...geminiMessages];
+    let retryConversationGemini = [...geminiMessages];
+    let retryConversationClaude = [...claudeMessages];
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -1245,44 +1400,67 @@ module.exports = async function (context, req) {
 
         const errMsg = sqlErr.message || '';
         const fixGuidance = getErrorGuidance(errMsg);
+        const retryText = `The SQL query you generated failed with this database error:\n` +
+          `"${errMsg}"\n\n` +
+          `The failed query was:\n${sqlQuery}\n\n` +
+          `${fixGuidance}\n\n` +
+          `Generate a corrected query using ONLY columns from the schema.`;
 
-        retryConversation = [
-          ...retryConversation,
-          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-          {
-            role: 'user',
-            parts: [{
-              text: `The SQL query you generated failed with this database error:\n` +
-                `"${errMsg}"\n\n` +
-                `The failed query was:\n${sqlQuery}\n\n` +
-                `${fixGuidance}\n\n` +
-                `Generate a corrected query using ONLY columns from the schema.`,
-            }],
-          },
-        ];
+        let retryParsed;
 
-        // Apply token budget to retry conversation (it grows with each attempt)
-        const trimmedRetryConv = trimConversationToFit(systemTokens, schemaTokens, retryConversation);
+        if (useClaudeModel) {
+          retryConversationClaude = [
+            ...retryConversationClaude,
+            { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
+            { role: 'user', content: retryText },
+          ];
+          try {
+            const retryData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, retryConversationClaude);
+            { const t = extractClaudeTokenUsage(retryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+            retryParsed = parseClaudeResponse(retryData);
+          } catch (retryErr) {
+            context.log.error(`[m2m-query][${requestId}] Claude retry error:`, retryErr.message);
+            break;
+          }
+        } else {
+          const geminiKey = process.env.GEMINI_API_KEY;
+          const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
+          const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+          const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
 
-        const retryGeminiBody = {
-          system_instruction: { parts: [{ text: activeStaticInstructions }] },
-          contents: [schemaMessage, schemaAck, ...trimmedRetryConv],
-          generationConfig: GEMINI_GENERATION_CONFIG,
-        };
+          retryConversationGemini = [
+            ...retryConversationGemini,
+            { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+            { role: 'user', parts: [{ text: retryText }] },
+          ];
 
-        const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
-        { const t = extractTokenUsage(retryGeminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+          const systemTokens = estimateTokens(activeStaticInstructions);
+          const schemaTokens = estimateTokens(activeSchema);
+          const trimmedRetryConv = trimConversationToFit(systemTokens, schemaTokens, retryConversationGemini);
 
-        if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
-          context.log.error(`[m2m-query][${requestId}] Gemini retry error:`, JSON.stringify(retryGeminiData));
-          break;
+          const retryGeminiBody = {
+            system_instruction: { parts: [{ text: activeStaticInstructions }] },
+            contents: [schemaMessage, schemaAck, ...trimmedRetryConv],
+            generationConfig: GEMINI_GENERATION_CONFIG,
+          };
+
+          const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
+          { const t = extractTokenUsage(retryGeminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+
+          if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
+            context.log.error(`[m2m-query][${requestId}] Gemini retry error:`, JSON.stringify(retryGeminiData));
+            break;
+          }
+
+          if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+            break;
+          }
+
+          retryParsed = parseGeminiResponse(retryGeminiData);
         }
 
-        if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-          break;
-        }
+        if (!retryParsed) break;
 
-        const retryParsed = parseGeminiResponse(retryGeminiData);
         explanation = retryParsed.explanation;
         let retrySqlQuery = retryParsed.sqlQuery;
         if (retrySqlQuery) retrySqlQuery = cleanSqlQuery(retrySqlQuery);
@@ -1310,38 +1488,56 @@ module.exports = async function (context, req) {
     }
 
     // -----------------------------------------------------------------------
-    // Zero-row retry: if query returned no results, ask Gemini to broaden it
+    // Zero-row retry: if query returned no results, ask the model to broaden it
     // -----------------------------------------------------------------------
     if (result.recordset.length === 0) {
       context.log.info(`[m2m-query][${requestId}] Query returned 0 rows — retrying with broader criteria`);
 
-      const zeroRowMessages = [
-        ...geminiMessages,
-        { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-        {
-          role: 'user',
-          parts: [{
-            text: `The query you generated ran successfully but returned ZERO rows. This likely means your WHERE filters are too restrictive. Common issues:\n` +
-              `- Text comparisons: use LIKE '%keyword%' instead of exact match (= 'value'). M2M uses CHAR fields with trailing spaces.\n` +
-              `- Date filters: try a wider date range, or check if you're using the right date column. POMAST has FORDDATE (order date) and FREQDATE (request date); POITEM has FREQDATE, FORGPDATE (original promise), FLSTPDATE (last promise).\n` +
-              `- Status filters: don't filter by status unless the user specifically asked for a status.\n` +
-              `- The data may exist but with slightly different spelling or format.\n\n` +
-              `Please regenerate the query with BROADER filters to find the data. Use LIKE with wildcards for text, widen date ranges, and remove unnecessary status filters.`,
-          }],
-        },
-      ];
+      const zeroRowText = `The query you generated ran successfully but returned ZERO rows. This likely means your WHERE filters are too restrictive. Common issues:\n` +
+        `- Text comparisons: use LIKE '%keyword%' instead of exact match (= 'value'). M2M uses CHAR fields with trailing spaces.\n` +
+        `- Date filters: try a wider date range, or check if you're using the right date column. POMAST has FORDDATE (order date) and FREQDATE (request date); POITEM has FREQDATE, FORGPDATE (original promise), FLSTPDATE (last promise).\n` +
+        `- Status filters: don't filter by status unless the user specifically asked for a status.\n` +
+        `- The data may exist but with slightly different spelling or format.\n\n` +
+        `Please regenerate the query with BROADER filters to find the data. Use LIKE with wildcards for text, widen date ranges, and remove unnecessary status filters.`;
 
-      const zeroRowBody = {
-        system_instruction: { parts: [{ text: activeStaticInstructions }] },
-        contents: [schemaMessage, schemaAck, ...zeroRowMessages],
-        generationConfig: GEMINI_GENERATION_CONFIG,
-      };
+      let zeroRowParsed;
 
-      const zeroRowData = await callGeminiAPI(geminiUrl, zeroRowBody);
-      { const t = extractTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+      if (useClaudeModel) {
+        const zeroRowClaude = [
+          ...claudeMessages,
+          { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
+          { role: 'user', content: zeroRowText },
+        ];
+        try {
+          const zeroRowData = await callClaudeAPI(activeStaticInstructions + `\n\n<database_schema>\n${activeSchema}\n</database_schema>`, zeroRowClaude);
+          { const t = extractClaudeTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+          zeroRowParsed = parseClaudeResponse(zeroRowData);
+        } catch (zeroErr) {
+          context.log.warn(`[m2m-query][${requestId}] Claude zero-row retry failed: ${zeroErr.message}`);
+        }
+      } else {
+        const geminiKey = process.env.GEMINI_API_KEY;
+        const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
+        const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
+        const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
+        const zeroRowMessages = [
+          ...geminiMessages,
+          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
+          { role: 'user', parts: [{ text: zeroRowText }] },
+        ];
+        const zeroRowBody = {
+          system_instruction: { parts: [{ text: activeStaticInstructions }] },
+          contents: [schemaMessage, schemaAck, ...zeroRowMessages],
+          generationConfig: GEMINI_GENERATION_CONFIG,
+        };
+        const zeroRowData = await callGeminiAPI(geminiUrl, zeroRowBody);
+        { const t = extractTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+        if (zeroRowData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
+          zeroRowParsed = parseGeminiResponse(zeroRowData);
+        }
+      }
 
-      if (zeroRowData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-        const zeroRowParsed = parseGeminiResponse(zeroRowData);
+      if (zeroRowParsed) {
         let zeroRowSql = zeroRowParsed.sqlQuery;
         if (zeroRowSql) zeroRowSql = cleanSqlQuery(zeroRowSql);
 
@@ -1351,7 +1547,6 @@ module.exports = async function (context, req) {
             try {
               const zeroRowResult = await pool.request().query(zeroRowSql);
               if (zeroRowResult.recordset.length > 0) {
-                // Broader query found results — use it
                 result = zeroRowResult;
                 sqlQuery = zeroRowSql;
                 explanation = zeroRowParsed.explanation || explanation;
@@ -1359,7 +1554,6 @@ module.exports = async function (context, req) {
               }
             } catch (retryErr) {
               context.log.warn(`[m2m-query][${requestId}] Zero-row retry SQL failed: ${retryErr.message}`);
-              // Keep original 0-row result
             }
           }
         }
@@ -1396,16 +1590,17 @@ module.exports = async function (context, req) {
         rows: result.recordset,
         rowCount: result.recordset.length,
         _requestId: requestId,
-        _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens), confidence: scoreConfidence(sqlQuery) },
+        _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider, confidence: scoreConfidence(sqlQuery) },
       }),
     };
 
   } catch (err) {
     context.log.error(`[m2m-query][${requestId}] Error:`, err);
+    const modelProvider = useClaudeModel ? 'claude' : 'gemini';
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens) } }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider } }),
     };
   } finally {
     if (pool) {
@@ -1444,8 +1639,8 @@ module.exports = async function (context, req) {
               .input('inputTokens', sql.Int, totalInputTokens)
               .input('outputTokens', sql.Int, totalOutputTokens)
               .input('geminiCalls', sql.Int, geminiCalls)
-              .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens))
-              .input('promptVersion', sql.NVarChar, PROMPT_VERSION)
+              .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens, useClaudeModel ? 'claude' : 'gemini'))
+              .input('promptVersion', sql.NVarChar, PROMPT_VERSION + (useClaudeModel ? '-claude' : ''))
               .input('requestId', sql.NVarChar, requestId)
               .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
                       VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);

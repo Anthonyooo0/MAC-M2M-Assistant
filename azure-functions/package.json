@@ -2,6 +2,7 @@
   "name": "mac-m2m-assistant-api",
   "version": "1.0.0",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "mssql": "^10.0.0"
   }
 }
