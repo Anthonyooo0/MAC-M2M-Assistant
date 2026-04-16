@@ -90,6 +90,43 @@ async function getCostPoolSafe() {
 }
 
 // ---------------------------------------------------------------------------
+// M2M/UniPoint database connection pools — reused across invocations.
+// Keyed by connection string so each database gets its own pool.
+// Eliminates ~500-2000ms TCP connection overhead on every query.
+// ---------------------------------------------------------------------------
+const dbPools = {};
+
+function getDbPool(connString) {
+  if (!connString) return null;
+  if (dbPools[connString]) return dbPools[connString];
+
+  const parts = {};
+  for (const segment of connString.split(';')) {
+    const idx = segment.indexOf('=');
+    if (idx === -1) continue;
+    parts[segment.substring(0, idx).trim().toLowerCase()] = segment.substring(idx + 1).trim();
+  }
+
+  const pool = new sql.ConnectionPool({
+    server: parts['server'] || parts['data source'] || '',
+    database: parts['database'] || parts['initial catalog'] || '',
+    user: parts['user id'] || parts['uid'] || '',
+    password: parts['password'] || parts['pwd'] || '',
+    options: { encrypt: false, trustServerCertificate: true },
+    connectionTimeout: 15000,
+    requestTimeout: 30000,
+    pool: { max: 10, min: 1, idleTimeoutMillis: 60000 },
+  });
+
+  dbPools[connString] = pool.connect().then(() => pool).catch((_e) => {
+    delete dbPools[connString];
+    throw _e;
+  });
+
+  return dbPools[connString];
+}
+
+// ---------------------------------------------------------------------------
 // Semantic query cache — avoids redundant Gemini calls for identical questions.
 // Keyed by (question_lowercase + database). TTL-based expiry.
 // ---------------------------------------------------------------------------
@@ -1347,32 +1384,15 @@ module.exports = async function (context, req) {
       }
     }
 
-    // Parse connection string
-    const parts = {};
-    for (const segment of connString.split(';')) {
-      const idx = segment.indexOf('=');
-      if (idx === -1) continue;
-      const key = segment.substring(0, idx).trim().toLowerCase();
-      const val = segment.substring(idx + 1).trim();
-      parts[key] = val;
+    // Get or create a pooled connection — reused across invocations
+    try {
+      pool = await getDbPool(connString);
+    } catch (_e) {
+      // Pool failed — reset and try once more
+      delete dbPools[connString];
+      pool = await getDbPool(connString);
     }
-
-    const config = {
-      server: parts['server'] || parts['data source'] || '',
-      database: parts['database'] || parts['initial catalog'] || '',
-      user: parts['user id'] || parts['uid'] || '',
-      password: parts['password'] || parts['pwd'] || '',
-      options: { encrypt: false, trustServerCertificate: true },
-      connectionTimeout: 15000,
-      requestTimeout: 30000,
-    };
-
-    dbServer = config.server;
-    dbName = config.database;
-    context.log.info(`[m2m-query][${requestId}] Connecting to server="${dbServer}" database="${dbName}" user="${config.user}"`);
-
-    pool = new sql.ConnectionPool(config);
-    await pool.connect();
+    context.log.info(`[m2m-query][${requestId}] Connected (pooled)`);
 
     // -----------------------------------------------------------------------
     // Execute SQL — with up to 2 retries on any SQL error
@@ -1390,6 +1410,17 @@ module.exports = async function (context, req) {
         break; // Success — exit the retry loop
       } catch (sqlErr) {
         lastError = sqlErr;
+
+        // If the connection dropped, reset the pool and reconnect
+        if (sqlErr.code === 'ECONNCLOSED' || sqlErr.code === 'ENOTOPEN' || sqlErr.code === 'ESOCKET') {
+          delete dbPools[connString];
+          try {
+            pool = await getDbPool(connString);
+            context.log.warn(`[m2m-query][${requestId}] Connection reset — reconnected`);
+          } catch (_e) {
+            context.log.error(`[m2m-query][${requestId}] Reconnect failed`);
+          }
+        }
 
         if (attempt >= MAX_RETRIES) {
           // Out of retries — will throw below
@@ -1603,9 +1634,8 @@ module.exports = async function (context, req) {
       body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider } }),
     };
   } finally {
-    if (pool) {
-      try { await pool.close(); } catch (_e) { /* ignore */ }
-    }
+    // Pool is NOT closed — it's reused across invocations.
+    // If the pool has a connection error, getDbPool will reset it on the next request.
     // Save cost — fire-and-forget so the user doesn't wait for it.
     // Uses a dedicated connection. If it fails, cost is logged but not lost
     // (the _cost is already in the API response and chat_messages).
