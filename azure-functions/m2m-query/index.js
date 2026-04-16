@@ -529,7 +529,7 @@ function parseGeminiResponse(geminiData) {
 // Claude API integration — mirrors Gemini call pattern but uses Anthropic SDK
 // ---------------------------------------------------------------------------
 
-const CLAUDE_SONNET_MODEL = 'claude-sonnet-4-5-20241022';
+const CLAUDE_SONNET_MODEL = 'claude-sonnet-4-6';
 
 // Lazy-initialized Anthropic client (reused across invocations)
 let anthropicClient = null;
