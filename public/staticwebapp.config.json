@@ -1,9 +1,17 @@
 {
   "navigationFallback": {
-    "rewrite": "/index.html"
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/mac_logo.png", "/mac_impulse_logo.png", "/UniPointlogo.png"]
   },
-  "mimeTypes": {
-    ".js": "text/javascript",
-    ".mjs": "text/javascript"
-  }
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff"
+  },
+  "routes": [
+    {
+      "route": "/assets/*.js",
+      "headers": {
+        "Content-Type": "text/javascript"
+      }
+    }
+  ]
 }
