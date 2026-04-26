@@ -230,7 +230,10 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                       onChange={() => toggleTable(t.name)}
                       className="rounded border-slate-300 text-mac-accent focus:ring-mac-accent"
                     />
-                    <span className="text-sm text-slate-700 flex-1">{t.description}</span>
+                    <span className="flex-1 min-w-0 flex items-baseline gap-2">
+                      <span className="text-sm text-slate-700 truncate">{t.description}</span>
+                      <span className="font-mono text-[10px] text-slate-400 truncate">{t.name}</span>
+                    </span>
                     {checked && (
                       <button
                         onClick={(e) => {
@@ -267,8 +270,11 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
           ) : (
             <>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-700 truncate">
-                  {visibleColumnTable.description}
+                <span className="text-xs font-bold text-slate-700 truncate flex items-baseline gap-2">
+                  <span>{visibleColumnTable.description}</span>
+                  <span className="font-mono text-[10px] font-normal text-slate-400">
+                    {visibleColumnTable.name}
+                  </span>
                 </span>
                 <span className="text-[10px] text-slate-400">
                   {visibleColumnTable.columns.length} fields
@@ -347,7 +353,9 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                     className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm bg-white"
                   >
                     {selectedTables.map(t => (
-                      <option key={t} value={t}>{tableByName[t]?.description || t}</option>
+                      <option key={t} value={t}>
+                        {tableByName[t]?.description ? `${tableByName[t]?.description} (${t})` : t}
+                      </option>
                     ))}
                   </select>
                   <select
