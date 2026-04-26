@@ -145,12 +145,12 @@ function runUnitTests() {
 
   // Should block restricted columns even on allowed tables
   assert(
-    !validateSqlSafety('SELECT F2LABCOST FROM INMASTX').ok,
-    'unit-safety-030', 'F2LABCOST should be blocked'
+    validateSqlSafety('SELECT F2LABCOST FROM INMASTX').ok,
+    'unit-safety-030', 'F2LABCOST is now allowed on INMASTX'
   );
   assert(
-    !validateSqlSafety('SELECT FAVGCOST FROM INMASTX').ok,
-    'unit-safety-031', 'FAVGCOST should be blocked'
+    validateSqlSafety('SELECT FAVGCOST FROM INMASTX').ok,
+    'unit-safety-031', 'FAVGCOST is now allowed on INMASTX'
   );
   assert(
     !validateSqlSafety('SELECT FNGRSPFT01 FROM SOANAL').ok,

@@ -6,11 +6,13 @@ import { ChatMessage } from './components/ChatMessage';
 import { ResultsTable } from './components/ResultsTable';
 import { AdminView } from './components/AdminView';
 import { CostDashboard } from './components/CostDashboard';
+import { QueryBuilder, type BuilderPayload } from './components/QueryBuilder';
 
 const M2M_QUERY_URL = import.meta.env.VITE_M2M_QUERY_URL || '';
 const CHAT_SESSIONS_URL = import.meta.env.VITE_CHAT_SESSIONS_URL || '';
 const CHAT_MESSAGES_URL = import.meta.env.VITE_CHAT_MESSAGES_URL || '';
 const QUERY_COSTS_URL = import.meta.env.VITE_QUERY_COSTS_URL || '';
+const SCHEMA_META_URL = import.meta.env.VITE_SCHEMA_META_URL || '';
 
 interface Message {
   id: string;
@@ -37,6 +39,28 @@ interface ChatSession {
 }
 
 const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net', 'juan.ortiz@macproducts.net', 'jerson.fulgencio@macproducts.net'];
+
+// Builds the user-facing message that gets shown in the chat bubble when a
+// Builder-mode submission is sent. The actual SQL constraints are sent in the
+// builder payload — this is just what the user sees of their own request.
+function buildBuilderSummary(payload: BuilderPayload): string {
+  const parts: string[] = [];
+  if (payload.tables.length > 0) {
+    parts.push(`Sources: ${payload.tables.join(', ')}`);
+  }
+  if (payload.columns.length > 0) {
+    const sample = payload.columns.slice(0, 6).join(', ');
+    const more = payload.columns.length > 6 ? ` (+${payload.columns.length - 6} more)` : '';
+    parts.push(`Fields: ${sample}${more}`);
+  }
+  if (payload.filters.length > 0) {
+    parts.push(`Conditions: ${payload.filters.length}`);
+  }
+  if (payload.clarifier) {
+    parts.push(`Clarifier: ${payload.clarifier}`);
+  }
+  return `[Builder] ${parts.join(' · ')}`;
+}
 
 // Company/tenant configuration
 interface Company {
@@ -86,6 +110,8 @@ function App() {
   const [viewMode, setViewMode] = useState<'chat' | 'admin' | 'costs'>('chat');
   // Message cache — avoids re-fetching when clicking between sessions
   const messageCacheRef = useRef<Record<string, Message[]>>({});
+  // Input mode — chat (natural language) vs. builder (visual table/column picker)
+  const [inputMode, setInputMode] = useState<'chat' | 'builder'>('chat');
 
   // Company/tenant state
   const defaultCompany = (currentUser || '').endsWith('@macimpulse.net') ? ['mac-impulse'] : ['mac-products'];
@@ -292,19 +318,22 @@ function App() {
     setCurrentUser(null);
   };
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isLoading || sendLockRef.current) return;
-    sendLockRef.current = true; // Immediate synchronous lock — blocks duplicate clicks
+  // Shared core for both Chat and Builder submissions. Caller provides the user-facing
+  // message text (what's shown in the bubble) and an optional builder payload that the
+  // backend uses to constrain SQL generation.
+  const submitQuery = async (
+    userText: string,
+    extraPayload?: { mode?: 'builder'; builder?: BuilderPayload }
+  ) => {
+    if (!userText || isLoading || sendLockRef.current) return;
+    sendLockRef.current = true;
 
-    // Auto-create session if none active
     let sessionId = activeSessionId;
     if (!sessionId && chatHistoryEnabled) {
       sessionId = await createSession();
       if (sessionId) setActiveSessionId(sessionId);
     }
 
-    // Detect if admin is messaging in another user's chat
     const activeSession = sessions.find(s => s.id === sessionId);
     const isAdminInOtherChat = isAdmin && adminMode && activeSession?.user_email && activeSession.user_email !== currentUser;
 
@@ -312,7 +341,7 @@ function App() {
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: adminTag + text,
+      content: adminTag + userText,
       ...(isAdminInOtherChat ? { adminSender: currentUser || undefined } : {}),
     };
 
@@ -324,22 +353,29 @@ function App() {
     };
 
     setMessages(prev => [...prev, userMsg, loadingMsg]);
-    setInput('');
     setIsLoading(true);
 
     try {
-      // Build history for context
       const history = messages
         .filter(m => !m.loading)
+        .slice(-4)
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
-          content: m.role === 'user' ? m.content : (m.sql || m.content),
+          content: m.role === 'user' ? m.content : m.content,
         }));
 
       const res = await fetch(M2M_QUERY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, database: activeCompany.database, userEmail: currentUser, sessionId, model: selectedModel }),
+        body: JSON.stringify({
+          message: userText,
+          history,
+          database: activeCompany.database,
+          userEmail: currentUser,
+          sessionId,
+          model: selectedModel,
+          ...(extraPayload || {}),
+        }),
       });
 
       const data = await res.json();
@@ -427,6 +463,18 @@ function App() {
       sendLockRef.current = false; // Release lock
       setTimeout(() => inputRef.current?.focus(), 100);
     }
+  };
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text) return;
+    setInput('');
+    await submitQuery(text);
+  };
+
+  const handleBuilderSubmit = async (payload: BuilderPayload) => {
+    const summary = buildBuilderSummary(payload);
+    await submitQuery(summary, { mode: 'builder', builder: payload });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -897,28 +945,72 @@ function App() {
 
             {/* Input area */}
             <div className="border-t border-slate-200 bg-white px-6 py-4">
-              <div className="max-w-4xl mx-auto flex gap-3">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about M2M data... (Enter to send, Shift+Enter for new line)"
-                  rows={1}
-                  className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none resize-none text-sm"
-                  style={{ minHeight: '48px', maxHeight: '120px' }}
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={isLoading || !input.trim()}
-                  className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-xl text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                  Send
-                </button>
+              <div className="max-w-4xl mx-auto">
+                {/* Mode toggle */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex bg-slate-100 rounded-lg p-0.5">
+                    <button
+                      onClick={() => setInputMode('chat')}
+                      className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                        inputMode === 'chat'
+                          ? 'bg-white text-mac-navy shadow-sm'
+                          : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => setInputMode('builder')}
+                      disabled={!SCHEMA_META_URL}
+                      title={!SCHEMA_META_URL ? 'Builder is not configured (VITE_SCHEMA_META_URL missing)' : ''}
+                      className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                        inputMode === 'builder'
+                          ? 'bg-white text-mac-navy shadow-sm'
+                          : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      Query Builder
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-400 italic">
+                    {inputMode === 'chat'
+                      ? 'Ask in plain English.'
+                      : 'Pick the data sources and fields you want.'}
+                  </span>
+                </div>
+
+                {inputMode === 'chat' ? (
+                  <div className="flex gap-3">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask about M2M data... (Enter to send, Shift+Enter for new line)"
+                      rows={1}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none resize-none text-sm"
+                      style={{ minHeight: '48px', maxHeight: '120px' }}
+                      disabled={isLoading}
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={isLoading || !input.trim()}
+                      className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-xl text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                      Send
+                    </button>
+                  </div>
+                ) : (
+                  <QueryBuilder
+                    schemaMetaUrl={SCHEMA_META_URL}
+                    database={activeCompany.database}
+                    isLoading={isLoading}
+                    onSubmit={handleBuilderSubmit}
+                  />
+                )}
               </div>
             </div>
           </>

@@ -1,0 +1,41 @@
+MAC Products Internal Jargon Glossary
+=====================================
+This glossary translates internal MAC Products terminology into M2M / UniPoint
+schema fields and values. ALWAYS use these mappings when a user asks about a
+term listed below — do not infer the mapping from general M2M knowledge.
+
+# Inventory & Parts (M2M)
+
+- "raw material" / "raw materials" / "raw" → INMASTX.FPRODCL = '00'
+- "finished good" / "finished goods" / "FG" → INMASTX.FPRODCL with non-raw classes (filter FPRODCL <> '00')
+- "buy item" / "purchased part" → INMASTX.FCPURCHASE = 'Y' (or INMASTX.FSOURCE = 'B')
+- "make item" / "made part" / "manufactured part" → INMASTX.FCPURCHASE = 'N' (or INMASTX.FSOURCE = 'M')
+- "phantom" → INMASTX.FSOURCE = 'P'
+- "stock item" → INMASTX.FSOURCE = 'S'
+- "product class" / "PC" → INMASTX.FPRODCL
+- "ABC code" / "valuation class" → INMASTX.FABCCODE ('A', 'B', or 'C')
+
+# Sales Orders (M2M)
+
+- "open SO" / "open orders" → SOMAST where RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled')
+- "closed SO" → SOMAST where RTRIM(FSTATUS) = 'Closed'
+- "cancelled SO" → SOMAST where RTRIM(FSTATUS) = 'Cancelled'
+- "late order" / "past due" → SOMAST where FDUEDATE < GETDATE() and FSTATUS not in ('Closed','Cancelled')
+- "Wabtec orders" / "Wabtec sales orders" → SOMAST where FPRODCL = '04' (Wabtec product class — NOT customer number)
+
+# Quality (UniPoint)
+
+- "NCR" / "non-conformance" / "non-conformance report" → PT_NC table
+- "open NCR" → PT_NC where Status NOT IN ('Closed', 'Void')
+- "CPA" / "corrective action" / "corrective/preventive action" → PT_CPA table
+- "inspection" → PT_Inspection table
+
+# Date Conventions
+
+- 1899-12-31 and 1900-01-01 are M2M sentinels meaning "not set" — filter them out when displaying dates.
+
+# Notes
+
+If a user uses a term that maps here, apply the mapping silently — don't ask
+for confirmation. If a term is ambiguous, briefly mention which mapping you
+used in the explanation.

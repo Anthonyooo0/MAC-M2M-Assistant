@@ -3,6 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const Anthropic = require('@anthropic-ai/sdk');
+const {
+  RESTRICTED_TABLES,
+  RESTRICTED_TABLE_PATTERNS,
+  RESTRICTED_COLUMNS_FLAT,
+} = require('../shared/restricted');
 // Generate UUID — use crypto.randomUUID() if available (Node 19+),
 // fall back to manual generation for older Node runtimes (Azure Functions may use Node 16/18).
 function generateRequestId() {
@@ -244,6 +249,23 @@ try {
   console.error('Could not load unipoint-schema-slim.txt:', e.message);
 }
 
+// MAC Products jargon glossary — translates internal terms (e.g., "raw material" → FPRODCL='00').
+// Loaded once at startup and prepended to the schema in every prompt so it stays inside the
+// prompt-cache window (zero token cost after first request).
+const glossaryPath = path.join(__dirname, '..', 'mac-glossary.txt');
+let MAC_GLOSSARY = '';
+try {
+  MAC_GLOSSARY = fs.readFileSync(glossaryPath, 'utf-8');
+} catch (e) {
+  console.error('Could not load mac-glossary.txt:', e.message);
+}
+
+// Wrap schema with glossary so it's part of the cached schema block
+function buildSchemaWithGlossary(schema) {
+  if (!MAC_GLOSSARY) return schema;
+  return `<mac_glossary>\n${MAC_GLOSSARY}\n</mac_glossary>\n\n${schema}`;
+}
+
 // Static instructions (no schema) — cacheable by the provider
 const M2M_STATIC_INSTRUCTIONS = `<system_role>
 You are an AI assistant for MAC Products employees that helps them query the M2M ERP database (Made2Manage version 7.51).
@@ -299,7 +321,6 @@ If a user asks for data from ANY of these tables, politely explain that the tabl
 
 <restricted_columns>
 Even on tables that ARE allowed, NEVER include these columns in any query:
-- INMASTX: F2LABCOST, F2MATLCOST, F2OVHDCOST, FAVGCOST (internal cost data)
 - INPROD: FCOGSLAB, FCOGSMATL, FCOGSOVHD (COGS breakdowns)
 - SOANAL: FNGRSPFT01 through FNGRSPFT12 (gross profit by period)
 - JOPACT: FLABACT, FMATLACT, FOTHRACT (actual job costs)
@@ -535,6 +556,67 @@ function scrubPII(text) {
     .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[CC_REDACTED]');
 }
 
+// Compose a structured user message for Builder mode. The frontend sends real
+// table/column names (mapped from descriptions client-side); we wrap them in
+// XML tags so the model treats them as constraints. We still scrub PII from
+// any free-text clarifier the user typed.
+function composeBuilderMessage(builder, fallbackMessage) {
+  const tables = (builder.tables || []).map(t => String(t).trim()).filter(Boolean);
+  const columns = Array.isArray(builder.columns)
+    ? builder.columns.map(c => String(c).trim()).filter(Boolean)
+    : [];
+  const filters = Array.isArray(builder.filters)
+    ? builder.filters.filter(f => f && f.table && f.column && f.operator)
+    : [];
+  const clarifier = typeof builder.clarifier === 'string' ? builder.clarifier.trim() : '';
+  const userMessage = (typeof fallbackMessage === 'string' && fallbackMessage.trim()) || clarifier;
+
+  const lines = [];
+  lines.push('<builder_request>');
+  lines.push('The user has selected specific tables, columns, and filters using the visual Query Builder.');
+  lines.push('Generate a SELECT query that uses ONLY these tables and applies these filters.');
+  lines.push('Use proper JOINs based on documented relationships when multiple tables are selected.');
+  lines.push('Always alias every column with a friendly description (AS "...").');
+  lines.push('');
+  lines.push('<tables>');
+  for (const t of tables) lines.push(`- ${t}`);
+  lines.push('</tables>');
+
+  if (columns.length > 0) {
+    lines.push('<columns_to_return>');
+    for (const c of columns) lines.push(`- ${c}`);
+    lines.push('</columns_to_return>');
+  } else {
+    lines.push('<columns_to_return>');
+    lines.push('(none specified — pick the most useful columns from the selected tables)');
+    lines.push('</columns_to_return>');
+  }
+
+  if (filters.length > 0) {
+    lines.push('<filters>');
+    for (const f of filters) {
+      const value = f.value === undefined || f.value === null ? '' : String(f.value);
+      lines.push(`- ${f.table}.${f.column} ${f.operator} ${JSON.stringify(value)}`);
+    }
+    lines.push('</filters>');
+  }
+
+  if (clarifier) {
+    lines.push('<user_clarifier>');
+    lines.push(scrubPII(clarifier));
+    lines.push('</user_clarifier>');
+  }
+
+  if (userMessage && userMessage !== clarifier) {
+    lines.push('<additional_request>');
+    lines.push(scrubPII(userMessage));
+    lines.push('</additional_request>');
+  }
+
+  lines.push('</builder_request>');
+  return lines.join('\n');
+}
+
 function parseGeminiResponse(geminiData) {
   const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!generatedText) throw new Error('Gemini returned no response.');
@@ -689,37 +771,18 @@ function validateSqlSafety(sqlQuery) {
   if (firstWord !== 'SELECT' && firstWord !== 'WITH') {
     return { ok: false, reason: 'Only SELECT queries are allowed.' };
   }
-  const RESTRICTED_TABLES = [
-    // M2M — HR, Payroll & Labor
-    'PREMPL','CSPAYR','PRDIST','PRDEPT','CRHEAD','CRMAST','LADETAIL','LADETAILVIEW','LAMAST',
-    // M2M — Banking & EFT
-    'APCHAC','APEFTMAST','VENDEFT','CCINFO','CCSETUPMAST',
-    // M2M — System Security
-    'UTUSER','UTPASSWD','UTPREF',
-    // M2M — Corporate Financials
-    'GLMAST','GLITEM','GLSTMT','PLBUDG',
-    // UniPoint — Security & PII
-    'PT_SECURITY_USERS','PT_EMPLOYEE','PT_EMPLOYEE_EXTENDED','PT_GST',
-  ];
   for (const table of RESTRICTED_TABLES) {
     if (new RegExp('\\b' + table + '\\b', 'i').test(sqlQuery)) {
       return { ok: false, reason: `This query references a restricted table (${table}) containing sensitive information.` };
     }
   }
-  // UniPoint — PT_Cashflow wildcard (matches PT_Cashflow, PT_Cashflow_Detail, etc.)
-  if (/\bPT_CASHFLOW\w*/i.test(sqlQuery)) {
-    return { ok: false, reason: 'This query references a restricted table (PT_Cashflow) containing financial data.' };
+  for (const pattern of RESTRICTED_TABLE_PATTERNS) {
+    const wordPattern = new RegExp('\\b' + pattern.source.replace(/^\^|\$$/g, '') + '\\b', pattern.flags);
+    if (wordPattern.test(sqlQuery)) {
+      return { ok: false, reason: 'This query references a restricted table containing financial data.' };
+    }
   }
-  const RESTRICTED_COLUMNS = [
-    'F2LABCOST','F2MATLCOST','F2OVHDCOST','FAVGCOST',   // INMASTX costs
-    'FCOGSLAB','FCOGSMATL','FCOGSOVHD',                  // INPROD COGS
-    'FNGRSPFT01','FNGRSPFT02','FNGRSPFT03','FNGRSPFT04', // SOANAL gross profit
-    'FNGRSPFT05','FNGRSPFT06','FNGRSPFT07','FNGRSPFT08',
-    'FNGRSPFT09','FNGRSPFT10','FNGRSPFT11','FNGRSPFT12',
-    'FLABACT','FMATLACT','FOTHRACT',                      // JOPACT actual costs
-    'FNBLPROFIT','FNQUPROFIT',                             // BLQOC/BLQOP profit
-  ];
-  for (const col of RESTRICTED_COLUMNS) {
+  for (const col of RESTRICTED_COLUMNS_FLAT) {
     if (new RegExp('\\b' + col + '\\b', 'i').test(sqlQuery)) {
       return { ok: false, reason: `This query references a restricted column (${col}) containing confidential cost/profit data.` };
     }
@@ -1129,11 +1192,16 @@ module.exports = async function (context, req) {
   let geminiCalls = 0;
 
   try {
-    const { message, history, model: requestedModel } = req.body || {};
+    const { message, history, model: requestedModel, mode, builder } = req.body || {};
     const useClaudeModel = requestedModel === 'claude-sonnet';
+    const isBuilderMode = mode === 'builder' && builder && typeof builder === 'object';
 
-    if (!message || typeof message !== 'string' || !message.trim()) {
+    if (!isBuilderMode && (!message || typeof message !== 'string' || !message.trim())) {
       context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'message is required' }) };
+      return;
+    }
+    if (isBuilderMode && (!Array.isArray(builder.tables) || builder.tables.length === 0)) {
+      context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'Builder mode requires at least one table.' }) };
       return;
     }
 
@@ -1180,6 +1248,11 @@ module.exports = async function (context, req) {
       }
     }
 
+    // Prepend MAC jargon glossary inside the cached schema block so internal terms
+    // (e.g., "raw material" → FPRODCL='00') resolve correctly without extra tokens
+    // after the first cached request.
+    activeSchema = buildSchemaWithGlossary(activeSchema);
+
     // Build conversation — scrub PII from all user messages before
     // they leave the network to the third-party API.
     const geminiMessages = [];
@@ -1197,8 +1270,16 @@ module.exports = async function (context, req) {
       }
     }
 
-    geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(message.trim()) }] });
-    claudeMessages.push({ role: 'user', content: scrubPII(message.trim()) });
+    // Build the user-facing message text. In Builder mode, we synthesize a
+    // structured constraint block so the model is locked to the user's
+    // selected tables/columns/filters but still benefits from prompt caching
+    // and the same retry/safety pipeline as Chat mode.
+    const userMessageText = isBuilderMode
+      ? composeBuilderMessage(builder, message)
+      : scrubPII(message.trim());
+
+    geminiMessages.push({ role: 'user', parts: [{ text: userMessageText }] });
+    claudeMessages.push({ role: 'user', content: userMessageText });
 
     const modelProvider = useClaudeModel ? 'claude' : 'gemini';
 
@@ -1678,7 +1759,7 @@ module.exports = async function (context, req) {
               .input('outputTokens', sql.Int, totalOutputTokens)
               .input('geminiCalls', sql.Int, geminiCalls)
               .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens, useClaudeModel ? 'claude' : 'gemini'))
-              .input('promptVersion', sql.NVarChar, PROMPT_VERSION + (useClaudeModel ? '-claude' : ''))
+              .input('promptVersion', sql.NVarChar, PROMPT_VERSION + (useClaudeModel ? '-claude' : '') + (isBuilderMode ? '+builder' : ''))
               .input('requestId', sql.NVarChar, requestId)
               .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
                       VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);

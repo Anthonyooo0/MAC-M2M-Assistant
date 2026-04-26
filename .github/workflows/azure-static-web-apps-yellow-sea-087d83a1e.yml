@@ -25,6 +25,7 @@ jobs:
           VITE_CHAT_SESSIONS_URL: ${{ secrets.VITE_CHAT_SESSIONS_URL }}
           VITE_CHAT_MESSAGES_URL: ${{ secrets.VITE_CHAT_MESSAGES_URL }}
           VITE_QUERY_COSTS_URL: ${{ secrets.VITE_QUERY_COSTS_URL }}
+          VITE_SCHEMA_META_URL: ${{ secrets.VITE_SCHEMA_META_URL }}
         run: |
           npm install
           npm run build
