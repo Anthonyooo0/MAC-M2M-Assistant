@@ -463,6 +463,40 @@ User: "What is a CPA?"
 </examples>`;
 
 // ---------------------------------------------------------------------------
+// Admin variants — admins are not row-capped, so the prompt is rewritten to
+// drop the TOP 500 rule and update the canonical example. Built once at module
+// load so the variant string is stable and gets its own prompt-cache entry.
+// ---------------------------------------------------------------------------
+const ADMIN_EMAILS = new Set([
+  'anthony.jimenez@macproducts.net',
+  'juan.ortiz@macproducts.net',
+  'jerson.fulgencio@macproducts.net',
+]);
+
+function isAdminEmail(email) {
+  return !!email && ADMIN_EMAILS.has(email.toLowerCase());
+}
+
+function makeAdminInstructions(baseInstructions) {
+  return baseInstructions
+    .replace(
+      'Always use TOP 500 to limit results unless the user asks for a count/aggregate.',
+      'Do NOT add a TOP limit by default. Return ALL matching rows. Only add a TOP clause if the user explicitly asks for "top N", "first N", or a sample. Aggregates (COUNT/SUM/AVG) still do not use TOP.'
+    )
+    .replace(
+      /SELECT TOP 500 RTRIM\(FSONO\)/,
+      'SELECT RTRIM(FSONO)'
+    )
+    .replace(
+      /SELECT TOP 500 NCR AS/,
+      'SELECT NCR AS'
+    );
+}
+
+const M2M_ADMIN_INSTRUCTIONS = makeAdminInstructions(M2M_STATIC_INSTRUCTIONS);
+const UNIPOINT_ADMIN_INSTRUCTIONS = makeAdminInstructions(UNIPOINT_STATIC_INSTRUCTIONS);
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -1219,10 +1253,12 @@ module.exports = async function (context, req) {
       }
     }
 
-    // Pick connection string and system prompt based on requested database
+    // Pick connection string and system prompt based on requested database.
+    // Admins get a variant of the prompt with the TOP 500 row cap removed.
     const { database } = req.body || {};
+    const requesterIsAdmin = isAdminEmail(req.body?.userEmail);
     let connString;
-    let activeStaticInstructions = M2M_STATIC_INSTRUCTIONS;
+    let activeStaticInstructions = requesterIsAdmin ? M2M_ADMIN_INSTRUCTIONS : M2M_STATIC_INSTRUCTIONS;
     let activeSchema = M2M_SCHEMA;
     let activeSchemaTOC = M2M_SCHEMA_TOC;
     if (database === 'm2mdata66') {
@@ -1233,7 +1269,7 @@ module.exports = async function (context, req) {
       }
     } else if (database === 'unipoint_live') {
       connString = process.env.UNIPOINT_CONNECTION_STRING;
-      activeStaticInstructions = UNIPOINT_STATIC_INSTRUCTIONS;
+      activeStaticInstructions = requesterIsAdmin ? UNIPOINT_ADMIN_INSTRUCTIONS : UNIPOINT_STATIC_INSTRUCTIONS;
       activeSchema = UNIPOINT_SCHEMA;
       activeSchemaTOC = UNIPOINT_SCHEMA_TOC;
       if (!connString) {
