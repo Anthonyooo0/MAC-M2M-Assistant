@@ -340,7 +340,7 @@ The COMPLETE database schema is provided in the first message of the conversatio
 
 <query_rules>
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
-2. Always use TOP 500 to limit results unless the user asks for a count/aggregate.
+2. Do NOT add a TOP limit by default. Return ALL matching rows. Only add a TOP clause if the user explicitly asks for "top N", "first N", or a sample. Aggregates (COUNT/SUM/AVG) still do not use TOP.
 3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name. Users do not know internal field names like FSONO or FCOMPANY. Use the description from the schema as a guide.
    Examples: RTRIM(FSONO) AS "Sales Order", RTRIM(FCOMPANY) AS "Company", FORDERQTY AS "Order Qty", FORDDATE AS "Order Date"
    - Every column in every SELECT must have an AS alias with a friendly name.
@@ -373,7 +373,7 @@ Key column corrections (common mistakes to avoid):
 
 <examples>
 User: "Show me all open sales orders"
-{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT TOP 500 RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled') ORDER BY FORDDATE DESC"}
+{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled') ORDER BY FORDDATE DESC"}
 
 User: "How many POs did we place this month?"
 {"explanation":"Here is the count of purchase orders created so far this month.","sql":"SELECT COUNT(*) AS \"PO Count\" FROM POMAST WHERE FORDDATE >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)"}
@@ -420,7 +420,7 @@ The COMPLETE database schema is provided in the first message of the conversatio
 
 <query_rules>
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
-2. Always use TOP 500 to limit results unless the user asks for a count/aggregate.
+2. Do NOT add a TOP limit by default. Return ALL matching rows. Only add a TOP clause if the user explicitly asks for "top N", "first N", or a sample. Aggregates (COUNT/SUM/AVG) still do not use TOP.
 3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name.
    Examples: NCR AS "NCR Number", Status AS "Status", NCR_Date AS "Date Reported"
    - Every column in every SELECT must have an AS alias with a friendly name.
@@ -453,7 +453,7 @@ Key column corrections (common mistakes to avoid):
 
 <examples>
 User: "Show me all open non-conformance reports"
-{"explanation":"Here are all currently open NCRs, showing the NCR number, status, date reported, customer, and description.","sql":"SELECT TOP 500 NCR AS \"NCR Number\", Status AS \"Status\", NCR_Date AS \"Date Reported\", Customer AS \"Customer\", Description AS \"Description\" FROM PT_NC WHERE Status NOT IN ('Closed', 'Void') ORDER BY NCR_Date DESC"}
+{"explanation":"Here are all currently open NCRs, showing the NCR number, status, date reported, customer, and description.","sql":"SELECT NCR AS \"NCR Number\", Status AS \"Status\", NCR_Date AS \"Date Reported\", Customer AS \"Customer\", Description AS \"Description\" FROM PT_NC WHERE Status NOT IN ('Closed', 'Void') ORDER BY NCR_Date DESC"}
 
 User: "How many inspections were done this month?"
 {"explanation":"Here is the count of inspections recorded so far this month.","sql":"SELECT COUNT(*) AS \"Inspection Count\" FROM PT_Inspection WHERE InspectionDate >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)"}
@@ -461,40 +461,6 @@ User: "How many inspections were done this month?"
 User: "What is a CPA?"
 {"explanation":"A CPA (Corrective/Preventive Action) is a formal response to a quality issue. In UniPoint, CPAs are tracked in the PT_CPA table. Each CPA is linked to one or more Non-Conformance Reports (NCRs) via the CPA_No field on PT_NC. CPAs document the root cause, corrective action taken, preventive measures, and verification steps. You can ask me to look up specific CPAs or find all CPAs for a given customer or vendor.","sql":""}
 </examples>`;
-
-// ---------------------------------------------------------------------------
-// Admin variants — admins are not row-capped, so the prompt is rewritten to
-// drop the TOP 500 rule and update the canonical example. Built once at module
-// load so the variant string is stable and gets its own prompt-cache entry.
-// ---------------------------------------------------------------------------
-const ADMIN_EMAILS = new Set([
-  'anthony.jimenez@macproducts.net',
-  'juan.ortiz@macproducts.net',
-  'jerson.fulgencio@macproducts.net',
-]);
-
-function isAdminEmail(email) {
-  return !!email && ADMIN_EMAILS.has(email.toLowerCase());
-}
-
-function makeAdminInstructions(baseInstructions) {
-  return baseInstructions
-    .replace(
-      'Always use TOP 500 to limit results unless the user asks for a count/aggregate.',
-      'Do NOT add a TOP limit by default. Return ALL matching rows. Only add a TOP clause if the user explicitly asks for "top N", "first N", or a sample. Aggregates (COUNT/SUM/AVG) still do not use TOP.'
-    )
-    .replace(
-      /SELECT TOP 500 RTRIM\(FSONO\)/,
-      'SELECT RTRIM(FSONO)'
-    )
-    .replace(
-      /SELECT TOP 500 NCR AS/,
-      'SELECT NCR AS'
-    );
-}
-
-const M2M_ADMIN_INSTRUCTIONS = makeAdminInstructions(M2M_STATIC_INSTRUCTIONS);
-const UNIPOINT_ADMIN_INSTRUCTIONS = makeAdminInstructions(UNIPOINT_STATIC_INSTRUCTIONS);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1300,11 +1266,9 @@ module.exports = async function (context, req) {
     }
 
     // Pick connection string and system prompt based on requested database.
-    // Admins get a variant of the prompt with the TOP 500 row cap removed.
     const { database } = req.body || {};
-    const requesterIsAdmin = isAdminEmail(req.body?.userEmail);
     let connString;
-    let activeStaticInstructions = requesterIsAdmin ? M2M_ADMIN_INSTRUCTIONS : M2M_STATIC_INSTRUCTIONS;
+    let activeStaticInstructions = M2M_STATIC_INSTRUCTIONS;
     let activeSchema = M2M_SCHEMA;
     let activeSchemaTOC = M2M_SCHEMA_TOC;
     if (database === 'm2mdata66') {
@@ -1315,7 +1279,7 @@ module.exports = async function (context, req) {
       }
     } else if (database === 'unipoint_live') {
       connString = process.env.UNIPOINT_CONNECTION_STRING;
-      activeStaticInstructions = requesterIsAdmin ? UNIPOINT_ADMIN_INSTRUCTIONS : UNIPOINT_STATIC_INSTRUCTIONS;
+      activeStaticInstructions = UNIPOINT_STATIC_INSTRUCTIONS;
       activeSchema = UNIPOINT_SCHEMA;
       activeSchemaTOC = UNIPOINT_SCHEMA_TOC;
       if (!connString) {
