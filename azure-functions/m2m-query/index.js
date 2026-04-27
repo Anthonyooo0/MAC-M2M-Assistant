@@ -780,6 +780,52 @@ function extractClaudeTokenUsage(claudeResponse) {
   };
 }
 
+// Best-effort parser: given a SELECT SQL string, return a map of
+// column-alias -> { expression, tables } so the UI can show the user
+// what real source field each result column came from.
+// Tolerates RTRIM, AS aliases (quoted or bare), JOINs, and TOP N.
+function parseColumnSources(sqlQuery) {
+  if (!sqlQuery || typeof sqlQuery !== 'string') return null;
+  // Find SELECT ... FROM ... (everything before WHERE/GROUP/ORDER/HAVING)
+  const m = sqlQuery.match(/^\s*(?:WITH[\s\S]+?\s+)?SELECT\s+(?:DISTINCT\s+)?(?:TOP\s+\d+\s+)?([\s\S]*?)\s+FROM\s+([\s\S]+?)(?:\s+WHERE\b|\s+GROUP\s+BY\b|\s+ORDER\s+BY\b|\s+HAVING\b|\s*;?\s*$)/i);
+  if (!m) return null;
+  const selectClause = m[1];
+  const fromClause = m[2];
+
+  // Tables from FROM + every JOIN
+  const tableSet = new Set();
+  const firstTable = fromClause.match(/^\s*(\w+)/);
+  if (firstTable) tableSet.add(firstTable[1].toUpperCase());
+  for (const jm of fromClause.matchAll(/\bJOIN\s+(\w+)/gi)) tableSet.add(jm[1].toUpperCase());
+  const tables = [...tableSet];
+
+  // Split SELECT items by top-level commas (respecting parens + double-quoted aliases)
+  const items = [];
+  let depth = 0, inStr = false, buf = '';
+  for (let i = 0; i < selectClause.length; i++) {
+    const ch = selectClause[i];
+    if (ch === '"' && selectClause[i - 1] !== '\\') inStr = !inStr;
+    if (!inStr) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) { items.push(buf.trim()); buf = ''; continue; }
+    }
+    buf += ch;
+  }
+  if (buf.trim()) items.push(buf.trim());
+
+  const sources = {};
+  for (const item of items) {
+    const aliasMatch = item.match(/^([\s\S]*?)\s+AS\s+"([^"]+)"\s*$/i)
+      || item.match(/^([\s\S]*?)\s+AS\s+(\w+)\s*$/i);
+    if (!aliasMatch) continue;
+    const expr = aliasMatch[1].trim();
+    const alias = aliasMatch[2];
+    sources[alias] = { expression: expr, tables };
+  }
+  return Object.keys(sources).length ? sources : null;
+}
+
 function cleanSqlQuery(sqlQuery) {
   // Strip SQL comments
   let cleaned = sqlQuery
@@ -1743,6 +1789,7 @@ module.exports = async function (context, req) {
         explanation,
         sql: sqlQuery,
         columns,
+        columnSources: parseColumnSources(sqlQuery),
         rows: result.recordset,
         rowCount: result.recordset.length,
         _requestId: requestId,

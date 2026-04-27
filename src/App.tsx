@@ -20,6 +20,7 @@ interface Message {
   content: string;
   sql?: string;
   columns?: string[];
+  columnSources?: Record<string, { expression: string; tables: string[] }> | null;
   rows?: Record<string, any>[];
   rowCount?: number;
   error?: string;
@@ -416,6 +417,7 @@ function App() {
         content,
         sql: data.sql,
         columns: data.columns,
+        columnSources: data.columnSources,
         rows: data.rows,
         rowCount: data.rowCount,
         error: data.error,
@@ -934,7 +936,7 @@ function App() {
                     <div key={msg.id}>
                       <ChatMessage message={msg} logo={activeCompany.logo} isAdmin={isAdmin} onFeedback={handleFeedback} />
                       {msg.role === 'assistant' && !msg.loading && !msg.error && msg.rows && msg.columns && (
-                        <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} />
+                        <ResultsTable columns={msg.columns} rows={msg.rows} sql={msg.sql || ''} columnSources={msg.columnSources || undefined} />
                       )}
                     </div>
                   ))}

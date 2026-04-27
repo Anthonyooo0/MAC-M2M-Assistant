@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 
+export interface ColumnSource {
+  expression: string;
+  tables: string[];
+}
+
 interface ResultsTableProps {
   columns: string[];
   rows: Record<string, any>[];
   sql: string;
+  columnSources?: Record<string, ColumnSource>;
 }
 
-export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows }) => {
+export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, columnSources }) => {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [search, setSearch] = useState('');
+  const [hoverCol, setHoverCol] = useState<string | null>(null);
 
   if (!columns.length || !rows.length) return null;
 
@@ -94,18 +101,41 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows }) => 
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-slate-50 z-10">
             <tr className="border-b border-slate-200">
-              {columns.map((col) => (
-                <th
-                  key={col}
-                  onClick={() => handleSort(col)}
-                  className="text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-mac-accent whitespace-nowrap select-none"
-                >
-                  {col}
-                  {sortCol === col && (
-                    <span className="ml-1">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
-                  )}
-                </th>
-              ))}
+              {columns.map((col) => {
+                const src = columnSources?.[col];
+                return (
+                  <th
+                    key={col}
+                    onClick={() => handleSort(col)}
+                    onMouseEnter={() => setHoverCol(col)}
+                    onMouseLeave={() => setHoverCol(c => c === col ? null : c)}
+                    className="relative text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-mac-accent whitespace-nowrap select-none"
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col}
+                      {src && (
+                        <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      )}
+                    </span>
+                    {sortCol === col && (
+                      <span className="ml-1">{sortDir === 'asc' ? '▲' : '▼'}</span>
+                    )}
+                    {hoverCol === col && src && (
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute left-2 top-full mt-1 z-20 w-72 px-3 py-2 bg-mac-navy text-white rounded-lg shadow-xl normal-case tracking-normal"
+                      >
+                        <div className="text-[9px] font-bold text-blue-200 uppercase tracking-wider mb-0.5">Source field</div>
+                        <div className="text-xs font-mono break-all mb-2">{src.expression}</div>
+                        <div className="text-[9px] font-bold text-blue-200 uppercase tracking-wider mb-0.5">From table{src.tables.length > 1 ? 's' : ''}</div>
+                        <div className="text-xs font-mono break-all">{src.tables.join(', ')}</div>
+                      </div>
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
