@@ -649,6 +649,92 @@ function parseGeminiResponse(geminiData) {
 // ---------------------------------------------------------------------------
 
 const CLAUDE_SONNET_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_HAIKU_MODEL = 'claude-haiku-4-5';
+
+// Clarifier triage prompt — tiny, runs before SQL generation. The aim is
+// catching genuinely ambiguous questions ("show me orders") and asking ONE
+// targeted follow-up instead of guessing. Bias is toward proceeding when in
+// doubt — we'd rather generate slightly-wrong SQL than over-interrogate.
+const CLARIFIER_SYSTEM = `You are a fast triage agent for the MAC Products M2M Assistant — a tool that turns natural-language questions into SQL against an ERP database.
+
+Your only job: decide whether the user's question is specific enough to generate a useful SQL query, OR whether it's so vague that asking ONE quick clarifying question would save everyone time.
+
+Bias STRONGLY toward proceeding. Only ask for clarification when the question is genuinely useless as-is. If the user's wording is reasonable, even if not perfect, return ok=true.
+
+EXAMPLES THAT NEED CLARIFICATION:
+- "show me orders" → which orders? open/closed/all? what time range?
+- "find that part" → which part number?
+- "how is it doing?" → which thing?
+- "the late ones" (with no prior context) → late what?
+
+EXAMPLES THAT DO NOT NEED CLARIFICATION (proceed):
+- "show me all open sales orders" — clear (open=status filter)
+- "how many POs this month" — clear (this month=time filter)
+- "list raw materials" — clear (jargon resolves via glossary)
+- "what's on hand for part 12345" — clear
+- "show wabtec orders" — clear
+- "explain the FSTATUS field" — clear (informational)
+- Any question that references a specific number, customer, vendor, date range, or status
+
+If the user has a conversation history, USE IT — pronouns/follow-ups like "now show me the late ones" or "just for last month" are clear if the prior turn established the topic.
+
+Output strict JSON, no markdown:
+- {"ok": true} — proceed to SQL generation
+- {"ok": false, "question": "<one short clarifying question>"} — ask the user
+
+Keep clarifying questions to ONE sentence, ~15 words max, friendly tone.`;
+
+// Run the clarifier pass. Returns { ok: true } to proceed, or
+// { ok: false, question } to ask the user instead. Best-effort: any error
+// (timeout, parse failure, missing key) returns { ok: true } so the main
+// flow continues. Cost: ~300 input + ~30 output tokens on Haiku ≈ $0.0005.
+async function runClarifier(userMessage, history) {
+  const client = getAnthropicClient();
+  if (!client) return { ok: true }; // No client → skip clarifier
+
+  // Trim history to last 4 turns to keep clarifier prompt small
+  const recentHistory = Array.isArray(history) ? history.slice(-4) : [];
+  const historyContext = recentHistory.length > 0
+    ? '\n\nRecent conversation:\n' + recentHistory.map(t => `${t.role === 'user' ? 'User' : 'Assistant'}: ${t.content}`).join('\n')
+    : '';
+
+  const userTurn = `Question: ${userMessage}${historyContext}`;
+
+  try {
+    const timeoutMs = 4000;
+    const callPromise = client.messages.create({
+      model: CLAUDE_HAIKU_MODEL,
+      max_tokens: 200,
+      temperature: 0,
+      system: CLARIFIER_SYSTEM,
+      messages: [{ role: 'user', content: userTurn }],
+    });
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('clarifier timeout')), timeoutMs)
+    );
+    const response = await Promise.race([callPromise, timeoutPromise]);
+
+    const textBlock = response.content?.find(b => b.type === 'text');
+    const text = textBlock?.text?.trim() || '';
+    const cleaned = text
+      .replace(/^﻿/, '')
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+    const parsed = JSON.parse(cleaned);
+    if (parsed && parsed.ok === false && typeof parsed.question === 'string' && parsed.question.trim()) {
+      return {
+        ok: false,
+        question: parsed.question.trim(),
+        usage: response.usage || { input_tokens: 0, output_tokens: 0 },
+      };
+    }
+    return { ok: true, usage: response.usage || { input_tokens: 0, output_tokens: 0 } };
+  } catch (_e) {
+    return { ok: true }; // Fail open — never block the user on clarifier issues
+  }
+}
 
 // Lazy-initialized Anthropic client (reused across invocations)
 let anthropicClient = null;
@@ -1323,6 +1409,36 @@ module.exports = async function (context, req) {
     const userMessageText = isBuilderMode
       ? composeBuilderMessage(builder, message)
       : scrubPII(message.trim());
+
+    // Clarifier pass — only for chat mode. Catches genuinely vague questions
+    // ("show me orders") and asks ONE follow-up instead of guessing. Builder
+    // mode is already structured so it skips this.
+    if (!isBuilderMode) {
+      const clarifier = await runClarifier(userMessageText, history);
+      if (clarifier && clarifier.usage) {
+        totalInputTokens += clarifier.usage.input_tokens || 0;
+        totalOutputTokens += clarifier.usage.output_tokens || 0;
+        geminiCalls++;
+      }
+      if (clarifier && clarifier.ok === false && clarifier.question) {
+        const modelProvider = useClaudeModel ? 'claude' : 'gemini';
+        context.res = {
+          status: 200,
+          headers: CORS,
+          body: JSON.stringify({
+            explanation: clarifier.question,
+            sql: '',
+            columns: [],
+            rows: [],
+            rowCount: 0,
+            _requestId: requestId,
+            _clarifier: true,
+            _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider, confidence: 1.0 },
+          }),
+        };
+        return;
+      }
+    }
 
     geminiMessages.push({ role: 'user', parts: [{ text: userMessageText }] });
     claudeMessages.push({ role: 'user', content: userMessageText });
