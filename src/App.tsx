@@ -146,45 +146,54 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Tracks whether the initial sessions fetch failed after all retries — when
+  // true the sidebar shows "Reconnecting…" instead of "No saved chats yet".
+  const [sessionsLoadFailed, setSessionsLoadFailed] = useState(false);
+
   // Load sessions when user logs in, then mark app as ready.
-  // Retries once on failure to handle race conditions with MSAL auth.
+  // Azure Function cold-start can take 5-15s; retry up to 3 times with
+  // exponential backoff (2s, 5s, 10s) so a cold function doesn't show
+  // a misleading empty state.
   useEffect(() => {
     if (!currentUser || !chatHistoryEnabled) {
       if (currentUser) setAppReady(true);
       return;
     }
     let cancelled = false;
-    const fetchSessions = async () => {
+    const url = `${CHAT_SESSIONS_URL}&userEmail=${encodeURIComponent(currentUser)}${adminMode && isAdmin ? '&admin=true' : ''}`;
+    const delays = [0, 2000, 5000, 10000]; // 4 attempts total
+
+    const tryFetch = async (attempt: number): Promise<void> => {
+      if (cancelled) return;
+      if (delays[attempt] > 0) {
+        await new Promise(r => setTimeout(r, delays[attempt]));
+        if (cancelled) return;
+      }
       try {
-        const url = `${CHAT_SESSIONS_URL}&userEmail=${encodeURIComponent(currentUser)}${adminMode && isAdmin ? '&admin=true' : ''}`;
         const res = await fetch(url);
-        if (res.ok && !cancelled) {
-          setSessions(await res.json());
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (cancelled) return;
+          setSessions(Array.isArray(data) ? data : []);
+          setSessionsLoadFailed(false);
           setAppReady(true);
-        } else if (!cancelled) {
-          // Retry once
-          setTimeout(async () => {
-            try {
-              const r2 = await fetch(url);
-              if (r2.ok && !cancelled) setSessions(await r2.json());
-            } catch (_e) { /* give up */ }
-            if (!cancelled) setAppReady(true);
-          }, 1500);
+          return;
         }
-      } catch (_e) {
-        if (!cancelled) {
-          setTimeout(async () => {
-            try {
-              const url = `${CHAT_SESSIONS_URL}&userEmail=${encodeURIComponent(currentUser)}`;
-              const r2 = await fetch(url);
-              if (r2.ok && !cancelled) setSessions(await r2.json());
-            } catch (_e2) { /* give up */ }
-            if (!cancelled) setAppReady(true);
-          }, 1500);
-        }
+      } catch (_e) { /* fall through to retry */ }
+
+      if (attempt + 1 < delays.length) {
+        return tryFetch(attempt + 1);
+      }
+      // Out of retries — surface the failure so UI can prompt a reconnect
+      if (!cancelled) {
+        setSessionsLoadFailed(true);
+        setAppReady(true);
       }
     };
-    fetchSessions();
+
+    setSessionsLoadFailed(false);
+    tryFetch(0);
     return () => { cancelled = true; };
   }, [currentUser]);
 
@@ -204,9 +213,13 @@ function App() {
       if (res.ok) {
         const data = await res.json();
         setSessions(data);
+        setSessionsLoadFailed(false);
+      } else {
+        setSessionsLoadFailed(true);
       }
     } catch (err) {
       console.error('Failed to load sessions:', err);
+      setSessionsLoadFailed(true);
     } finally {
       setLoadingSessions(false);
     }
@@ -718,8 +731,24 @@ function App() {
                 </div>
               </div>
             ))}
-            {!loadingSessions && sessions.length === 0 && (
+            {!loadingSessions && sessions.length === 0 && !sessionsLoadFailed && (
               <div className="px-4 py-3 text-xs text-blue-300/30 text-center">No saved chats yet</div>
+            )}
+            {!loadingSessions && sessions.length === 0 && sessionsLoadFailed && (
+              <div className="px-4 py-3 text-center space-y-2">
+                <div className="flex items-center justify-center gap-2 text-xs text-yellow-300/70">
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Reconnecting...
+                </div>
+                <button
+                  onClick={() => loadSessions()}
+                  className="text-[10px] text-blue-200 hover:text-white underline"
+                >
+                  Retry now
+                </button>
+              </div>
             )}
           </div>
         )}
