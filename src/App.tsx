@@ -554,7 +554,7 @@ function App() {
       const email = accounts[0].username?.toLowerCase() || '';
       if (!ALLOWED_DOMAINS.some(domain => email.endsWith(`@${domain}`))) {
         return (
-          <div className="flex h-screen items-center justify-center bg-mac-light">
+          <div className="flex h-screen items-center justify-center bg-mauve-2">
             <div className="text-center">
               <p className="text-red-600 font-bold">Access denied. Only @macproducts.net and @macimpulse.net accounts allowed.</p>
               <button onClick={handleLogout} className="mt-4 px-4 py-2 bg-mac-navy text-white rounded-lg">Sign Out</button>
@@ -572,13 +572,13 @@ function App() {
 
   if (MAINTENANCE_MODE && !MAINTENANCE_BYPASS.includes(currentUser || '')) {
     return (
-      <div className="flex h-screen items-center justify-center bg-mac-light">
+      <div className="flex h-screen items-center justify-center bg-mauve-2">
         <div className="text-center max-w-md">
           <div className="w-20 h-20 mx-auto mb-6">
             <img src="/mac_logo.png" alt="MAC Products" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-3">Scheduled Maintenance</h1>
-          <p className="text-slate-500 text-sm leading-relaxed mb-6">
+          <h1 className="text-2xl font-bold text-mauve-12 mb-3">Scheduled Maintenance</h1>
+          <p className="text-mauve-11 text-sm leading-relaxed mb-6">
             The M2M Assistant is currently undergoing maintenance and upgrades.
             The system will be back online shortly. Thank you for your patience.
           </p>
@@ -600,20 +600,20 @@ function App() {
             <img src="/mac_logo.png" alt="MAC Products" className="w-full h-full object-contain" />
           </div>
           <div className="flex justify-center mb-4">
-            <div className="w-8 h-8 border-4 border-slate-200 border-t-mac-navy rounded-full animate-spin"></div>
+            <div className="w-8 h-8 border-4 border-mauve-6 border-t-mac-navy rounded-full animate-spin"></div>
           </div>
-          <p className="text-slate-500 text-sm font-medium tracking-wide">Loading your workspace...</p>
+          <p className="text-mauve-11 text-sm font-medium tracking-wide">Loading your workspace...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-mac-light font-sans">
+    <div className="flex h-screen overflow-hidden bg-mauve-2 font-sans">
       {/* Sidebar */}
       <aside className={`sidebar flex flex-col ${sidebarCollapsed ? 'w-16' : 'w-64'} transition-all duration-300 flex-shrink-0 text-white`}>
         {/* Logo */}
-        <div className="p-4 border-b border-white/10">
+        <div className="p-4 border-b border-mauve-12">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 flex items-center justify-center flex-shrink-0 bg-white rounded-lg p-1">
               <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain" />
@@ -621,7 +621,7 @@ function App() {
             {!sidebarCollapsed && (
               <div className="overflow-hidden">
                 <h1 className="font-bold text-sm truncate uppercase">M2M Assistant</h1>
-                <p className="text-blue-200 text-[10px] truncate uppercase font-bold tracking-tighter">
+                <p className="text-mauve-7 text-[10px] truncate uppercase font-bold tracking-tighter">
                   {currentUser}
                 </p>
               </div>
@@ -633,7 +633,7 @@ function App() {
         <div className="p-3">
           <button
             onClick={handleNewChat}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-all border border-white/10"
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-mauve-7 hover:text-white hover:bg-mauve-11/40 rounded-lg transition-all border border-mauve-12"
           >
             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -646,7 +646,7 @@ function App() {
         {!sidebarCollapsed && chatHistoryEnabled && (
           <div className="flex-1 overflow-y-auto px-2 space-y-0.5">
             <div className="px-3 py-2 flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300/50">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-11">
                 {adminMode ? 'All Users\' Chats' : 'Recent Chats'}
               </span>
               {isAdmin && (
@@ -659,7 +659,7 @@ function App() {
                   className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded transition-all ${
                     adminMode
                       ? 'bg-yellow-500/20 text-yellow-300'
-                      : 'text-blue-300/40 hover:text-blue-200'
+                      : 'text-mauve-11 hover:text-mauve-7'
                   }`}
                   title={adminMode ? 'Switch to My Chats' : 'View All Users'}
                 >
@@ -668,15 +668,15 @@ function App() {
               )}
             </div>
             {loadingSessions && (
-              <div className="px-4 py-2 text-xs text-blue-300/50">Loading...</div>
+              <div className="px-4 py-2 text-xs text-mauve-11">Loading...</div>
             )}
             {sessions.map(session => (
               <div
                 key={session.id}
                 className={`group flex items-center gap-1 px-3 py-2.5 rounded-lg cursor-pointer transition-all ${
                   session.id === activeSessionId
-                    ? 'bg-white/10 text-white'
-                    : 'text-blue-200 hover:text-white hover:bg-white/5'
+                    ? 'bg-mauve-11/40 text-white'
+                    : 'text-mauve-7 hover:text-white hover:bg-mauve-11/30'
                 }`}
                 onClick={() => handleSelectSession(session)}
               >
@@ -690,14 +690,14 @@ function App() {
                     onChange={(e) => setEditTitle(e.target.value)}
                     onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
                     onBlur={() => renameSession(session.id, editTitle)}
-                    className="flex-1 bg-white/10 text-white text-xs px-2 py-1 rounded outline-none min-w-0"
+                    className="flex-1 bg-mauve-11/40 text-white text-xs px-2 py-1 rounded outline-none min-w-0"
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
                   <div className="flex-1 min-w-0">
                     <span className="text-xs truncate block">{session.title}</span>
                     {adminMode && session.user_email && (
-                      <span className="text-[9px] text-blue-300/40 truncate block">{session.user_email.split('@')[0]}</span>
+                      <span className="text-[9px] text-mauve-11 truncate block">{session.user_email.split('@')[0]}</span>
                     )}
                   </div>
                 )}
@@ -709,7 +709,7 @@ function App() {
                       setEditingSessionId(session.id);
                       setEditTitle(session.title);
                     }}
-                    className="p-1 hover:bg-white/10 rounded"
+                    className="p-1 hover:bg-mauve-11/40 rounded"
                     title="Rename"
                   >
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -732,7 +732,7 @@ function App() {
               </div>
             ))}
             {!loadingSessions && sessions.length === 0 && !sessionsLoadFailed && (
-              <div className="px-4 py-3 text-xs text-blue-300/30 text-center">No saved chats yet</div>
+              <div className="px-4 py-3 text-xs text-mauve-9 text-center">No saved chats yet</div>
             )}
             {!loadingSessions && sessions.length === 0 && sessionsLoadFailed && (
               <div className="px-4 py-3 text-center space-y-2">
@@ -744,7 +744,7 @@ function App() {
                 </div>
                 <button
                   onClick={() => loadSessions()}
-                  className="text-[10px] text-blue-200 hover:text-white underline"
+                  className="text-[10px] text-mauve-7 hover:text-white underline"
                 >
                   Retry now
                 </button>
@@ -756,7 +756,7 @@ function App() {
         {/* Fallback if no chat history — just show active chat button */}
         {(!chatHistoryEnabled || sidebarCollapsed) && (
           <div className="flex-1 px-2">
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-sm nav-active text-white bg-white/10 rounded-lg">
+            <button className="w-full flex items-center gap-3 px-4 py-3 text-sm nav-active text-white bg-mauve-11/40 rounded-lg">
               <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
@@ -772,8 +772,8 @@ function App() {
               onClick={() => setViewMode(viewMode === 'admin' ? 'chat' : 'admin')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-lg transition-all ${
                 viewMode === 'admin'
-                  ? 'nav-active text-white bg-white/10'
-                  : 'text-blue-200 hover:text-white hover:bg-white/5'
+                  ? 'nav-active text-white bg-mauve-11/40'
+                  : 'text-mauve-7 hover:text-white hover:bg-mauve-11/30'
               }`}
             >
               <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -785,8 +785,8 @@ function App() {
               onClick={() => setViewMode(viewMode === 'costs' ? 'chat' : 'costs')}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-lg transition-all ${
                 viewMode === 'costs'
-                  ? 'nav-active text-white bg-white/10'
-                  : 'text-blue-200 hover:text-white hover:bg-white/5'
+                  ? 'nav-active text-white bg-mauve-11/40'
+                  : 'text-mauve-7 hover:text-white hover:bg-mauve-11/30'
               }`}
             >
               <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -800,15 +800,15 @@ function App() {
         {/* Version tag */}
         {!sidebarCollapsed && (
           <div className="px-4 py-2 text-center">
-            <span className="text-[10px] font-mono text-blue-300/50">V1.3.0</span>
+            <span className="text-[10px] font-mono text-mauve-11">V1.3.0</span>
           </div>
         )}
 
         {/* Sign out */}
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-mauve-12">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-blue-200 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-mauve-7 hover:text-white hover:bg-mauve-11/30 rounded-lg transition-all"
           >
             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -818,10 +818,10 @@ function App() {
         </div>
 
         {/* Collapse toggle */}
-        <div className="p-2 border-t border-white/10">
+        <div className="p-2 border-t border-mauve-12">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="w-full flex items-center justify-center py-2 text-blue-300/50 hover:text-white transition-colors"
+            className="w-full flex items-center justify-center py-2 text-mauve-11 hover:text-white transition-colors"
           >
             <svg className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -833,18 +833,18 @@ function App() {
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <header className="bg-white border-b border-mauve-6 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">
+              <h2 className="text-xl font-bold text-mauve-12">
                 {viewMode === 'admin' ? 'Admin Dashboard' : viewMode === 'costs' ? 'API Costs' : 'M2M Assistant'}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-mauve-9">
                 {viewMode === 'admin' ? 'View all user sessions and SQL queries' : viewMode === 'costs' ? 'API usage and cost tracking' : 'Ask questions about your M2M ERP data in plain English'}
               </p>
             </div>
             {userCompanies.length > 1 && (
-              <div className="flex bg-slate-100 rounded-lg p-1">
+              <div className="flex bg-mauve-3 rounded-lg p-1">
                 {userCompanies.map(company => {
                   const hasMessages = messages.length > 0;
                   const isActive = company.id === activeCompanyId;
@@ -863,8 +863,8 @@ function App() {
                       isActive
                         ? 'bg-white text-mac-navy shadow-sm'
                         : isLocked
-                          ? 'text-slate-300 cursor-not-allowed'
-                          : 'text-slate-400 hover:text-slate-600'
+                          ? 'text-mauve-7 cursor-not-allowed'
+                          : 'text-mauve-9 hover:text-mauve-11'
                     }`}
                   >
                     <img src={company.logo} alt={company.shortName} className="w-5 h-5 object-contain" />
@@ -882,13 +882,13 @@ function App() {
               </span>
             )}
             {/* Model toggle — hidden for now, defaulting to Claude Sonnet */}
-            {/* <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+            {/* <div className="flex items-center bg-mauve-3 rounded-lg p-0.5">
               <button
                 onClick={() => setSelectedModel('gemini-pro')}
                 className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
                   selectedModel === 'gemini-pro'
                     ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-600'
+                    : 'text-mauve-9 hover:text-mauve-11'
                 }`}
               >
                 Gemini 3.1
@@ -898,13 +898,13 @@ function App() {
                 className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
                   selectedModel === 'claude-sonnet'
                     ? 'bg-white text-orange-700 shadow-sm'
-                    : 'text-slate-400 hover:text-slate-600'
+                    : 'text-mauve-9 hover:text-mauve-11'
                 }`}
               >
                 Claude Sonnet
               </button>
             </div> */}
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Powered by Claude Sonnet</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-9">Powered by Claude Sonnet</span>
           </div>
         </header>
 
@@ -931,8 +931,8 @@ function App() {
                   <div className="w-16 h-16 mb-4">
                     <img src={activeCompany.logo} alt={activeCompany.name} className="w-full h-full object-contain opacity-20" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-400 mb-2">What would you like to know?</h3>
-                  <p className="text-sm text-slate-400 max-w-md mb-8">
+                  <h3 className="text-lg font-bold text-mauve-9 mb-2">What would you like to know?</h3>
+                  <p className="text-sm text-mauve-9 max-w-md mb-8">
                     {activeCompany.id === 'unipoint'
                       ? 'Ask me anything about UniPoint quality data — inspections, NCRs, corrective actions, equipment, and more.'
                       : 'Ask me anything about M2M data — sales orders, jobs, inventory, purchase orders, customers, and more.'}
@@ -952,7 +952,7 @@ function App() {
                       <button
                         key={suggestion}
                         onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
-                        className="text-left p-3 bg-white rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-mac-accent hover:text-mac-accent transition-all"
+                        className="text-left p-3 bg-white rounded-lg border border-mauve-6 text-sm text-mauve-11 hover:border-mac-accent hover:text-mac-navy transition-all"
                       >
                         {suggestion}
                       </button>
@@ -975,17 +975,17 @@ function App() {
             </div>
 
             {/* Input area */}
-            <div className="border-t border-slate-200 bg-white px-6 py-4">
+            <div className="border-t border-mauve-6 bg-white px-6 py-4">
               <div className="max-w-4xl mx-auto">
                 {/* Mode toggle */}
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex bg-slate-100 rounded-lg p-0.5">
+                  <div className="flex bg-mauve-3 rounded-lg p-0.5">
                     <button
                       onClick={() => setInputMode('chat')}
                       className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
                         inputMode === 'chat'
                           ? 'bg-white text-mac-navy shadow-sm'
-                          : 'text-slate-400 hover:text-slate-600'
+                          : 'text-mauve-9 hover:text-mauve-11'
                       }`}
                     >
                       Chat
@@ -997,13 +997,13 @@ function App() {
                       className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         inputMode === 'builder'
                           ? 'bg-white text-mac-navy shadow-sm'
-                          : 'text-slate-400 hover:text-slate-600'
+                          : 'text-mauve-9 hover:text-mauve-11'
                       }`}
                     >
                       Query Builder
                     </button>
                   </div>
-                  <span className="text-[10px] text-slate-400 italic">
+                  <span className="text-[10px] text-mauve-9 italic">
                     {inputMode === 'chat'
                       ? 'Ask in plain English.'
                       : 'Pick the data sources and fields you want.'}
@@ -1019,14 +1019,14 @@ function App() {
                       onKeyDown={handleKeyDown}
                       placeholder="Ask about M2M data... (Enter to send, Shift+Enter for new line)"
                       rows={1}
-                      className="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none resize-none text-sm"
+                      className="flex-1 px-4 py-3 rounded-lg border border-mauve-7 focus:border-mauve-8 focus:ring-0 outline-none resize-none text-sm"
                       style={{ minHeight: '48px', maxHeight: '120px' }}
                       disabled={isLoading}
                     />
                     <button
                       onClick={handleSend}
                       disabled={isLoading || !input.trim()}
-                      className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-xl text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-lg text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

@@ -28,11 +28,11 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
         <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
           <img src={logo} alt="MAC" className="w-8 h-8 object-contain" />
         </div>
-        <div className="bg-white rounded-xl px-4 py-3 border border-slate-200 shadow-sm">
+        <div className="bg-white rounded-lg px-4 py-3 border border-mauve-6 shadow-sm">
           <div className="flex gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-mac-accent typing-dot" />
-            <div className="w-2 h-2 rounded-full bg-mac-accent typing-dot" />
-            <div className="w-2 h-2 rounded-full bg-mac-accent typing-dot" />
+            <div className="w-2 h-2 rounded-full bg-mac-navy typing-dot" />
+            <div className="w-2 h-2 rounded-full bg-mac-navy typing-dot" />
+            <div className="w-2 h-2 rounded-full bg-mac-navy typing-dot" />
           </div>
         </div>
       </div>
@@ -42,7 +42,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
   return (
     <div className={`flex gap-3 view-transition ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-8 h-8 flex items-center justify-center flex-shrink-0 ${
-        isUser ? 'bg-mac-accent rounded-full' : ''
+        isUser ? 'bg-mac-navy rounded-full' : ''
       }`}>
         {isUser ? (
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,12 +54,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
       </div>
 
       <div className={`max-w-[80%] ${isUser ? 'text-right' : ''}`}>
-        <div className={`inline-block rounded-xl px-4 py-3 text-sm ${
+        <div className={`inline-block rounded-lg px-4 py-3 text-sm ${
           isUser
             ? 'bg-mac-navy text-white'
             : message.error
               ? 'bg-red-50 border border-red-200 text-red-700'
-              : 'bg-white border border-slate-200 text-slate-700 shadow-sm'
+              : 'bg-white border border-mauve-6 text-mauve-12 shadow-sm'
         }`}>
           {/* Admin error diagnostics: render with monospace formatting */}
           {message.error && isAdmin && message.content.includes('\n') ? (
@@ -77,7 +77,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
             <span className="px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded text-[9px] font-bold uppercase tracking-wider">
               Admin
             </span>
-            <span className="text-[9px] text-slate-400">{message.adminSender.split('@')[0]}</span>
+            <span className="text-[9px] text-mauve-9">{message.adminSender.split('@')[0]}</span>
           </div>
         )}
 
@@ -87,7 +87,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
             <span className="text-[9px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded">
               ${message.cost.cost.toFixed(6)}
             </span>
-            <span className="text-[9px] text-slate-400">
+            <span className="text-[9px] text-mauve-9">
               {message.cost.inputTokens.toLocaleString()}in / {message.cost.outputTokens.toLocaleString()}out
             </span>
             {message.cost.calls > 1 && (
@@ -100,10 +100,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
         {message.sql && !message.error && (
           <div className="mt-2">
             <details className="group">
-              <summary className="text-[10px] text-slate-400 cursor-pointer hover:text-mac-accent font-bold uppercase tracking-wider">
+              <summary className="text-[10px] text-mauve-9 cursor-pointer hover:text-mac-navy font-bold uppercase tracking-wider">
                 View SQL Query
               </summary>
-              <pre className="mt-1 p-3 bg-slate-900 text-green-400 rounded-lg text-xs overflow-x-auto font-mono">
+              <pre className="mt-1 p-3 bg-mauve-12 text-green-400 rounded-lg text-xs overflow-x-auto font-mono">
                 {message.sql}
               </pre>
             </details>
@@ -114,15 +114,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
         {!isUser && !message.loading && !message.error && message.sql && onFeedback && (
           <div className="mt-2 flex items-center gap-1">
             {message.feedback ? (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-mauve-9">
                 {message.feedback === 'good' ? 'Marked helpful' : 'Marked unhelpful'}
               </span>
             ) : (
               <>
-                <span className="text-[10px] text-slate-400 mr-1">Was this helpful?</span>
+                <span className="text-[10px] text-mauve-9 mr-1">Was this helpful?</span>
                 <button
                   onClick={() => onFeedback(message.id, 'good')}
-                  className="p-1 rounded hover:bg-green-50 text-slate-400 hover:text-green-600 transition-colors"
+                  className="p-1 rounded hover:bg-green-50 text-mauve-9 hover:text-green-600 transition-colors"
                   title="Good result"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -131,7 +131,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, logo = '/mac_
                 </button>
                 <button
                   onClick={() => onFeedback(message.id, 'bad')}
-                  className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                  className="p-1 rounded hover:bg-red-50 text-mauve-9 hover:text-red-600 transition-colors"
                   title="Bad result"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

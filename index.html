@@ -5,47 +5,76 @@
     <link rel="icon" type="image/png" href="/mac_logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>M2M Assistant — MAC Products</title>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Geist + Geist Mono — engineering-grade typeface from Vercel.
+         Sans pairs with the mono so UUIDs/SO numbers/timestamps feel coherent. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     <script>
+      // Radix-style 12-step neutrals + brand-tinted accent (MAC navy).
+      // The mauve scale is warmer than tailwind zinc/slate — subtly more
+      // intentional, less generic. See REDESIGN_PROMPT.md for token roles.
       tailwind.config = {
         theme: {
           extend: {
             colors: {
+              mauve: {
+                1:  '#fdfcfd', 2:  '#faf9fb', 3:  '#f2eff3', 4:  '#eae7ec',
+                5:  '#e3dfe6', 6:  '#dbd8e0', 7:  '#d0cdd7', 8:  '#bcbac7',
+                9:  '#8e8c99', 10: '#84828e', 11: '#65636d', 12: '#211f26',
+              },
+              accent: {
+                1:  '#fdfdfe', 2:  '#f5f8fc', 3:  '#e9eff7', 4:  '#dbe5f2',
+                5:  '#cbd9eb', 6:  '#b8cae2', 7:  '#9eb6d6', 8:  '#7d9bc8',
+                9:  '#1a365d', 10: '#13294a', 11: '#1f4880', 12: '#10243f',
+              },
               mac: {
-                navy: '#1a365d',
-                blue: '#2c5aa0',
-                light: '#f0f4f8',
-                accent: '#3182ce',
+                navy:   '#1a365d',
+                blue:   '#2c5aa0',
+                light:  '#fdfcfd',
+                accent: '#1a365d',
               }
             },
             fontFamily: {
-              sans: ['DM Sans', 'system-ui', 'sans-serif'],
-              mono: ['Space Mono', 'monospace'],
+              sans: ['Geist', 'system-ui', 'sans-serif'],
+              mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
             }
           }
         }
       }
     </script>
     <style>
-      .sidebar {
-        background: linear-gradient(180deg, #1a365d 0%, #1e3a5f 100%);
+      body {
+        font-family: 'Geist', system-ui, sans-serif;
+        font-feature-settings: 'ss01', 'cv11';
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
+      /* Sidebar: solid near-black with mauve-cooled hairline.
+         Near-black (#0a0a0a) reads warmer than pure black, which is
+         the AI-default tell per the design research. */
+      .sidebar {
+        background: #0a0a0a;
+        border-right: 1px solid #1f1d22;
+      }
+      /* Active nav: subtle bg + thin left accent (white, not bright blue) */
       .nav-active { position: relative; }
       .nav-active::before {
         content: '';
         position: absolute;
         left: 0; top: 50%;
         transform: translateY(-50%);
-        width: 3px; height: 60%;
-        background: #3b82f6;
-        border-radius: 0 4px 4px 0;
+        width: 2px; height: 60%;
+        background: #fafafa;
+        border-radius: 0 2px 2px 0;
       }
+      table, .tabular { font-variant-numeric: tabular-nums; }
       @keyframes fadeSlide {
-        from { opacity: 0; transform: translateY(8px); }
+        from { opacity: 0; transform: translateY(4px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .view-transition { animation: fadeSlide 0.3s ease-out; }
+      .view-transition { animation: fadeSlide 0.2s ease-out; }
       @keyframes pulse-dot {
         0%, 80%, 100% { opacity: 0.3; }
         40% { opacity: 1; }

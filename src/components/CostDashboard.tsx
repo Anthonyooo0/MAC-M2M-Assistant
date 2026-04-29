@@ -74,7 +74,7 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
   if (loading && !summary) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-mac-navy rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-mauve-6 border-t-mac-navy rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -88,36 +88,36 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-xl border-l-4 border-l-mac-accent shadow-sm">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">Today</div>
-            <div className="text-2xl font-bold text-slate-800">{formatCost(summary?.today_cost || 0)}</div>
-            <div className="text-xs text-slate-400 mt-1">{summary?.today_queries || 0} queries / {summary?.today_calls || 0} API calls</div>
+          <div className="bg-white p-5 rounded-lg border border-mauve-6">
+            <div className="text-[10px] font-bold text-mauve-9 uppercase">Today</div>
+            <div className="text-2xl font-bold text-mauve-12">{formatCost(summary?.today_cost || 0)}</div>
+            <div className="text-xs text-mauve-9 mt-1">{summary?.today_queries || 0} queries / {summary?.today_calls || 0} API calls</div>
           </div>
-          <div className="bg-white p-5 rounded-xl border-l-4 border-l-blue-500 shadow-sm">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">This Week</div>
-            <div className="text-2xl font-bold text-slate-800">{formatCost(summary?.week_cost || 0)}</div>
-            <div className="text-xs text-slate-400 mt-1">{summary?.week_queries || 0} queries / {summary?.week_calls || 0} API calls</div>
+          <div className="bg-white p-5 rounded-lg border border-mauve-6">
+            <div className="text-[10px] font-bold text-mauve-9 uppercase">This Week</div>
+            <div className="text-2xl font-bold text-mauve-12">{formatCost(summary?.week_cost || 0)}</div>
+            <div className="text-xs text-mauve-9 mt-1">{summary?.week_queries || 0} queries / {summary?.week_calls || 0} API calls</div>
           </div>
-          <div className="bg-white p-5 rounded-xl border-l-4 border-l-green-500 shadow-sm">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">This Month</div>
-            <div className="text-2xl font-bold text-slate-800">{formatCost(summary?.month_cost || 0)}</div>
-            <div className="text-xs text-slate-400 mt-1">{summary?.month_queries || 0} queries / {summary?.month_calls || 0} API calls</div>
+          <div className="bg-white p-5 rounded-lg border border-mauve-6">
+            <div className="text-[10px] font-bold text-mauve-9 uppercase">This Month</div>
+            <div className="text-2xl font-bold text-mauve-12">{formatCost(summary?.month_cost || 0)}</div>
+            <div className="text-xs text-mauve-9 mt-1">{summary?.month_queries || 0} queries / {summary?.month_calls || 0} API calls</div>
           </div>
-          <div className="bg-white p-5 rounded-xl border-l-4 border-l-slate-300 shadow-sm">
-            <div className="text-[10px] font-bold text-slate-400 uppercase">All Time</div>
-            <div className="text-2xl font-bold text-slate-800">{formatCost(summary?.total_cost || 0)}</div>
-            <div className="text-xs text-slate-400 mt-1">{summary?.total_queries || 0} queries / {summary?.total_calls || 0} API calls</div>
+          <div className="bg-white p-5 rounded-lg border border-mauve-6">
+            <div className="text-[10px] font-bold text-mauve-9 uppercase">All Time</div>
+            <div className="text-2xl font-bold text-mauve-12">{formatCost(summary?.total_cost || 0)}</div>
+            <div className="text-xs text-mauve-9 mt-1">{summary?.total_queries || 0} queries / {summary?.total_calls || 0} API calls</div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+        <div className="flex gap-1 bg-mauve-3 rounded-lg p-1 w-fit">
           {(['overview', 'users', 'sessions'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${
-                activeTab === tab ? 'bg-white text-mac-navy shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                activeTab === tab ? 'bg-white text-mac-navy shadow-sm' : 'text-mauve-9 hover:text-mauve-11'
               }`}
             >
               {tab === 'overview' ? 'Overview' : tab === 'users' ? 'By User' : 'By Session'}
@@ -125,7 +125,7 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
           ))}
           <button
             onClick={loadData}
-            className="px-3 py-2 rounded-md text-sm text-slate-400 hover:text-mac-accent transition-all"
+            className="px-3 py-2 rounded-md text-sm text-mauve-9 hover:text-mac-navy transition-all"
             title="Refresh"
           >
             ↻
@@ -134,34 +134,34 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
 
         {/* By User Table */}
         {activeTab === 'users' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b bg-slate-50">
-              <h3 className="font-bold text-slate-700 text-sm">Cost by User (This Month)</h3>
+          <div className="bg-white rounded-lg border border-mauve-6 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b bg-mauve-2">
+              <h3 className="font-bold text-mauve-12 text-sm">Cost by User (This Month)</h3>
             </div>
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-mauve-2 border-b border-mauve-6">
                 <tr>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">User</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Queries</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">API Calls</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Input Tokens</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Output Tokens</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Cost</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">User</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Queries</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">API Calls</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Input Tokens</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Output Tokens</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Cost</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-mauve-4">
                 {byUser.map((u, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-slate-800">{u.user}</td>
-                    <td className="px-5 py-3 text-slate-600 font-mono text-xs">{u.queries}</td>
-                    <td className="px-5 py-3 text-slate-600 font-mono text-xs">{u.calls}</td>
-                    <td className="px-5 py-3 text-slate-600 font-mono text-xs">{formatTokens(u.input_tokens)}</td>
-                    <td className="px-5 py-3 text-slate-600 font-mono text-xs">{formatTokens(u.output_tokens)}</td>
+                  <tr key={i} className="hover:bg-mauve-2 transition-colors">
+                    <td className="px-5 py-3 font-medium text-mauve-12">{u.user}</td>
+                    <td className="px-5 py-3 text-mauve-11 font-mono text-xs">{u.queries}</td>
+                    <td className="px-5 py-3 text-mauve-11 font-mono text-xs">{u.calls}</td>
+                    <td className="px-5 py-3 text-mauve-11 font-mono text-xs">{formatTokens(u.input_tokens)}</td>
+                    <td className="px-5 py-3 text-mauve-11 font-mono text-xs">{formatTokens(u.output_tokens)}</td>
                     <td className="px-5 py-3 font-bold text-emerald-600 font-mono text-xs">{formatCost(u.cost)}</td>
                   </tr>
                 ))}
                 {byUser.length === 0 && (
-                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No data yet</td></tr>
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-mauve-9">No data yet</td></tr>
                 )}
               </tbody>
             </table>
@@ -170,34 +170,34 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
 
         {/* By Session Table */}
         {activeTab === 'sessions' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b bg-slate-50">
-              <h3 className="font-bold text-slate-700 text-sm">Cost by Session (This Month)</h3>
+          <div className="bg-white rounded-lg border border-mauve-6 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b bg-mauve-2">
+              <h3 className="font-bold text-mauve-12 text-sm">Cost by Session (This Month)</h3>
             </div>
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-mauve-2 border-b border-mauve-6">
                 <tr>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Session</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">User</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Queries</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">API Calls</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Cost</th>
-                  <th className="px-5 py-3 font-bold text-slate-600 text-xs uppercase">Last Query</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Session</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">User</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Queries</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">API Calls</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Cost</th>
+                  <th className="px-5 py-3 font-bold text-mauve-11 text-xs uppercase">Last Query</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-mauve-4">
                 {bySessions.map((s, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3 text-slate-800 max-w-xs truncate" title={s.session_title}>{s.session_title || 'Untitled'}</td>
-                    <td className="px-5 py-3 text-slate-600 text-xs">{s.user_email?.split('@')[0] || '?'}</td>
-                    <td className="px-5 py-3 text-slate-600 font-mono text-xs">{s.queries}</td>
-                    <td className="px-5 py-3 text-slate-600 font-mono text-xs">{s.calls}</td>
+                  <tr key={i} className="hover:bg-mauve-2 transition-colors">
+                    <td className="px-5 py-3 text-mauve-12 max-w-xs truncate" title={s.session_title}>{s.session_title || 'Untitled'}</td>
+                    <td className="px-5 py-3 text-mauve-11 text-xs">{s.user_email?.split('@')[0] || '?'}</td>
+                    <td className="px-5 py-3 text-mauve-11 font-mono text-xs">{s.queries}</td>
+                    <td className="px-5 py-3 text-mauve-11 font-mono text-xs">{s.calls}</td>
                     <td className="px-5 py-3 font-bold text-emerald-600 font-mono text-xs">{formatCost(s.cost)}</td>
-                    <td className="px-5 py-3 text-slate-400 text-xs font-mono">{s.last_query ? new Date(s.last_query).toLocaleDateString() : '—'}</td>
+                    <td className="px-5 py-3 text-mauve-9 text-xs font-mono">{s.last_query ? new Date(s.last_query).toLocaleDateString() : '—'}</td>
                   </tr>
                 ))}
                 {bySessions.length === 0 && (
-                  <tr><td colSpan={6} className="px-5 py-8 text-center text-slate-400">No data yet</td></tr>
+                  <tr><td colSpan={6} className="px-5 py-8 text-center text-mauve-9">No data yet</td></tr>
                 )}
               </tbody>
             </table>
@@ -206,29 +206,29 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
 
         {/* Overview — summary stats with some context */}
         {activeTab === 'overview' && (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h3 className="font-bold text-slate-700 text-sm mb-4">Gemini API Usage Overview</h3>
+          <div className="bg-white rounded-lg border border-mauve-6 shadow-sm p-6">
+            <h3 className="font-bold text-mauve-12 text-sm mb-4">Gemini API Usage Overview</h3>
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase mb-3">Cost Breakdown (This Month)</h4>
+                <h4 className="text-xs font-bold text-mauve-9 uppercase mb-3">Cost Breakdown (This Month)</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Total Queries</span>
-                    <span className="font-mono font-bold text-slate-800">{summary?.month_queries || 0}</span>
+                    <span className="text-mauve-11">Total Queries</span>
+                    <span className="font-mono font-bold text-mauve-12">{summary?.month_queries || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Total API Calls (incl. retries)</span>
-                    <span className="font-mono font-bold text-slate-800">{summary?.month_calls || 0}</span>
+                    <span className="text-mauve-11">Total API Calls (incl. retries)</span>
+                    <span className="font-mono font-bold text-mauve-12">{summary?.month_calls || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Avg Cost per Query</span>
+                    <span className="text-mauve-11">Avg Cost per Query</span>
                     <span className="font-mono font-bold text-emerald-600">
                       {summary?.month_queries ? formatCost((summary.month_cost || 0) / summary.month_queries) : '$0.0000'}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Retry Rate</span>
-                    <span className="font-mono font-bold text-slate-800">
+                    <span className="text-mauve-11">Retry Rate</span>
+                    <span className="font-mono font-bold text-mauve-12">
                       {summary?.month_queries && summary?.month_calls
                         ? `${(((summary.month_calls - summary.month_queries) / summary.month_queries) * 100).toFixed(1)}%`
                         : '0%'}
@@ -237,8 +237,8 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
                 </div>
               </div>
               <div>
-                <h4 className="text-xs font-bold text-slate-400 uppercase mb-3">Pricing (Gemini 3.1 Pro Preview)</h4>
-                <div className="space-y-2 text-sm text-slate-600">
+                <h4 className="text-xs font-bold text-mauve-9 uppercase mb-3">Pricing (Gemini 3.1 Pro Preview)</h4>
+                <div className="space-y-2 text-sm text-mauve-11">
                   <div className="flex justify-between">
                     <span>Input tokens</span>
                     <span className="font-mono">$1.25 / 1M tokens</span>
@@ -251,8 +251,8 @@ export const CostDashboard: React.FC<CostDashboardProps> = ({ costsUrl }) => {
                     <span>Schema size (per request)</span>
                     <span className="font-mono">~50K tokens</span>
                   </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-100">
-                    <span className="font-bold text-slate-700">Est. cost per query</span>
+                  <div className="flex justify-between pt-2 border-t border-mauve-4">
+                    <span className="font-bold text-mauve-12">Est. cost per query</span>
                     <span className="font-mono font-bold text-emerald-600">~$0.07 - $0.10</span>
                   </div>
                 </div>

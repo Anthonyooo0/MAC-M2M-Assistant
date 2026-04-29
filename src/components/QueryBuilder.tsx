@@ -178,15 +178,15 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden view-transition">
-      <div className="px-5 py-3 border-b bg-slate-50 flex items-center justify-between">
+    <div className="bg-white rounded-lg border border-mauve-6 shadow-sm overflow-hidden view-transition">
+      <div className="px-5 py-3 border-b bg-mauve-2 flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-slate-700 text-sm">Query Builder</h3>
-          <p className="text-[11px] text-slate-500">
+          <h3 className="font-bold text-mauve-12 text-sm">Query Builder</h3>
+          <p className="text-[11px] text-mauve-11">
             Pick the data sources and conditions you want, then send. The assistant will write the query for you.
           </p>
         </div>
-        <span className="text-[10px] font-mono text-slate-400 uppercase">
+        <span className="text-[10px] font-mono text-mauve-9 uppercase">
           {selectedTables.length} sources · {selectedColumns.length} fields · {filters.length} filters
         </span>
       </div>
@@ -197,21 +197,21 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+      <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-mauve-6">
         {/* Tables panel */}
         <div className="p-4">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">
+          <label className="block text-[10px] font-bold text-mauve-11 uppercase mb-2">
             1. Pick data sources
           </label>
           <input
             value={tableSearch}
             onChange={e => setTableSearch(e.target.value)}
             placeholder="Search data sources..."
-            className="w-full mb-2 px-3 py-2 rounded-lg border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none text-sm"
+            className="w-full mb-2 px-3 py-2 rounded-lg border border-mauve-7 focus:border-mauve-8 focus:ring-0 outline-none text-sm"
           />
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-mauve-6 divide-y divide-mauve-4">
             {filteredTables.length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs text-slate-400">
+              <div className="px-3 py-6 text-center text-xs text-mauve-9">
                 No data sources match.
               </div>
             ) : (
@@ -221,18 +221,18 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                   <label
                     key={t.name}
                     className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
-                      checked ? 'bg-mac-accent/5' : 'hover:bg-slate-50'
+                      checked ? 'bg-mac-navy/5' : 'hover:bg-mauve-2'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleTable(t.name)}
-                      className="rounded border-slate-300 text-mac-accent focus:ring-mac-accent"
+                      className="rounded border-mauve-7 text-mac-navy focus:ring-mac-accent"
                     />
                     <span className="flex-1 min-w-0 flex items-baseline gap-2">
-                      <span className="text-sm text-slate-700 truncate">{t.description}</span>
-                      <span className="font-mono text-[10px] text-slate-400 truncate">{t.name}</span>
+                      <span className="text-sm text-mauve-12 truncate">{t.description}</span>
+                      <span className="font-mono text-[10px] text-mauve-9 truncate">{t.name}</span>
                     </span>
                     {checked && (
                       <button
@@ -242,8 +242,8 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                         }}
                         className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
                           activeTableForColumns === t.name
-                            ? 'bg-mac-accent text-white'
-                            : 'text-mac-accent hover:bg-mac-accent/10'
+                            ? 'bg-mac-navy text-white'
+                            : 'text-mac-navy hover:bg-mac-navy/10'
                         }`}
                       >
                         Fields
@@ -258,11 +258,11 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
 
         {/* Columns panel */}
         <div className="p-4">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">
+          <label className="block text-[10px] font-bold text-mauve-11 uppercase mb-2">
             2. Pick fields to return (optional)
           </label>
           {!visibleColumnTable ? (
-            <div className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-xs text-slate-400">
+            <div className="rounded-lg border border-dashed border-mauve-7 px-3 py-8 text-center text-xs text-mauve-9">
               {selectedTables.length === 0
                 ? 'Pick a data source first.'
                 : 'Click "Fields" on a selected source to view its fields.'}
@@ -270,13 +270,13 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
           ) : (
             <>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-700 truncate flex items-baseline gap-2">
+                <span className="text-xs font-bold text-mauve-12 truncate flex items-baseline gap-2">
                   <span>{visibleColumnTable.description}</span>
-                  <span className="font-mono text-[10px] font-normal text-slate-400">
+                  <span className="font-mono text-[10px] font-normal text-mauve-9">
                     {visibleColumnTable.name}
                   </span>
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-mauve-9">
                   {visibleColumnTable.columns.length} fields
                 </span>
               </div>
@@ -284,9 +284,9 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                 value={columnSearch}
                 onChange={e => setColumnSearch(e.target.value)}
                 placeholder="Search fields..."
-                className="w-full mb-2 px-3 py-2 rounded-lg border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none text-sm"
+                className="w-full mb-2 px-3 py-2 rounded-lg border border-mauve-7 focus:border-mauve-8 focus:ring-0 outline-none text-sm"
               />
-              <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-mauve-6 divide-y divide-mauve-4">
                 {filteredColumns.map(c => {
                   const key = `${visibleColumnTable.name}.${c.name}`;
                   const checked = selectedColumns.includes(key);
@@ -294,21 +294,21 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                     <label
                       key={key}
                       className={`flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors ${
-                        checked ? 'bg-mac-accent/5' : 'hover:bg-slate-50'
+                        checked ? 'bg-mac-navy/5' : 'hover:bg-mauve-2'
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleColumn(visibleColumnTable.name, c.name)}
-                        className="rounded border-slate-300 text-mac-accent focus:ring-mac-accent"
+                        className="rounded border-mauve-7 text-mac-navy focus:ring-mac-accent"
                       />
-                      <span className="text-sm text-slate-700 flex-1">{c.description}</span>
+                      <span className="text-sm text-mauve-12 flex-1">{c.description}</span>
                     </label>
                   );
                 })}
                 {filteredColumns.length === 0 && (
-                  <div className="px-3 py-6 text-center text-xs text-slate-400">
+                  <div className="px-3 py-6 text-center text-xs text-mauve-9">
                     No fields match.
                   </div>
                 )}
@@ -319,21 +319,21 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-4 border-t border-slate-200">
+      <div className="px-4 py-4 border-t border-mauve-6">
         <div className="flex items-center justify-between mb-2">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase">
+          <label className="block text-[10px] font-bold text-mauve-11 uppercase">
             3. Conditions (optional)
           </label>
           <button
             onClick={addFilter}
             disabled={selectedTables.length === 0}
-            className="text-xs font-bold text-mac-accent hover:text-mac-blue disabled:text-slate-300 disabled:cursor-not-allowed"
+            className="text-xs font-bold text-mac-navy hover:text-mac-blue disabled:text-mauve-7 disabled:cursor-not-allowed"
           >
             + Add condition
           </button>
         </div>
         {filters.length === 0 ? (
-          <p className="text-xs text-slate-400 italic">
+          <p className="text-xs text-mauve-9 italic">
             No conditions. The query will return everything in the chosen sources.
           </p>
         ) : (
@@ -350,7 +350,7 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                       const firstCol = tableByName[newTable]?.columns[0]?.name || '';
                       updateFilter(idx, { table: newTable, column: firstCol });
                     }}
-                    className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="px-2 py-1.5 rounded-lg border border-mauve-7 text-sm bg-white"
                   >
                     {selectedTables.map(t => (
                       <option key={t} value={t}>
@@ -361,7 +361,7 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                   <select
                     value={f.column}
                     onChange={e => updateFilter(idx, { column: e.target.value })}
-                    className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="px-2 py-1.5 rounded-lg border border-mauve-7 text-sm bg-white"
                   >
                     {tableMeta?.columns.map(c => (
                       <option key={c.name} value={c.name}>{c.description}</option>
@@ -370,7 +370,7 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                   <select
                     value={f.operator}
                     onChange={e => updateFilter(idx, { operator: e.target.value })}
-                    className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm bg-white"
+                    className="px-2 py-1.5 rounded-lg border border-mauve-7 text-sm bg-white"
                   >
                     {OPERATORS.map(op => (
                       <option key={op.value} value={op.value}>{op.label}</option>
@@ -381,12 +381,12 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
                       value={f.value}
                       onChange={e => updateFilter(idx, { value: e.target.value })}
                       placeholder="value"
-                      className="px-2 py-1.5 rounded-lg border border-slate-300 text-sm flex-1 min-w-[100px]"
+                      className="px-2 py-1.5 rounded-lg border border-mauve-7 text-sm flex-1 min-w-[100px]"
                     />
                   )}
                   <button
                     onClick={() => removeFilter(idx)}
-                    className="text-slate-400 hover:text-red-500 px-2"
+                    className="text-mauve-9 hover:text-red-500 px-2"
                     title="Remove"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -401,8 +401,8 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
       </div>
 
       {/* Clarifier + submit */}
-      <div className="px-4 py-4 border-t border-slate-200 bg-slate-50">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2">
+      <div className="px-4 py-4 border-t border-mauve-6 bg-mauve-2">
+        <label className="block text-[10px] font-bold text-mauve-11 uppercase mb-2">
           4. Anything else? (optional)
         </label>
         <textarea
@@ -410,7 +410,7 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
           onChange={e => setClarifier(e.target.value)}
           placeholder='e.g., "only orders from this year, sorted newest first"'
           rows={2}
-          className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-mac-accent focus:ring-2 focus:ring-mac-accent/20 outline-none text-sm resize-none"
+          className="w-full px-3 py-2 rounded-lg border border-mauve-7 focus:border-mauve-8 focus:ring-0 outline-none text-sm resize-none"
         />
 
         {selectedColumns.length > 0 && (
@@ -418,13 +418,13 @@ export const QueryBuilder: React.FC<QueryBuilderProps> = ({
             {selectedColumns.slice(0, 8).map(key => (
               <span
                 key={key}
-                className="px-2 py-0.5 bg-mac-accent/10 text-mac-accent rounded text-[10px] font-medium"
+                className="px-2 py-0.5 bg-mac-navy/10 text-mac-navy rounded text-[10px] font-medium"
               >
                 {labelForColumn(key)}
               </span>
             ))}
             {selectedColumns.length > 8 && (
-              <span className="px-2 py-0.5 text-slate-500 text-[10px]">
+              <span className="px-2 py-0.5 text-mauve-11 text-[10px]">
                 +{selectedColumns.length - 8} more
               </span>
             )}

@@ -73,11 +73,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
   };
 
   return (
-    <div className="mt-3 ml-11 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden view-transition">
+    <div className="mt-3 ml-11 bg-white rounded-lg border border-mauve-6 shadow-sm overflow-hidden view-transition">
       {/* Toolbar */}
-      <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+      <div className="px-4 py-3 bg-mauve-2 border-b border-mauve-6 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <span className="text-[10px] font-bold text-mauve-9 uppercase tracking-wider">
             {sortedRows.length} of {rows.length} row{rows.length !== 1 ? 's' : ''}
           </span>
           <input
@@ -85,12 +85,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter results..."
-            className="px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:border-mac-accent outline-none w-48"
+            className="px-3 py-1.5 text-xs border border-mauve-6 rounded-lg focus:border-mauve-8 outline-none w-48"
           />
         </div>
         <button
           onClick={handleExportCSV}
-          className="px-3 py-1.5 text-[10px] font-bold text-mac-accent hover:bg-blue-50 border border-slate-200 rounded-lg uppercase tracking-wider transition-colors"
+          className="px-3 py-1.5 text-[10px] font-bold text-mac-navy hover:bg-mauve-3 border border-mauve-6 rounded-lg uppercase tracking-wider transition-colors"
         >
           Export CSV
         </button>
@@ -99,8 +99,8 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
       {/* Table */}
       <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-slate-50 z-10">
-            <tr className="border-b border-slate-200">
+          <thead className="sticky top-0 bg-mauve-2 z-10">
+            <tr className="border-b border-mauve-6">
               {columns.map((col) => {
                 const src = columnSources?.[col];
                 return (
@@ -109,12 +109,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
                     onClick={() => handleSort(col)}
                     onMouseEnter={() => setHoverCol(col)}
                     onMouseLeave={() => setHoverCol(c => c === col ? null : c)}
-                    className="relative text-left px-4 py-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-mac-accent whitespace-nowrap select-none"
+                    className="relative text-left px-4 py-2.5 text-[10px] font-bold text-mauve-9 uppercase tracking-wider cursor-pointer hover:text-mac-navy whitespace-nowrap select-none"
                   >
                     <span className="inline-flex items-center gap-1">
                       {col}
                       {src && (
-                        <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3 h-3 text-mauve-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       )}
@@ -125,11 +125,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
                     {hoverCol === col && src && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute left-2 top-full mt-1 z-20 w-72 px-3 py-2 bg-mac-navy text-white rounded-lg shadow-xl normal-case tracking-normal"
+                        className="absolute left-2 top-full mt-1 z-20 w-72 px-3 py-2 bg-mac-navy text-white rounded-lg shadow-sm normal-case tracking-normal"
                       >
-                        <div className="text-[9px] font-bold text-blue-200 uppercase tracking-wider mb-0.5">Source field</div>
+                        <div className="text-[9px] font-bold text-mauve-7 uppercase tracking-wider mb-0.5">Source field</div>
                         <div className="text-xs font-mono break-all mb-2">{src.expression}</div>
-                        <div className="text-[9px] font-bold text-blue-200 uppercase tracking-wider mb-0.5">From table{src.tables.length > 1 ? 's' : ''}</div>
+                        <div className="text-[9px] font-bold text-mauve-7 uppercase tracking-wider mb-0.5">From table{src.tables.length > 1 ? 's' : ''}</div>
                         <div className="text-xs font-mono break-all">{src.tables.join(', ')}</div>
                       </div>
                     )}
@@ -138,14 +138,14 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
               })}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-mauve-4">
             {sortedRows.map((row, i) => (
-              <tr key={i} className="hover:bg-slate-50 transition-colors">
+              <tr key={i} className="hover:bg-mauve-2 transition-colors">
                 {columns.map((col) => {
                   const val = row[col];
                   const display = val == null ? '' : typeof val === 'string' ? val.trimEnd() : String(val);
                   return (
-                    <td key={col} className="px-4 py-2 text-slate-700 whitespace-nowrap max-w-[300px] truncate" title={display}>
+                    <td key={col} className="px-4 py-2 text-mauve-12 whitespace-nowrap max-w-[300px] truncate" title={display}>
                       {display}
                     </td>
                   );
