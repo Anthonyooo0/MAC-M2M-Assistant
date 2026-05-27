@@ -15,6 +15,48 @@ term listed below — do not infer the mapping from general M2M knowledge.
 - "product class" / "PC" → INMASTX.FPRODCL
 - "ABC code" / "valuation class" → INMASTX.FABCCODE ('A', 'B', or 'C')
 
+# Inventory Locations (M2M)
+# When a user mentions a location, they mean the FLOCATION field on the
+# INONHD table (inventory on hand) or the LOCATION master table. The query
+# should filter INONHD.FLOCATION (or JOIN to LOCATION for descriptions).
+# Use RTRIM() on FLOCATION since it is a CHAR field.
+#
+# Active location codes and what users call them:
+- "22 Penn" / "Pennsylvania" → FLOCATION = '22PENN' (22 Pennsylvania Ave Building)
+- "receiving" / "incoming" → FLOCATION = 'IN' (Incoming Material Receiving)
+- "non-stocked" / "NS" → FLOCATION = 'NS' (Non Stocked Item)
+- "pineapple" / "PAA" → FLOCATION = 'PAA' (Pineapple Assembly Area)
+- "prepack" → FLOCATION = 'PK' (Prepack Area)
+- "pumping plant" / "PP" → FLOCATION = 'PP' (Pumping Plant Staging)
+- "building 1" / "PPBLD1" → FLOCATION = 'PPBLD1' (Power Properties Building 1)
+- "building 2" / "PPBLD2" → FLOCATION = 'PPBLD2' (Power Properties Building 2)
+- "QC" / "inspection" / "quality" → FLOCATION = 'QC' (Inspection)
+- "QC approved" → FLOCATION = 'QC-APPROVED'
+- "QC rejected" → FLOCATION = 'QC-REJECTED'
+- "return to supplier" / "RTS" → FLOCATION = 'QC-RETURNSUPPL'
+- "QC rework" / "rework" → FLOCATION = 'QC-REWORK'
+- "QC sample" / "sample" → FLOCATION = 'QC-SAMPLE' (QC Sample Retain Area)
+- "Goodyear" / "RG" → FLOCATION = 'RG' (Goodyear)
+- "safe" / "safe box" → FLOCATION = 'SAFE' (Safe Box — also SAFE2, SAFE3)
+- "splice kit" / "SP" → FLOCATION = 'SP' (Splice Kit Area)
+- "suite 400" / "warehouse 400" → FLOCATION = 'SUITE400' (Warehouse 400)
+- "switch room" / "SW" → FLOCATION = 'SW' (Switch Room)
+- "tape area" / "TA" → FLOCATION = 'TA' (Tape Area)
+- "warehouse" / "WH" → FLOCATION = 'WH' (Warehouse — the main warehouse)
+- "wiring room" / "WR" → FLOCATION = 'WR' (Wiring Room)
+- "GE" → FLOCATION = 'GE'
+#
+# Obsoleted locations (still in LOCATION table but rarely queried):
+#   BUYRESELL, C.TIP, CA, RC, RM, SCRAP, WA
+#
+# To show on-hand quantity at a location:
+#   SELECT RTRIM(i.FPARTNO) AS PartNo, i.FONHAND AS OnHand, RTRIM(i.FBINNO) AS Bin
+#   FROM INONHD i WHERE RTRIM(i.FLOCATION) = '<CODE>' AND i.FONHAND <> 0
+#
+# To list everything across all locations for a part:
+#   SELECT RTRIM(i.FLOCATION) AS Location, i.FONHAND AS OnHand
+#   FROM INONHD i WHERE RTRIM(i.FPARTNO) = '<PARTNO>' AND i.FONHAND <> 0
+
 # Sales Orders (M2M)
 
 - "open SO" / "open orders" → SOMAST where RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled')
