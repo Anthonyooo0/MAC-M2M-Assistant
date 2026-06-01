@@ -567,7 +567,7 @@ function App() {
   }
 
   // Maintenance mode — runs after auth so currentUser is available for bypass check
-  const MAINTENANCE_MODE = true;
+  const MAINTENANCE_MODE = false;
   const MAINTENANCE_BYPASS = ['anthony.jimenez@macproducts.net'];
 
   if (MAINTENANCE_MODE && !MAINTENANCE_BYPASS.includes(currentUser || '')) {
