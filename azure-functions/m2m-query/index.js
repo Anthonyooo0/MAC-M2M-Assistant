@@ -1324,11 +1324,18 @@ module.exports = async function (context, req) {
   let geminiCalls = 0;
 
   try {
-    const { message, history, model: requestedModel, mode, builder } = req.body || {};
+    const { message, history, model: requestedModel, mode, builder, rawSql } = req.body || {};
     const useClaudeModel = requestedModel === 'claude-sonnet';
     const isBuilderMode = mode === 'builder' && builder && typeof builder === 'object';
+    // Raw-SQL mode: preset buttons in the frontend can pre-bake a SELECT
+    // statement and post it via the rawSql field. The function skips the
+    // clarifier and the AI SQL-generation step and runs the SQL directly
+    // through the existing safety + execution pipeline. Determines a deterministic
+    // result for clickable presets that would otherwise get re-interpreted by
+    // the model each click.
+    const isRawMode = typeof rawSql === 'string' && rawSql.trim().length > 0;
 
-    if (!isBuilderMode && (!message || typeof message !== 'string' || !message.trim())) {
+    if (!isBuilderMode && !isRawMode && (!message || typeof message !== 'string' || !message.trim())) {
       context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'message is required' }) };
       return;
     }
@@ -1408,12 +1415,14 @@ module.exports = async function (context, req) {
     // and the same retry/safety pipeline as Chat mode.
     const userMessageText = isBuilderMode
       ? composeBuilderMessage(builder, message)
-      : scrubPII(message.trim());
+      : isRawMode
+        ? `[preset] ${(message && message.trim()) || 'preset query'}`
+        : scrubPII(message.trim());
 
     // Clarifier pass — only for chat mode. Catches genuinely vague questions
     // ("show me orders") and asks ONE follow-up instead of guessing. Builder
-    // mode is already structured so it skips this.
-    if (!isBuilderMode) {
+    // and raw-SQL modes are already structured, so they skip this.
+    if (!isBuilderMode && !isRawMode) {
       const clarifier = await runClarifier(userMessageText, history);
       if (clarifier && clarifier.usage) {
         totalInputTokens += clarifier.usage.input_tokens || 0;
@@ -1446,9 +1455,15 @@ module.exports = async function (context, req) {
     const modelProvider = useClaudeModel ? 'claude' : 'gemini';
 
     // -----------------------------------------------------------------------
-    // Initial LLM call — route to Claude or Gemini based on user selection
+    // Initial SQL — raw-SQL preset OR LLM-generated
     // -----------------------------------------------------------------------
-    if (useClaudeModel) {
+    if (isRawMode) {
+      // Preset path: caller supplied the SQL. Skip both the LLM and the
+      // history-aware safety/schema retries (raw SQL should never be silently
+      // rewritten by the model — if it fails validation we report it instead).
+      sqlQuery = rawSql.trim();
+      explanation = (message && message.trim()) || 'Preset query.';
+    } else if (useClaudeModel) {
       // --- Claude path (with prompt caching — schema cached after first request) ---
       const claudeData = await callClaudeAPI(activeStaticInstructions, activeSchema, claudeMessages);
       { const t = extractClaudeTokenUsage(claudeData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
@@ -1509,6 +1524,18 @@ module.exports = async function (context, req) {
     // Safety checks — retry once if the model generated non-SELECT SQL
     let safety = validateSqlSafety(sqlQuery);
     if (!safety.ok) {
+      // Raw-SQL presets are user-authored and should NOT be silently
+      // rewritten by the model on safety fail. Return the reason directly
+      // so the user can fix the preset.
+      if (isRawMode) {
+        context.log.warn(`[m2m-query][${requestId}] Safety check failed on raw preset: ${safety.reason}`);
+        context.res = {
+          status: 400,
+          headers: CORS,
+          body: JSON.stringify({ error: `Preset failed safety check: ${safety.reason}`, sql: sqlQuery }),
+        };
+        return;
+      }
       context.log.warn(`[m2m-query][${requestId}] Safety check failed: ${safety.reason} — retrying`);
 
       const safetyRetryText = `Your query was rejected: "${safety.reason}". ` +
@@ -1571,6 +1598,16 @@ module.exports = async function (context, req) {
     if (sqlQuery && Object.keys(activeSchemaTables).length > 0) {
       const schemaCheck = validateAgainstSchema(sqlQuery, activeSchemaTables);
       if (!schemaCheck.ok) {
+        // Raw-SQL preset: report and exit instead of LLM-retrying.
+        if (isRawMode) {
+          context.log.warn(`[m2m-query][${requestId}] Schema check failed on raw preset: ${schemaCheck.errors.join('; ')}`);
+          context.res = {
+            status: 400,
+            headers: CORS,
+            body: JSON.stringify({ error: `Preset failed schema validation: ${schemaCheck.errors.join('; ')}`, sql: sqlQuery }),
+          };
+          return;
+        }
         context.log.warn(`[m2m-query][${requestId}] Schema validation failed: ${schemaCheck.errors.join('; ')} — retrying`);
 
         const schemaRetryText = `Your SQL query failed schema validation before execution. The following problems were found:\n` +
@@ -1662,8 +1699,10 @@ module.exports = async function (context, req) {
       } catch (sqlErr) {
         lastError = sqlErr;
 
+        const isConnDrop = sqlErr.code === 'ECONNCLOSED' || sqlErr.code === 'ENOTOPEN' || sqlErr.code === 'ESOCKET';
+
         // If the connection dropped, reset the pool and reconnect
-        if (sqlErr.code === 'ECONNCLOSED' || sqlErr.code === 'ENOTOPEN' || sqlErr.code === 'ESOCKET') {
+        if (isConnDrop) {
           delete dbPools[connString];
           try {
             pool = await getDbPool(connString);
@@ -1671,6 +1710,16 @@ module.exports = async function (context, req) {
           } catch (_e) {
             context.log.error(`[m2m-query][${requestId}] Reconnect failed`);
           }
+        }
+
+        // Raw-SQL mode: never let the model rewrite a user-authored preset.
+        // A dropped connection retries the SAME SQL; any other SQL error
+        // is reported as-is.
+        if (isRawMode) {
+          if (isConnDrop && attempt < MAX_RETRIES) {
+            continue; // retry the same rawSql on the reconnected pool
+          }
+          break; // genuine SQL error (or out of conn retries) — throw below
         }
 
         if (attempt >= MAX_RETRIES) {
@@ -1770,9 +1819,12 @@ module.exports = async function (context, req) {
     }
 
     // -----------------------------------------------------------------------
-    // Zero-row retry: if query returned no results, ask the model to broaden it
+    // Zero-row retry: if query returned no results, ask the model to broaden it.
+    // Skipped in raw-SQL mode — a preset that legitimately returns zero rows
+    // (e.g. "count SOs missing a street" when none are missing) must report
+    // that zero, not have the model rewrite the query to find something.
     // -----------------------------------------------------------------------
-    if (result.recordset.length === 0) {
+    if (result.recordset.length === 0 && !isRawMode) {
       context.log.info(`[m2m-query][${requestId}] Query returned 0 rows — retrying with broader criteria`);
 
       const zeroRowText = `The query you generated ran successfully but returned ZERO rows. This likely means your WHERE filters are too restrictive. Common issues:\n` +

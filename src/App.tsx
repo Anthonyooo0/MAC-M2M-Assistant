@@ -332,12 +332,15 @@ function App() {
     setCurrentUser(null);
   };
 
-  // Shared core for both Chat and Builder submissions. Caller provides the user-facing
-  // message text (what's shown in the bubble) and an optional builder payload that the
-  // backend uses to constrain SQL generation.
+  // Shared core for Chat, Builder, and Raw-SQL preset submissions. Caller
+  // provides the user-facing message text (what's shown in the bubble) and
+  // an optional extra payload. When `rawSql` is provided the backend skips
+  // the clarifier + LLM and runs the SQL directly through the existing
+  // safety/schema/exec pipeline — used by clickable presets that need a
+  // deterministic result every click.
   const submitQuery = async (
     userText: string,
-    extraPayload?: { mode?: 'builder'; builder?: BuilderPayload }
+    extraPayload?: { mode?: 'builder'; builder?: BuilderPayload; rawSql?: string }
   ) => {
     if (!userText || isLoading || sendLockRef.current) return;
     sendLockRef.current = true;
@@ -948,22 +951,21 @@ function App() {
                       { label: 'What jobs are active right now?', query: 'What jobs are active right now?' },
                       { label: 'List inventory items with zero on hand', query: 'List inventory items with zero on hand' },
                       { label: 'Show purchase orders due this month', query: 'Show purchase orders due this month' },
-                      // Preset added 2026-06-10: ship-to street audit. Sends the
-                      // raw SQL verbatim so the result is deterministic instead
-                      // of relying on the model to re-derive the same query.
+                      // Presets added 2026-06-10: ship-to street audit. The
+                      // rawSql field bypasses the clarifier + LLM at the
+                      // backend so each click runs the exact same query
+                      // deterministically.
                       {
                         label: 'Count open SOs missing ship-to street',
-                        query: "Execute this SQL verbatim, no clarification needed: SELECT COUNT(*) AS MissingStreetAddress FROM somast WHERE fstatus = 'O' AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
+                        rawSql: "SELECT COUNT(*) AS MissingStreetAddress FROM somast WHERE fstatus = 'O' AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
                       },
-                      // Companion to the count preset: list the actual rows.
-                      // Note: original ask was SELECT * but the safety check
-                      // blocks star-selects, so we enumerate the SOMAST
-                      // columns most useful for triaging a missing ship-to
-                      // street. Same WHERE clause as the count preset.
+                      // Note: original ask was SELECT *, but the safety
+                      // check blocks star-selects, so we enumerate the
+                      // SOMAST columns most useful for triaging a missing
+                      // ship-to street. Same WHERE clause as the count.
                       {
                         label: 'Show open SOs missing ship-to street',
-                        query:
-                          "Execute this SQL verbatim, no clarification needed: " +
+                        rawSql:
                           "SELECT FSONO, FCOMPANY, FCUSTNO, FSTATUS, FORDERDATE, FDUEDATE, " +
                           "FCUSTPONO, FESTIMATOR, FSOCOORD, FSOLDBY, FSHIPVIA, " +
                           "FSHPTOADDR, FSOLDADDR, FBILLADDR, FMSTREET " +
@@ -971,10 +973,19 @@ function App() {
                           "WHERE fstatus = 'O' " +
                           "AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
                       },
-                    ]).map((suggestion) => (
+                    ] as Array<{ label: string; query?: string; rawSql?: string }>).map((suggestion) => (
                       <button
                         key={suggestion.label}
-                        onClick={() => { setInput(suggestion.query); inputRef.current?.focus(); }}
+                        onClick={() => {
+                          if (suggestion.rawSql) {
+                            // Raw-SQL preset: auto-execute, bypass the input box.
+                            submitQuery(suggestion.label, { rawSql: suggestion.rawSql });
+                          } else {
+                            // Natural-language preset: prefill input, user reviews and sends.
+                            setInput(suggestion.query || suggestion.label);
+                            inputRef.current?.focus();
+                          }
+                        }}
                         className="text-left p-3 bg-white rounded-lg border border-mauve-6 text-sm text-mauve-11 hover:border-mac-accent hover:text-mac-navy transition-all"
                       >
                         {suggestion.label}
