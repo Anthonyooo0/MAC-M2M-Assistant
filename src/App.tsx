@@ -955,6 +955,22 @@ function App() {
                         label: 'Count open SOs missing ship-to street',
                         query: "Execute this SQL verbatim, no clarification needed: SELECT COUNT(*) AS MissingStreetAddress FROM somast WHERE fstatus = 'O' AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
                       },
+                      // Companion to the count preset: list the actual rows.
+                      // Note: original ask was SELECT * but the safety check
+                      // blocks star-selects, so we enumerate the SOMAST
+                      // columns most useful for triaging a missing ship-to
+                      // street. Same WHERE clause as the count preset.
+                      {
+                        label: 'Show open SOs missing ship-to street',
+                        query:
+                          "Execute this SQL verbatim, no clarification needed: " +
+                          "SELECT FSONO, FCOMPANY, FCUSTNO, FSTATUS, FORDERDATE, FDUEDATE, " +
+                          "FCUSTPONO, FESTIMATOR, FSOCOORD, FSOLDBY, FSHIPVIA, " +
+                          "FSHPTOADDR, FSOLDADDR, FBILLADDR, FMSTREET " +
+                          "FROM somast " +
+                          "WHERE fstatus = 'O' " +
+                          "AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
+                      },
                     ]).map((suggestion) => (
                       <button
                         key={suggestion.label}
