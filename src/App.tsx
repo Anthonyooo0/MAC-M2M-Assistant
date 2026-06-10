@@ -939,22 +939,29 @@ function App() {
                   </p>
                   <div className="grid grid-cols-2 gap-3 max-w-lg">
                     {(activeCompany.id === 'unipoint' ? [
-                      'Show me all open non-conformance reports',
-                      'What corrective actions are in progress?',
-                      'List recent inspections',
-                      'Show equipment maintenance due',
+                      { label: 'Show me all open non-conformance reports', query: 'Show me all open non-conformance reports' },
+                      { label: 'What corrective actions are in progress?', query: 'What corrective actions are in progress?' },
+                      { label: 'List recent inspections', query: 'List recent inspections' },
+                      { label: 'Show equipment maintenance due', query: 'Show equipment maintenance due' },
                     ] : [
-                      'Show me all open sales orders',
-                      'What jobs are active right now?',
-                      'List inventory items with zero on hand',
-                      'Show purchase orders due this month',
+                      { label: 'Show me all open sales orders', query: 'Show me all open sales orders' },
+                      { label: 'What jobs are active right now?', query: 'What jobs are active right now?' },
+                      { label: 'List inventory items with zero on hand', query: 'List inventory items with zero on hand' },
+                      { label: 'Show purchase orders due this month', query: 'Show purchase orders due this month' },
+                      // Preset added 2026-06-10: ship-to street audit. Sends the
+                      // raw SQL verbatim so the result is deterministic instead
+                      // of relying on the model to re-derive the same query.
+                      {
+                        label: 'Count open SOs missing ship-to street',
+                        query: "Execute this SQL verbatim, no clarification needed: SELECT COUNT(*) AS MissingStreetAddress FROM somast WHERE fstatus = 'O' AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
+                      },
                     ]).map((suggestion) => (
                       <button
-                        key={suggestion}
-                        onClick={() => { setInput(suggestion); inputRef.current?.focus(); }}
+                        key={suggestion.label}
+                        onClick={() => { setInput(suggestion.query); inputRef.current?.focus(); }}
                         className="text-left p-3 bg-white rounded-lg border border-mauve-6 text-sm text-mauve-11 hover:border-mac-accent hover:text-mac-navy transition-all"
                       >
-                        {suggestion}
+                        {suggestion.label}
                       </button>
                     ))}
                   </div>
