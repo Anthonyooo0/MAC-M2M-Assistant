@@ -41,6 +41,9 @@ interface ChatSession {
 
 const ADMIN_EMAILS = ['anthony.jimenez@macproducts.net', 'juan.ortiz@macproducts.net', 'jerson.fulgencio@macproducts.net'];
 
+// Users (besides admins) who see the gated aluminum-inventory preset.
+const ALUMINUM_PRESET_USERS = ['nick.costantino@macproducts.net', 'rachel.amaro@macproducts.net'];
+
 // Builds the user-facing message that gets shown in the chat bubble when a
 // Builder-mode submission is sent. The actual SQL constraints are sent in the
 // builder payload — this is just what the user sees of their own request.
@@ -973,7 +976,26 @@ function App() {
                           "WHERE fstatus = 'O' " +
                           "AND (fmstreet IS NULL OR LTRIM(RTRIM(fmstreet)) = '');",
                       },
-                    ] as Array<{ label: string; query?: string; rawSql?: string }>).map((suggestion) => (
+                      // Gated preset (Nick, Rachel, admins): aluminum stock on
+                      // hand in the PPBLD1 location, with bin + last purchase.
+                      {
+                        label: 'Aluminum stock on hand — PPBLD1',
+                        restrictedTo: ALUMINUM_PRESET_USERS,
+                        rawSql:
+                          `SELECT RTRIM(i.FPARTNO) AS "Part Number", RTRIM(m.FDESCRIPT) AS "Short Description", ` +
+                          `m.FMUSRMEMO1 AS "Long Description", RTRIM(m.FMEASURE) AS "Unit of Measure", ` +
+                          `i.FONHAND AS "Qty On Hand", RTRIM(i.FBINNO) AS "Bin", ` +
+                          `v.FVLASTPD AS "Last Purchase Date", v.FVLASTPC AS "Last Purchase Cost" ` +
+                          `FROM INONHD i JOIN INMASTX m ON RTRIM(i.FPARTNO) = RTRIM(m.FPARTNO) ` +
+                          `LEFT JOIN INVEND v ON RTRIM(i.FPARTNO) = RTRIM(v.FPARTNO) AND v.FPRIORITY = '1' ` +
+                          `WHERE RTRIM(i.FLOCATION) = 'PPBLD1' AND i.FONHAND <> 0 AND ` +
+                          `(m.FMUSRMEMO1 LIKE '%aluminum%' OR m.FMUSRMEMO1 LIKE '%Aluminum%' OR m.FMUSRMEMO1 LIKE '%ALUMINUM%' OR ` +
+                          `m.FDESCRIPT LIKE '%aluminum%' OR m.FDESCRIPT LIKE '%Aluminum%' OR m.FDESCRIPT LIKE '%ALUMINUM%') ` +
+                          `ORDER BY RTRIM(i.FPARTNO)`,
+                      },
+                    ] as Array<{ label: string; query?: string; rawSql?: string; restrictedTo?: string[] }>)
+                      .filter((s) => !s.restrictedTo || isAdmin || s.restrictedTo.includes(currentUser || ''))
+                      .map((suggestion) => (
                       <button
                         key={suggestion.label}
                         onClick={() => {
