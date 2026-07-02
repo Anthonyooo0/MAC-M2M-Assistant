@@ -1322,10 +1322,14 @@ module.exports = async function (context, req) {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let geminiCalls = 0;
+  // Declared out here so the catch block can reference it — otherwise an error
+  // in the try would make the catch throw its own ReferenceError, producing an
+  // empty-body 500 instead of a real error message.
+  let useClaudeModel = false;
 
   try {
     const { message, history, model: requestedModel, mode, builder, rawSql } = req.body || {};
-    const useClaudeModel = requestedModel === 'claude-sonnet';
+    useClaudeModel = requestedModel === 'claude-sonnet';
     const isBuilderMode = mode === 'builder' && builder && typeof builder === 'object';
     // Raw-SQL mode: preset buttons in the frontend can pre-bake a SELECT
     // statement and post it via the rawSql field. The function skips the
@@ -1899,7 +1903,7 @@ module.exports = async function (context, req) {
     // Appends a warning to the explanation if a mismatch is detected.
     // Advisory only — never blocks the response.
     // -----------------------------------------------------------------------
-    if (sqlQuery && result.recordset.length > 0) {
+    if (!isRawMode && message && sqlQuery && result.recordset.length > 0) {
       const sanity = semanticSanityCheck(message, sqlQuery, result.recordset.length);
       if (!sanity.ok) {
         context.log.warn(`[m2m-query][${requestId}] Semantic critic flagged: ${sanity.issue}`);
@@ -1907,8 +1911,10 @@ module.exports = async function (context, req) {
       }
     }
 
-    // Cache successful SQL generation for future identical questions
-    if (sqlQuery && result.recordset.length > 0) {
+    // Cache successful SQL generation for future identical questions.
+    // Skip in raw-SQL mode — there's no natural-language question to key on
+    // (message is undefined) and presets are already deterministic.
+    if (!isRawMode && message && sqlQuery && result.recordset.length > 0) {
       setCachedResult(message, database || 'm2mdata99', explanation, sqlQuery);
     }
 
