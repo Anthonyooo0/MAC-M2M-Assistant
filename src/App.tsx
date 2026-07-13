@@ -13,6 +13,9 @@ const CHAT_SESSIONS_URL = import.meta.env.VITE_CHAT_SESSIONS_URL || '';
 const CHAT_MESSAGES_URL = import.meta.env.VITE_CHAT_MESSAGES_URL || '';
 const QUERY_COSTS_URL = import.meta.env.VITE_QUERY_COSTS_URL || '';
 const SCHEMA_META_URL = import.meta.env.VITE_SCHEMA_META_URL || '';
+// Activity report shares the function app's host + key with m2m-query, so
+// derive its URL rather than needing a separate env var.
+const ACTIVITY_REPORT_URL = M2M_QUERY_URL.replace('/m2m-query', '/activity-report');
 
 interface Message {
   id: string;
@@ -342,7 +345,8 @@ function App() {
   // deterministic result every click.
   const submitQuery = async (
     userText: string,
-    extraPayload?: { mode?: 'builder'; builder?: BuilderPayload; rawSql?: string }
+    extraPayload?: { mode?: 'builder'; builder?: BuilderPayload; rawSql?: string; activityReport?: boolean },
+    urlOverride?: string
   ) => {
     if (!userText || isLoading || sendLockRef.current) return;
     sendLockRef.current = true;
@@ -389,7 +393,7 @@ function App() {
             : (m.sql ? `${m.content}\n\n[SQL I ran for this answer]:\n${m.sql}` : m.content),
         }));
 
-      const res = await fetch(M2M_QUERY_URL, {
+      const res = await fetch(urlOverride || M2M_QUERY_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1011,13 +1015,23 @@ function App() {
                           `WHERE FMUSRMEMO1 IS NOT NULL AND RTRIM(FMUSRMEMO1) <> '' ` +
                           `ORDER BY FPARTNO`,
                       },
-                    ] as Array<{ label: string; query?: string; rawSql?: string; restrictedTo?: string[] }>)
+                      // Activity report (admins + Edward): who's been querying,
+                      // read only from the app's own database — NOT M2M.
+                      {
+                        label: 'Activity report — who has been querying',
+                        activityReport: true,
+                        restrictedTo: ['edward.russnow@macproducts.net'],
+                      },
+                    ] as Array<{ label: string; query?: string; rawSql?: string; restrictedTo?: string[]; activityReport?: boolean }>)
                       .filter((s) => !s.restrictedTo || isAdmin || s.restrictedTo.includes(currentUser || ''))
                       .map((suggestion) => (
                       <button
                         key={suggestion.label}
                         onClick={() => {
-                          if (suggestion.rawSql) {
+                          if (suggestion.activityReport) {
+                            // Activity report: auto-run against the app DB endpoint.
+                            submitQuery(suggestion.label, {}, ACTIVITY_REPORT_URL);
+                          } else if (suggestion.rawSql) {
                             // Raw-SQL preset: auto-execute, bypass the input box.
                             submitQuery(suggestion.label, { rawSql: suggestion.rawSql });
                           } else {
