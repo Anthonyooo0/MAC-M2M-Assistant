@@ -378,10 +378,16 @@ function App() {
     try {
       const history = messages
         .filter(m => !m.loading)
-        .slice(-4)
+        .slice(-8)
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'model',
-          content: m.role === 'user' ? m.content : m.content,
+          // Include the SQL the assistant actually ran, so a follow-up that
+          // refers to a prior result ("those 1,722 parts", "that list") can
+          // reuse the exact query/filter instead of the model re-deriving a
+          // different one from the prose (which drifts — e.g. 1,722 -> 1,835).
+          content: m.role === 'user'
+            ? m.content
+            : (m.sql ? `${m.content}\n\n[SQL I ran for this answer]:\n${m.sql}` : m.content),
         }));
 
       const res = await fetch(M2M_QUERY_URL, {
@@ -992,6 +998,19 @@ function App() {
                           `(m.FMUSRMEMO1 LIKE '%aluminum%' OR m.FMUSRMEMO1 LIKE '%Aluminum%' OR m.FMUSRMEMO1 LIKE '%ALUMINUM%' OR ` +
                           `m.FDESCRIPT LIKE '%aluminum%' OR m.FDESCRIPT LIKE '%Aluminum%' OR m.FDESCRIPT LIKE '%ALUMINUM%') ` +
                           `ORDER BY RTRIM(i.FPARTNO)`,
+                      },
+                      // General preset: every item-master record that has a long
+                      // description (FMUSRMEMO1), with rev/class/source/UOM.
+                      {
+                        label: 'Item master — parts with long description',
+                        rawSql:
+                          `SELECT RTRIM(FPARTNO) AS "Part Number", RTRIM(FREV) AS "Revision", ` +
+                          `RTRIM(FDESCRIPT) AS "Short Description", FMUSRMEMO1 AS "Long Description", ` +
+                          `RTRIM(FPRODCL) AS "Product Class", RTRIM(FSOURCE) AS "Source", ` +
+                          `RTRIM(FMEASURE) AS "Unit of Measure" ` +
+                          `FROM INMASTX ` +
+                          `WHERE FMUSRMEMO1 IS NOT NULL AND RTRIM(FMUSRMEMO1) <> '' ` +
+                          `ORDER BY FPARTNO`,
                       },
                     ] as Array<{ label: string; query?: string; rawSql?: string; restrictedTo?: string[] }>)
                       .filter((s) => !s.restrictedTo || isAdmin || s.restrictedTo.includes(currentUser || ''))
