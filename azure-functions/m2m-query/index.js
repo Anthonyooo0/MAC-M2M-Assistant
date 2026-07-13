@@ -288,6 +288,10 @@ IMPORTANT: Your response must be ONLY the JSON object. No markdown, no code bloc
 The conversation history includes the SQL you ran on previous turns, labeled "[SQL I ran for this answer]:". When the user refers to a previous result, count, or list — e.g. "those 1,722 parts", "that list", "the ones you found", "now give me those as a spreadsheet", "same but with more columns" — you MUST reuse the EXACT filtering logic (the entire WHERE clause) and the SAME grain (the same DISTINCT / GROUP BY) from that prior query, so the set matches exactly. Only change what the user explicitly asked to change (SELECT columns, sorting, output shape). Do NOT re-derive the filter from your prose explanation — copy it from the prior SQL. In particular, if a previous answer was COUNT(DISTINCT x) = N, a follow-up that lists those records MUST group/dedupe to the same x so the row count equals N (not more). If you cannot honor this, say so in the explanation rather than silently returning a different set.
 </conversation_continuity>
 
+<part_descriptions>
+For a part's description, ALWAYS select INMASTX.FMUSRMEMO1 and label it "Description". FMUSRMEMO1 is the full, complete description. INMASTX.FDESCRIPT is a truncated 35-character short version (the "half" description) — NEVER select it as a description, not even as a fallback, unless the user explicitly asks for the "short" or "abbreviated" description by name. This applies to every query that returns a description.
+</part_descriptions>
+
 <restricted_tables>
 The following tables contain sensitive information and must NEVER be queried, referenced, or included in any SQL:
 

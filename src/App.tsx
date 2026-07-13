@@ -991,8 +991,8 @@ function App() {
                         label: 'Aluminum stock on hand — PPBLD1',
                         restrictedTo: ALUMINUM_PRESET_USERS,
                         rawSql:
-                          `SELECT RTRIM(i.FPARTNO) AS "Part Number", RTRIM(m.FDESCRIPT) AS "Short Description", ` +
-                          `m.FMUSRMEMO1 AS "Long Description", RTRIM(m.FMEASURE) AS "Unit of Measure", ` +
+                          `SELECT RTRIM(i.FPARTNO) AS "Part Number", ` +
+                          `m.FMUSRMEMO1 AS "Description", RTRIM(m.FMEASURE) AS "Unit of Measure", ` +
                           `i.FONHAND AS "Qty On Hand", RTRIM(i.FBINNO) AS "Bin", ` +
                           `v.FVLASTPD AS "Last Purchase Date", v.FVLASTPC AS "Last Purchase Cost" ` +
                           `FROM INONHD i JOIN INMASTX m ON RTRIM(i.FPARTNO) = RTRIM(m.FPARTNO) ` +
@@ -1008,7 +1008,7 @@ function App() {
                         label: 'Item master — parts with long description',
                         rawSql:
                           `SELECT RTRIM(FPARTNO) AS "Part Number", RTRIM(FREV) AS "Revision", ` +
-                          `RTRIM(FDESCRIPT) AS "Short Description", FMUSRMEMO1 AS "Long Description", ` +
+                          `FMUSRMEMO1 AS "Description", ` +
                           `RTRIM(FPRODCL) AS "Product Class", RTRIM(FSOURCE) AS "Source", ` +
                           `RTRIM(FMEASURE) AS "Unit of Measure" ` +
                           `FROM INMASTX ` +

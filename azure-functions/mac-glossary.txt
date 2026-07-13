@@ -14,6 +14,7 @@ term listed below — do not infer the mapping from general M2M knowledge.
 - "stock item" → INMASTX.FSOURCE = 'S'
 - "product class" / "PC" → INMASTX.FPRODCL
 - "ABC code" / "valuation class" → INMASTX.FABCCODE ('A', 'B', or 'C')
+- "description" / "part description" / "the description" / "full description" → ALWAYS use INMASTX.FMUSRMEMO1. This is the ONLY field to use for a part's description. FMUSRMEMO1 is the full, complete description. INMASTX.FDESCRIPT is a truncated 35-character SHORT description (the "half" description) and must NEVER be used as the description or selected as a description column — not even as a fallback. Whenever a query returns a part description, select FMUSRMEMO1 and label it "Description". The only exception is if the user explicitly asks for the "short" or "abbreviated" description by name.
 
 # Inventory Locations (M2M)
 # When a user mentions a location, they mean the FLOCATION field on the
