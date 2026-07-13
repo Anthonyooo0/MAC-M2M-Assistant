@@ -127,8 +127,7 @@ function App() {
   const chatHistoryEnabled = !!CHAT_SESSIONS_URL && !!CHAT_MESSAGES_URL;
   const isAdmin = ADMIN_EMAILS.includes(currentUser || '');
   const [appReady, setAppReady] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [selectedModel, _setSelectedModel] = useState<'claude-sonnet' | 'gemini-pro'>('claude-sonnet');
+  const [selectedModel, setSelectedModel] = useState<'claude-sonnet' | 'claude-opus'>('claude-sonnet');
 
   useEffect(() => {
     if (isAuthenticated && accounts.length > 0) {
@@ -893,18 +892,8 @@ function App() {
                 Session: ${messages.reduce((sum, m) => sum + (m.cost?.cost || 0), 0).toFixed(6)} ({messages.filter(m => m.cost).reduce((sum, m) => sum + (m.cost?.calls || 0), 0)} calls)
               </span>
             )}
-            {/* Model toggle — hidden for now, defaulting to Claude Sonnet */}
-            {/* <div className="flex items-center bg-mauve-3 rounded-lg p-0.5">
-              <button
-                onClick={() => setSelectedModel('gemini-pro')}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                  selectedModel === 'gemini-pro'
-                    ? 'bg-white text-blue-700 shadow-sm'
-                    : 'text-mauve-9 hover:text-mauve-11'
-                }`}
-              >
-                Gemini 3.1
-              </button>
+            {/* Model toggle — Claude Sonnet (default) or Claude Opus. */}
+            <div className="flex items-center bg-mauve-3 rounded-lg p-0.5">
               <button
                 onClick={() => setSelectedModel('claude-sonnet')}
                 className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
@@ -915,7 +904,17 @@ function App() {
               >
                 Claude Sonnet
               </button>
-            </div> */}
+              <button
+                onClick={() => setSelectedModel('claude-opus')}
+                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                  selectedModel === 'claude-opus'
+                    ? 'bg-white text-purple-700 shadow-sm'
+                    : 'text-mauve-9 hover:text-mauve-11'
+                }`}
+              >
+                Claude Opus
+              </button>
+            </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-9">Powered by Claude Sonnet</span>
           </div>
         </header>

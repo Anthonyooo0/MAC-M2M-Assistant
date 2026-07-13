@@ -653,6 +653,7 @@ function parseGeminiResponse(geminiData) {
 // ---------------------------------------------------------------------------
 
 const CLAUDE_SONNET_MODEL = 'claude-sonnet-4-6';
+const CLAUDE_OPUS_MODEL = 'claude-opus-4-8';
 const CLAUDE_HAIKU_MODEL = 'claude-haiku-4-5';
 
 // Clarifier triage prompt — tiny, runs before SQL generation. The aim is
@@ -752,7 +753,7 @@ function getAnthropicClient() {
 }
 
 // Call Claude API with retry logic matching Gemini's pattern
-async function callClaudeAPI(systemPrompt, schema, messages, maxRetries = 3) {
+async function callClaudeAPI(systemPrompt, schema, messages, model = CLAUDE_SONNET_MODEL, maxRetries = 3) {
   const client = getAnthropicClient();
   if (!client) throw new Error('Anthropic API key is not configured.');
 
@@ -776,15 +777,15 @@ async function callClaudeAPI(systemPrompt, schema, messages, maxRetries = 3) {
     },
   ];
 
+  // Sonnet 4.6 accepts temperature; Opus 4.8 removed the sampling parameters
+  // (temperature/top_p/top_k) and returns HTTP 400 if any are sent. So only
+  // pass temperature:0 for the models that still support it.
+  const params = { model, max_tokens: 2048, system, messages };
+  if (model !== CLAUDE_OPUS_MODEL) params.temperature = 0;
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const response = await client.messages.create({
-        model: CLAUDE_SONNET_MODEL,
-        max_tokens: 2048,
-        temperature: 0,
-        system,
-        messages,
-      });
+      const response = await client.messages.create(params);
       return response;
     } catch (err) {
       const status = err.status || err.statusCode;
@@ -1213,9 +1214,13 @@ function scoreConfidence(sqlQuery) {
 const GEMINI_COST_PER_1M_INPUT = 1.25;   // $1.25 per 1M input tokens
 const GEMINI_COST_PER_1M_OUTPUT = 10.00; // $10.00 per 1M output tokens
 
-// Claude Sonnet 4 pricing (per 1M tokens)
+// Claude Sonnet 4.6 pricing (per 1M tokens)
 const CLAUDE_COST_PER_1M_INPUT = 3.00;   // $3.00 per 1M input tokens
 const CLAUDE_COST_PER_1M_OUTPUT = 15.00; // $15.00 per 1M output tokens
+
+// Claude Opus 4.8 pricing (per 1M tokens)
+const CLAUDE_OPUS_COST_PER_1M_INPUT = 5.00;   // $5.00 per 1M input tokens
+const CLAUDE_OPUS_COST_PER_1M_OUTPUT = 25.00; // $25.00 per 1M output tokens
 
 // Legacy aliases — keep for backward compatibility with calculateCost calls
 const COST_PER_1M_INPUT = GEMINI_COST_PER_1M_INPUT;
@@ -1231,9 +1236,12 @@ function extractTokenUsage(geminiResponse) {
 }
 
 function calculateCost(inputTokens, outputTokens, modelProvider) {
-  const isClaudeModel = modelProvider === 'claude';
-  const costIn = isClaudeModel ? CLAUDE_COST_PER_1M_INPUT : GEMINI_COST_PER_1M_INPUT;
-  const costOut = isClaudeModel ? CLAUDE_COST_PER_1M_OUTPUT : GEMINI_COST_PER_1M_OUTPUT;
+  const isOpus = modelProvider === 'claude-opus';
+  const isClaudeModel = modelProvider === 'claude' || isOpus;
+  const costIn = isOpus ? CLAUDE_OPUS_COST_PER_1M_INPUT
+    : isClaudeModel ? CLAUDE_COST_PER_1M_INPUT : GEMINI_COST_PER_1M_INPUT;
+  const costOut = isOpus ? CLAUDE_OPUS_COST_PER_1M_OUTPUT
+    : isClaudeModel ? CLAUDE_COST_PER_1M_OUTPUT : GEMINI_COST_PER_1M_OUTPUT;
   const inputCost = (inputTokens / 1_000_000) * costIn;
   const outputCost = (outputTokens / 1_000_000) * costOut;
   return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000; // 6 decimal places
@@ -1326,14 +1334,27 @@ module.exports = async function (context, req) {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let geminiCalls = 0;
-  // Declared out here so the catch block can reference it — otherwise an error
+  // Declared out here so the catch block can reference them — otherwise an error
   // in the try would make the catch throw its own ReferenceError, producing an
   // empty-body 500 instead of a real error message.
   let useClaudeModel = false;
+  // This app is Claude-only (Gemini removed). The user picks Sonnet or Opus;
+  // default is Sonnet. modelProvider drives cost calc + is reported to the UI.
+  let claudeModel = CLAUDE_SONNET_MODEL;
+  let modelProvider = 'claude';
 
   try {
     const { message, history, model: requestedModel, mode, builder, rawSql } = req.body || {};
-    useClaudeModel = requestedModel === 'claude-sonnet';
+    // Claude-only: always use Claude for SQL generation (Gemini removed). The
+    // user chooses Sonnet (default) or Opus; anything else falls back to Sonnet.
+    useClaudeModel = true;
+    if (requestedModel === 'claude-opus') {
+      claudeModel = CLAUDE_OPUS_MODEL;
+      modelProvider = 'claude-opus';
+    } else {
+      claudeModel = CLAUDE_SONNET_MODEL;
+      modelProvider = 'claude';
+    }
     const isBuilderMode = mode === 'builder' && builder && typeof builder === 'object';
     // Raw-SQL mode: preset buttons in the frontend can pre-bake a SELECT
     // statement and post it via the rawSql field. The function skips the
@@ -1438,7 +1459,6 @@ module.exports = async function (context, req) {
         geminiCalls++;
       }
       if (clarifier && clarifier.ok === false && clarifier.question) {
-        const modelProvider = useClaudeModel ? 'claude' : 'gemini';
         context.res = {
           status: 200,
           headers: CORS,
@@ -1460,8 +1480,6 @@ module.exports = async function (context, req) {
     geminiMessages.push({ role: 'user', parts: [{ text: userMessageText }] });
     claudeMessages.push({ role: 'user', content: userMessageText });
 
-    const modelProvider = useClaudeModel ? 'claude' : 'gemini';
-
     // -----------------------------------------------------------------------
     // Initial SQL — raw-SQL preset OR LLM-generated
     // -----------------------------------------------------------------------
@@ -1473,7 +1491,7 @@ module.exports = async function (context, req) {
       explanation = (message && message.trim()) || 'Preset query.';
     } else if (useClaudeModel) {
       // --- Claude path (with prompt caching — schema cached after first request) ---
-      const claudeData = await callClaudeAPI(activeStaticInstructions, activeSchema, claudeMessages);
+      const claudeData = await callClaudeAPI(activeStaticInstructions, activeSchema, claudeMessages, claudeModel);
       { const t = extractClaudeTokenUsage(claudeData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
       ({ explanation, sqlQuery } = parseClaudeResponse(claudeData));
@@ -1556,7 +1574,7 @@ module.exports = async function (context, req) {
           { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
           { role: 'user', content: safetyRetryText },
         ];
-        const safetyRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, safetyRetryClaude);
+        const safetyRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, safetyRetryClaude, claudeModel);
         { const t = extractClaudeTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
         const retryParsed = parseClaudeResponse(safetyRetryData);
         explanation = retryParsed.explanation;
@@ -1629,7 +1647,7 @@ module.exports = async function (context, req) {
             { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
             { role: 'user', content: schemaRetryText },
           ];
-          const schemaRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, schemaRetryClaude);
+          const schemaRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, schemaRetryClaude, claudeModel);
           { const t = extractClaudeTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
           retryParsed = parseClaudeResponse(schemaRetryData);
         } else {
@@ -1754,7 +1772,7 @@ module.exports = async function (context, req) {
             { role: 'user', content: retryText },
           ];
           try {
-            const retryData = await callClaudeAPI(activeStaticInstructions, activeSchema, retryConversationClaude);
+            const retryData = await callClaudeAPI(activeStaticInstructions, activeSchema, retryConversationClaude, claudeModel);
             { const t = extractClaudeTokenUsage(retryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
             retryParsed = parseClaudeResponse(retryData);
           } catch (retryErr) {
@@ -1851,7 +1869,7 @@ module.exports = async function (context, req) {
           { role: 'user', content: zeroRowText },
         ];
         try {
-          const zeroRowData = await callClaudeAPI(activeStaticInstructions, activeSchema, zeroRowClaude);
+          const zeroRowData = await callClaudeAPI(activeStaticInstructions, activeSchema, zeroRowClaude, claudeModel);
           { const t = extractClaudeTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
           zeroRowParsed = parseClaudeResponse(zeroRowData);
         } catch (zeroErr) {
@@ -1941,7 +1959,6 @@ module.exports = async function (context, req) {
 
   } catch (err) {
     context.log.error(`[m2m-query][${requestId}] Error:`, err);
-    const modelProvider = useClaudeModel ? 'claude' : 'gemini';
     context.res = {
       status: 500,
       headers: CORS,
