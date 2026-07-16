@@ -64,7 +64,7 @@ term listed below — do not infer the mapping from general M2M knowledge.
 - "closed SO" → SOMAST where RTRIM(FSTATUS) = 'Closed'
 - "cancelled SO" → SOMAST where RTRIM(FSTATUS) = 'Cancelled'
 - "late order" / "past due" → SOMAST where FDUEDATE < GETDATE() and FSTATUS not in ('Closed','Cancelled')
-- "Wabtec orders" / "Wabtec sales orders" → SOMAST where FPRODCL = '04' (Wabtec product class — NOT customer number)
+- "Wabtec orders" / "Wabtec sales orders" → product class '04' (Wabtec product class — NOT customer number). NOTE: SOMAST has NO FPRODCL column — product class lives at line/job level: SOITEM.FPRODCL = '04' (join SOMAST to SOITEM on FSONO), or JOMAST.FPRODCL = '04' for job orders.
 
 # Quality (UniPoint)
 
