@@ -69,20 +69,25 @@ function extractHtsCode(comment) {
   if (!comment) return null;
   const text = String(comment);
 
+  // Candidates are kept with their position so the code written FIRST wins.
+  // Comments sometimes list several — "HTS CODE 9903.78.01 - 50% tariff ...
+  // 9903.03.06 7407.10.5050" — and the leading one is the operative code.
   const candidates = [];
 
-  // Pass 1: anything following an "HTS" marker — "HTS #", "HTS:", "HTS ".
-  // "HST" is accepted too: the transposition occurs in real item comments.
-  const marker = /H[TS]S\s*(?:CODE)?\s*[#:]?\s*([0-9][0-9.\s-]*)/gi;
+  // Pass 1: anything following an "HTS" marker — "HTS #", "HTS:", "HTS CODE".
+  // HST and HTC are accepted too: both typos occur in the live item comments,
+  // and without them those codes survive only by the dotted-pattern fallback.
+  const marker = /\b(?:HTS|HST|HTC)\s*(?:CODE)?\s*[#:\-]?\s*([0-9][0-9.\s-]*)/gi;
   let m;
-  while ((m = marker.exec(text)) !== null) candidates.push(m[1]);
+  while ((m = marker.exec(text)) !== null) candidates.push({ raw: m[1], at: m.index });
 
   // Pass 2: a fully-formed dotted code anywhere, for comments with no marker.
   const dotted = /\b(\d{4}\.\d{2}(?:\.\d{2,4})?)\b/g;
-  while ((m = dotted.exec(text)) !== null) candidates.push(m[1]);
+  while ((m = dotted.exec(text)) !== null) candidates.push({ raw: m[1], at: m.index });
 
-  let best = null;
-  for (const raw of candidates) {
+  candidates.sort((a, b) => a.at - b.at);
+
+  for (const { raw } of candidates) {
     // Stop at the first whitespace run: "7419.99.5050 0%" -> "7419.99.5050",
     // which is what keeps the trailing duty rate out of the result.
     const head = raw.trim().split(/[\s ]+/)[0];
@@ -92,21 +97,17 @@ function extractHtsCode(comment) {
     // that happened to sit near the marker.
     if (![6, 8, 10].includes(digits.length)) continue;
 
-    // Chapter 99 headings are surcharges (Section 301/232 etc.), not
-    // classifications. Comments often list them beside the real code —
-    // returning one as the part's HTS code would be wrong.
-    if (digits.startsWith('9903')) continue;
-
     const formatted =
       digits.length === 10 ? `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`
       : digits.length === 8 ? `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`
       : `${digits.slice(0, 4)}.${digits.slice(4)}`;
 
-    // Prefer the most specific code when a comment mentions several.
-    if (!best || digits.length > best.digits) best = { formatted, digits: digits.length };
+    // First code written wins — including Chapter 99 provisions, which some
+    // comments lead with deliberately.
+    return formatted;
   }
 
-  return best ? best.formatted : null;
+  return null;
 }
 
 module.exports = async function (context, req) {
