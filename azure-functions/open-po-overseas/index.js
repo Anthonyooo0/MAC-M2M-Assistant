@@ -52,7 +52,8 @@ function extractHtsCode(comment) {
   const candidates = [];
 
   // Pass 1: anything following an "HTS" marker — "HTS #", "HTS:", "HTS ".
-  const marker = /HTS\s*[#:]?\s*([0-9][0-9.\s-]*)/gi;
+  // "HST" is accepted too: the transposition occurs in real item comments.
+  const marker = /H[TS]S\s*(?:CODE)?\s*[#:]?\s*([0-9][0-9.\s-]*)/gi;
   let m;
   while ((m = marker.exec(text)) !== null) candidates.push(m[1]);
 
@@ -70,6 +71,11 @@ function extractHtsCode(comment) {
     // 6/8/10 digits are the real HTS levels. Anything else is some other number
     // that happened to sit near the marker.
     if (![6, 8, 10].includes(digits.length)) continue;
+
+    // Chapter 99 headings are surcharges (Section 301/232 etc.), not
+    // classifications. Comments often list them beside the real code —
+    // returning one as the part's HTS code would be wrong.
+    if (digits.startsWith('9903')) continue;
 
     const formatted =
       digits.length === 10 ? `${digits.slice(0, 4)}.${digits.slice(4, 6)}.${digits.slice(6)}`
@@ -122,6 +128,19 @@ module.exports = async function (context, req) {
       return;
     }
 
+    // The HTS code is read from INMASTX via a correlated scalar subquery rather
+    // than a join: INMASTX can hold several rows per part (facility / revision),
+    // and a join would duplicate PO lines and double the tariff totals.
+    //
+    // Keep SQL `--` comments out of the query string below. They have been seen
+    // to swallow the following line by the time the statement reaches the
+    // server, producing syntax errors at whatever token came next.
+    // ?noComment=1 drops the INMASTX subquery, ?debug=1 returns the SQL without
+    // running it. Both exist to isolate syntax problems against the live server
+    // without a redeploy per attempt.
+    const noComment = req.query && (req.query.noComment === '1');
+    const debug = req.query && (req.query.debug === '1');
+
     const rows = await withQuery(connString, async (request) => {
       const vendorParams = vendors.map((v, i) => {
         request.input(`v${i}`, sql.VarChar, v);
@@ -133,43 +152,50 @@ module.exports = async function (context, req) {
         return `@s${i}`;
       }).join(',');
 
-      const r = await request.query(`
-        SELECT
-            pm.FPONO                            AS PONo,
-            pm.FVENDNO                          AS VendorNo,
-            v.FCOMPANY                          AS VendorName,
-            v.FCOUNTRY                          AS VendorCountry,
-            pm.FSTATUS                          AS POStatus,
-            pi.FITEMNO                          AS LineNo,
-            pi.FRELSNO                          AS Rls,
-            pi.FPARTNO                          AS PartNo,
-            pi.FREV                             AS Rev,
-            CAST(pi.FDESCRIPT AS VARCHAR(255))  AS Description,
-            pi.FORDQTY                          AS QtyOrdered,
-            pi.FRCPQTY                          AS QtyReceived,
-            (pi.FORDQTY - pi.FRCPQTY)           AS QtyOpen,
-            pi.FMEASURE                         AS UOM,
-            pi.FUCOST                           AS UnitCost,
-            (pi.FORDQTY - pi.FRCPQTY) * pi.FUCOST AS ExtendedCost,
-            pi.FLSTPDATE                        AS LastPromiseDate,
-            pi.FREQDATE                         AS RequestDate,
-            cm.ItemComment                      AS ItemComment
-        FROM POMAST pm
-            INNER JOIN POITEM pi ON pi.FPONO  = pm.FPONO
-            LEFT  JOIN APVEND v  ON v.FVENDNO = pm.FVENDNO
-            -- OUTER APPLY rather than a JOIN: INMASTX can hold several rows per
-            -- part (facility / revision), and a plain join would duplicate PO lines.
-            OUTER APPLY (
-                SELECT TOP 1 CAST(im.FCOMMENT AS VARCHAR(4000)) AS ItemComment
-                FROM INMASTX im
-                WHERE im.FPARTNO = pi.FPARTNO
-                  AND im.FCOMMENT IS NOT NULL
-            ) cm
-        WHERE pm.FVENDNO IN (${vendorParams})
-          AND (pi.FORDQTY - pi.FRCPQTY) > 0
-          AND pm.FSTATUS NOT IN (${statusParams})
-        ORDER BY v.FCOUNTRY, pm.FVENDNO, pm.FPONO, pi.FITEMNO
-      `);
+      const commentSelect = noComment
+        ? `NULL AS [ItemComment]`
+        : `(SELECT TOP 1 CAST(im.FCOMMENT AS VARCHAR(4000)) FROM INMASTX im WHERE im.FPARTNO = pi.FPARTNO AND im.FCOMMENT IS NOT NULL) AS [ItemComment]`;
+
+      // Every alias is bracketed. LINENO and DESCRIPTION are reserved words in
+      // T-SQL, and an unbracketed `AS LineNo` is a syntax error — which is why
+      // the source query bracketed them too.
+      const statement = [
+        'SELECT',
+        '    pm.FPONO AS [PONo],',
+        '    pm.FVENDNO AS [VendorNo],',
+        '    v.FCOMPANY AS [VendorName],',
+        '    v.FCOUNTRY AS [VendorCountry],',
+        '    pm.FSTATUS AS [POStatus],',
+        '    pi.FITEMNO AS [LineNo],',
+        '    pi.FRELSNO AS [Rls],',
+        '    pi.FPARTNO AS [PartNo],',
+        '    pi.FREV AS [Rev],',
+        '    CAST(pi.FDESCRIPT AS VARCHAR(255)) AS [Description],',
+        '    pi.FORDQTY AS [QtyOrdered],',
+        '    pi.FRCPQTY AS [QtyReceived],',
+        '    (pi.FORDQTY - pi.FRCPQTY) AS [QtyOpen],',
+        '    pi.FMEASURE AS [UOM],',
+        '    pi.FUCOST AS [UnitCost],',
+        '    ((pi.FORDQTY - pi.FRCPQTY) * pi.FUCOST) AS [ExtendedCost],',
+        '    pi.FLSTPDATE AS [LastPromiseDate],',
+        '    pi.FREQDATE AS [RequestDate],',
+        `    ${commentSelect}`,
+        'FROM POMAST pm',
+        '    INNER JOIN POITEM pi ON pi.FPONO = pm.FPONO',
+        '    LEFT JOIN APVEND v ON v.FVENDNO = pm.FVENDNO',
+        `WHERE pm.FVENDNO IN (${vendorParams})`,
+        '  AND (pi.FORDQTY - pi.FRCPQTY) > 0',
+        `  AND pm.FSTATUS NOT IN (${statusParams})`,
+        'ORDER BY v.FCOUNTRY, pm.FVENDNO, pm.FPONO, pi.FITEMNO',
+      ].join('\n');
+
+      if (debug) {
+        const err = new Error('debug');
+        err.statement = statement;
+        throw err;
+      }
+
+      const r = await request.query(statement);
       return r.recordset;
     });
 
@@ -202,6 +228,10 @@ module.exports = async function (context, req) {
       }),
     };
   } catch (err) {
+    if (err && err.statement) {
+      context.res = { status: 200, headers: CORS, body: JSON.stringify({ debug: true, statement: err.statement }) };
+      return;
+    }
     context.log.error('[open-po-overseas] Error:', err);
     context.res = {
       status: 500,
