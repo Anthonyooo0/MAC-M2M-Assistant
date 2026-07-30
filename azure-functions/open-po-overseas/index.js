@@ -28,6 +28,26 @@ const DEFAULT_VENDORS = [
 const CLOSED_STATUSES = ['CLOSED', 'CANCELLED', 'COMPLETED', 'COMPLETE', 'VOID'];
 
 /**
+ * Charge lines that are not imported goods, so carry no HTS code by nature.
+ *
+ * Deliberately a short, named list rather than a clever rule. An earlier
+ * attempt excluded any part number without digits, which also dropped
+ * BRACKET-TOP, CLEATA-NSP and CLEATBFILLER — real parts with real tariff
+ * exposure. Add to this list as more charge lines turn up.
+ *
+ * FRIEGHT is the transposition that appears in the live data.
+ */
+const NON_MATERIAL_WORDS = ['PACKAGING', 'MATERIAL CERT', 'FREIGHT', 'FRIEGHT'];
+
+const NON_MATERIAL_RE = new RegExp(`(^|[^A-Z])(${NON_MATERIAL_WORDS.join('|')})([^A-Z]|$)`, 'i');
+
+function isNonMaterial(partNo) {
+  const p = String(partNo || '').trim().toUpperCase();
+  if (!p) return true;
+  return NON_MATERIAL_RE.test(p);
+}
+
+/**
  * Pull an HTS code out of the item master's free-text comment.
  *
  * M2M has no HTS field, so it is recorded in INMASTX.FCOMMENT alongside
@@ -201,7 +221,7 @@ module.exports = async function (context, req) {
 
     // M2M pads fixed-width character columns, which would otherwise show up as
     // trailing spaces in every dashboard cell and break exact-match filters.
-    const shaped = rows.map(row => {
+    const all = rows.map(row => {
       const out = {};
       for (const [k, val] of Object.entries(row)) {
         out[k] = typeof val === 'string' ? val.trim() : val;
@@ -212,6 +232,13 @@ module.exports = async function (context, req) {
       out.ItemComment = out.ItemComment ? String(out.ItemComment).slice(0, 500) : null;
       return out;
     });
+
+    const shaped = all.filter(r => !isNonMaterial(r.PartNo));
+    // Name what was dropped rather than just how many, so an over-eager rule
+    // is visible instead of quietly shrinking the dashboard.
+    const excludedParts = [...new Set(
+      all.filter(r => isNonMaterial(r.PartNo)).map(r => String(r.PartNo || '').trim()),
+    )].sort();
 
     const withHts = shaped.filter(r => r.HtsCode).length;
 
@@ -224,6 +251,8 @@ module.exports = async function (context, req) {
         rowCount: shaped.length,
         htsResolved: withHts,
         htsMissing: shaped.length - withHts,
+        excludedNonMaterial: all.length - shaped.length,
+        excludedParts,
         rows: shaped,
       }),
     };
