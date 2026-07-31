@@ -24,8 +24,10 @@ const DEFAULT_VENDORS = [
   'V1S248', 'V1T044', 'V1Z065', 'V1N303', 'V1Y080', 'V1I085', 'V1I172',
 ];
 
-// PO header statuses that mean the order is no longer live.
-const CLOSED_STATUSES = ['CLOSED', 'CANCELLED', 'COMPLETED', 'COMPLETE', 'VOID'];
+// Only genuinely open orders. An allow-list rather than a list of closed
+// statuses to exclude: the exclusion form let STARTED and ON HOLD through,
+// which are not open positions and should not carry tariff exposure here.
+const OPEN_STATUSES = ['OPEN'];
 
 /**
  * Charge lines that are not imported goods, so carry no HTS code by nature.
@@ -81,8 +83,13 @@ function extractHtsCode(comment) {
   let m;
   while ((m = marker.exec(text)) !== null) candidates.push({ raw: m[1], at: m.index });
 
-  // Pass 2: a fully-formed dotted code anywhere, for comments with no marker.
-  const dotted = /\b(\d{4}\.\d{2}(?:\.\d{2,4})?)\b/g;
+  // Pass 2: a dotted code anywhere, for comments with no marker.
+  //
+  // Accepts the four-group form as well: comments are written both as
+  // 3506.10.1000 and 3506.10.10.00. They are the same ten digits, and matching
+  // only three groups truncated the second form to eight — which then looked
+  // like an incomplete classification rather than a punctuation difference.
+  const dotted = /\b(\d{4}\.\d{2}(?:\.\d{2,4})?(?:\.\d{2})?)\b/g;
   while ((m = dotted.exec(text)) !== null) candidates.push({ raw: m[1], at: m.index });
 
   candidates.sort((a, b) => a.at - b.at);
@@ -168,7 +175,7 @@ module.exports = async function (context, req) {
         return `@v${i}`;
       }).join(',');
 
-      const statusParams = CLOSED_STATUSES.map((s, i) => {
+      const statusParams = OPEN_STATUSES.map((s, i) => {
         request.input(`s${i}`, sql.VarChar, s);
         return `@s${i}`;
       }).join(',');
@@ -206,7 +213,7 @@ module.exports = async function (context, req) {
         '    LEFT JOIN APVEND v ON v.FVENDNO = pm.FVENDNO',
         `WHERE pm.FVENDNO IN (${vendorParams})`,
         '  AND (pi.FORDQTY - pi.FRCPQTY) > 0',
-        `  AND pm.FSTATUS NOT IN (${statusParams})`,
+        `  AND pm.FSTATUS IN (${statusParams})`,
         'ORDER BY v.FCOUNTRY, pm.FVENDNO, pm.FPONO, pi.FITEMNO',
       ].join('\n');
 
