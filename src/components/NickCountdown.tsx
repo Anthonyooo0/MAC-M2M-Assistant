@@ -18,7 +18,29 @@ function computeTarget(): Date {
   return t;
 }
 
+// Calendar-correct breakdown from now to target: years, months, days, then h/m/s.
+// Borrows down the chain so each field stays in range (days uses the real length
+// of the month we borrow from).
+function breakdown(now: Date, target: Date) {
+  if (now >= target) return { y: 0, mo: 0, d: 0, h: 0, mi: 0, s: 0 };
+  let y = target.getFullYear() - now.getFullYear();
+  let mo = target.getMonth() - now.getMonth();
+  let d = target.getDate() - now.getDate();
+  let h = target.getHours() - now.getHours();
+  let mi = target.getMinutes() - now.getMinutes();
+  let s = target.getSeconds() - now.getSeconds();
+  if (s < 0) { s += 60; mi--; }
+  if (mi < 0) { mi += 60; h--; }
+  if (h < 0) { h += 24; d--; }
+  if (d < 0) { d += new Date(target.getFullYear(), target.getMonth(), 0).getDate(); mo--; }
+  if (mo < 0) { mo += 12; y--; }
+  return { y, mo, d, h, mi, s };
+}
+
 const pad = (n: number) => String(n).padStart(2, '0');
+
+const NAVY = '#0a1930';
+const GOLD = '#c9a227';
 
 export function NickCountdown({ collapsed }: { collapsed: boolean }) {
   const [open, setOpen] = useState(false);
@@ -33,25 +55,31 @@ export function NickCountdown({ collapsed }: { collapsed: boolean }) {
     return () => clearInterval(id);
   }, [open]);
 
-  const remaining = Math.max(0, target.getTime() - now);
-  const days = Math.floor(remaining / 86_400_000);
-  const hours = Math.floor((remaining % 86_400_000) / 3_600_000);
-  const mins = Math.floor((remaining % 3_600_000) / 60_000);
-  const secs = Math.floor((remaining % 60_000) / 1_000);
+  const b = breakdown(new Date(now), target);
+  const done = target.getTime() <= now;
 
-  const Unit = ({ value, label, big = false }: { value: string; label: string; big?: boolean }) => (
+  // Big primary unit — years / months / days.
+  const Big = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">
-      <span
-        className={`tabular-nums font-bold text-white leading-none drop-shadow-[0_0_26px_rgba(147,197,253,0.4)] ${
-          big ? 'text-6xl sm:text-8xl' : 'text-4xl sm:text-6xl'
-        }`}
-      >
+      <span className="tabular-nums font-black leading-none text-6xl sm:text-8xl" style={{ color: NAVY }}>
         {value}
       </span>
-      <span className="mt-2 text-[10px] sm:text-xs uppercase tracking-[0.25em] text-blue-200/50">{label}</span>
+      <span className="mt-3 text-[10px] sm:text-xs uppercase tracking-[0.3em]" style={{ color: `${NAVY}80` }}>
+        {label}
+      </span>
     </div>
   );
-  const Sep = () => <span className="text-4xl sm:text-6xl font-bold text-white/20 pb-6 select-none">:</span>;
+  // Smaller secondary unit — hours / minutes / seconds.
+  const Small = ({ value, label }: { value: string; label: string }) => (
+    <div className="flex flex-col items-center">
+      <span className="tabular-nums font-bold leading-none text-3xl sm:text-5xl" style={{ color: `${NAVY}cc` }}>
+        {value}
+      </span>
+      <span className="mt-2 text-[9px] sm:text-[11px] uppercase tracking-[0.25em]" style={{ color: `${NAVY}66` }}>
+        {label}
+      </span>
+    </div>
+  );
 
   return (
     <div className="px-2 pb-1">
@@ -67,41 +95,56 @@ export function NickCountdown({ collapsed }: { collapsed: boolean }) {
         {!collapsed && <span className="font-medium">Countdown</span>}
       </button>
 
-      {/* The full-screen countdown — rendered via a portal to document.body so it's
-          centered on the WHOLE screen, not trapped inside the sidebar. MAC navy. */}
+      {/* The full-screen countdown — rendered via a portal to document.body so it
+          fills the WHOLE screen. Solid white, MAC navy + gold. */}
       {open &&
         createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-gradient-to-br from-[#0a1930]/97 to-[#16345c]/97 backdrop-blur-md"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"
             onClick={() => setOpen(false)}
           >
             <div className="relative px-8 text-center" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="absolute -top-12 right-0 text-3xl text-white/50 hover:text-white transition-colors"
+                className="absolute -top-6 right-0 text-2xl transition-colors"
+                style={{ color: `${NAVY}66` }}
               >
                 ✕
               </button>
 
-              <div className="mb-2 text-3xl sm:text-5xl font-bold tracking-tight text-white">Nick's Retirement</div>
-              <div className="mb-10 text-xs sm:text-sm uppercase tracking-[0.35em] text-blue-200/70">Time Remaining</div>
-
-              <div className="flex items-end justify-center gap-3 sm:gap-8 font-mono">
-                <Unit value={String(days)} label="Days" big />
-                <Sep />
-                <Unit value={pad(hours)} label="Hours" />
-                <Sep />
-                <Unit value={pad(mins)} label="Minutes" />
-                <Sep />
-                <Unit value={pad(secs)} label="Seconds" />
+              <div className="text-4xl sm:text-6xl font-black tracking-tight" style={{ color: NAVY }}>
+                Nick's Retirement
+              </div>
+              <div className="mx-auto mt-5 mb-2 h-[3px] w-24 rounded-full" style={{ backgroundColor: GOLD }} />
+              <div className="mb-12 text-xs sm:text-sm uppercase tracking-[0.35em]" style={{ color: `${NAVY}80` }}>
+                Time Remaining
               </div>
 
-              <div className="mt-10 text-sm text-blue-200/50">
+              {done ? (
+                <div className="text-5xl font-black" style={{ color: NAVY }}>Time's up. Enjoy retirement.</div>
+              ) : (
+                <>
+                  {/* Primary: years / months / days */}
+                  <div className="flex items-start justify-center gap-10 sm:gap-20">
+                    <Big value={b.y} label={b.y === 1 ? 'Year' : 'Years'} />
+                    <Big value={b.mo} label={b.mo === 1 ? 'Month' : 'Months'} />
+                    <Big value={b.d} label={b.d === 1 ? 'Day' : 'Days'} />
+                  </div>
+
+                  {/* Secondary: hours / minutes / seconds */}
+                  <div className="mt-12 flex items-start justify-center gap-8 sm:gap-14">
+                    <Small value={pad(b.h)} label="Hours" />
+                    <Small value={pad(b.mi)} label="Minutes" />
+                    <Small value={pad(b.s)} label="Seconds" />
+                  </div>
+                </>
+              )}
+
+              <div className="mt-14 text-sm" style={{ color: `${NAVY}66` }}>
                 Target:{' '}
                 {target.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </div>
-              {remaining === 0 && <div className="mt-4 text-2xl font-bold text-white">Time's up.</div>}
             </div>
           </div>,
           document.body
