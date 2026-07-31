@@ -30,6 +30,23 @@ const DEFAULT_VENDORS = [
 const OPEN_STATUSES = ['OPEN'];
 
 /**
+ * Country of origin for vendors whose APVEND record has the field blank.
+ *
+ * Duty rates depend on origin — Section 301 is China-only, Section 232 has
+ * UK-specific rates — so a line cannot be priced without one. These are a
+ * stopgap so the dashboard is not blocked on data entry; the real fix is to
+ * fill in APVEND, after which the entry here can be deleted.
+ *
+ * Keyed by vendor number, value must match a name the dashboard and scraper
+ * can map to an ISO code.
+ */
+const VENDOR_COUNTRY_OVERRIDES = {
+  V1E156: 'Czech Republic',   // ELEKTROLINE INC
+  V1P168: 'Spain',            // MOSDORFER RAIL LTD.   — per Michelle Soares
+  V1S248: 'India',            // SIGMA TERMINALS, LLP  — per Michelle Soares
+};
+
+/**
  * Charge lines that are not imported goods, so carry no HTS code by nature.
  *
  * Deliberately a short, named list rather than a clever rule. An earlier
@@ -233,6 +250,12 @@ module.exports = async function (context, req) {
       const out = {};
       for (const [k, val] of Object.entries(row)) {
         out[k] = typeof val === 'string' ? val.trim() : val;
+      }
+      // Fall back to the override only when APVEND genuinely has nothing, and
+      // flag it so a figure derived from an assumed origin is traceable.
+      if (!out.VendorCountry && VENDOR_COUNTRY_OVERRIDES[out.VendorNo]) {
+        out.VendorCountry = VENDOR_COUNTRY_OVERRIDES[out.VendorNo];
+        out.VendorCountryAssumed = true;
       }
       out.HtsCode = extractHtsCode(out.ItemComment);
       // Keep the source text so a wrong or missing code can be traced back to
