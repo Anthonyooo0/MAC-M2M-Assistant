@@ -7,12 +7,17 @@ import { ResultsTable } from './components/ResultsTable';
 import { AdminView } from './components/AdminView';
 import { CostDashboard } from './components/CostDashboard';
 import { QueryBuilder, type BuilderPayload } from './components/QueryBuilder';
+import { NickCountdown } from './components/NickCountdown';
 
 const M2M_QUERY_URL = import.meta.env.VITE_M2M_QUERY_URL || '';
 const CHAT_SESSIONS_URL = import.meta.env.VITE_CHAT_SESSIONS_URL || '';
 const CHAT_MESSAGES_URL = import.meta.env.VITE_CHAT_MESSAGES_URL || '';
 const QUERY_COSTS_URL = import.meta.env.VITE_QUERY_COSTS_URL || '';
 const SCHEMA_META_URL = import.meta.env.VITE_SCHEMA_META_URL || '';
+// Local dev only: skip the Microsoft SSO gate (redirect URIs don't resolve on
+// localhost). import.meta.env.DEV is false in every production build, so this
+// never affects the deployed app.
+const DEV_USER: string | null = import.meta.env.DEV ? 'anthony.jimenez@macproducts.net' : null;
 // Activity report shares the function app's host + key with m2m-query, so
 // derive its URL rather than needing a separate env var.
 const ACTIVITY_REPORT_URL = M2M_QUERY_URL.replace('/m2m-query', '/activity-report');
@@ -97,12 +102,15 @@ const MULTI_COMPANY_USERS: Record<string, string[]> = {
 function App() {
   const { instance, accounts } = useMsal();
   const isAuthenticated = useIsAuthenticated();
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(DEV_USER);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const sendLockRef = useRef(false); // Synchronous guard — prevents duplicate API calls
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Mobile-only: the sidebar is an off-canvas drawer. On md+ it is a normal
+  // static column and this flag is ignored.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -563,8 +571,9 @@ function App() {
     }
   };
 
-  // Auth gate — must run first so currentUser is set before maintenance check
-  if (!isAuthenticated || !currentUser) {
+  // Auth gate — must run first so currentUser is set before maintenance check.
+  // Skipped entirely in local dev (DEV_USER is non-null only under npm run dev).
+  if (!DEV_USER && (!isAuthenticated || !currentUser)) {
     if (isAuthenticated && accounts.length > 0) {
       const email = accounts[0].username?.toLowerCase() || '';
       if (!ALLOWED_DOMAINS.some(domain => email.endsWith(`@${domain}`))) {
@@ -625,8 +634,15 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-mauve-2 font-sans">
-      {/* Sidebar */}
-      <aside className={`sidebar flex flex-col ${sidebarCollapsed ? 'w-16' : 'w-64'} transition-all duration-300 flex-shrink-0 text-white`}>
+      {/* Mobile drawer backdrop — tap to close. Hidden on md+. */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      {/* Sidebar — off-canvas drawer on mobile, static column on md+ */}
+      <aside className={`sidebar flex flex-col flex-shrink-0 text-white transition-transform duration-300 fixed inset-y-0 left-0 z-40 w-64 md:static md:z-auto md:translate-x-0 md:transition-all ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'}`}>
         {/* Logo */}
         <div className="p-4 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -647,7 +663,7 @@ function App() {
         {/* New Chat Button */}
         <div className="p-3">
           <button
-            onClick={handleNewChat}
+            onClick={() => { handleNewChat(); setMobileNavOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-all border border-white/10"
           >
             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -693,7 +709,7 @@ function App() {
                     ? 'bg-white/10 text-white'
                     : 'text-blue-200 hover:text-white hover:bg-white/5'
                 }`}
-                onClick={() => handleSelectSession(session)}
+                onClick={() => { handleSelectSession(session); setMobileNavOpen(false); }}
               >
                 <svg className="w-4 h-4 flex-shrink-0 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -784,7 +800,7 @@ function App() {
         {isAdmin && (
           <div className="px-2 pb-1 space-y-1">
             <button
-              onClick={() => setViewMode(viewMode === 'admin' ? 'chat' : 'admin')}
+              onClick={() => { setViewMode(viewMode === 'admin' ? 'chat' : 'admin'); setMobileNavOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-lg transition-all ${
                 viewMode === 'admin'
                   ? 'nav-active text-white bg-white/10'
@@ -797,7 +813,7 @@ function App() {
               {!sidebarCollapsed && <span className="font-medium">Admin Dashboard</span>}
             </button>
             <button
-              onClick={() => setViewMode(viewMode === 'costs' ? 'chat' : 'costs')}
+              onClick={() => { setViewMode(viewMode === 'costs' ? 'chat' : 'costs'); setMobileNavOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-lg transition-all ${
                 viewMode === 'costs'
                   ? 'nav-active text-white bg-white/10'
@@ -810,6 +826,11 @@ function App() {
               {!sidebarCollapsed && <span className="font-medium">API Costs</span>}
             </button>
           </div>
+        )}
+
+        {/* Nick's countdown — visible to Nick (and Anthony, to preview) */}
+        {['nick.costantino@macproducts.net', 'anthony.jimenez@macproducts.net'].includes(currentUser || '') && (
+          <NickCountdown collapsed={sidebarCollapsed} />
         )}
 
         {/* Version tag */}
@@ -832,8 +853,8 @@ function App() {
           </button>
         </div>
 
-        {/* Collapse toggle */}
-        <div className="p-2 border-t border-white/10">
+        {/* Collapse toggle — desktop only (mobile uses the drawer) */}
+        <div className="p-2 border-t border-white/10 hidden md:block">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-full flex items-center justify-center py-2 text-blue-200/60 hover:text-white transition-colors"
@@ -848,18 +869,28 @@ function App() {
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-mauve-6 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div>
-              <h2 className="text-xl font-bold text-mauve-12">
+        <header className="bg-white border-b border-mauve-6 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+            {/* Hamburger — opens the sidebar drawer on mobile only */}
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="md:hidden p-2 -ml-1 text-mauve-11 hover:text-mac-navy flex-shrink-0"
+              aria-label="Open menu"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold text-mauve-12 truncate">
                 {viewMode === 'admin' ? 'Admin Dashboard' : viewMode === 'costs' ? 'API Costs' : 'M2M Assistant'}
               </h2>
-              <p className="text-xs text-mauve-9">
+              <p className="text-xs text-mauve-9 hidden sm:block">
                 {viewMode === 'admin' ? 'View all user sessions and SQL queries' : viewMode === 'costs' ? 'API usage and cost tracking' : 'Ask questions about your M2M ERP data in plain English'}
               </p>
             </div>
             {userCompanies.length > 1 && (
-              <div className="flex bg-mauve-3 rounded-lg p-1">
+              <div className="hidden sm:flex bg-mauve-3 rounded-lg p-1">
                 {userCompanies.map(company => {
                   const hasMessages = messages.length > 0;
                   const isActive = company.id === activeCompanyId;
@@ -890,36 +921,39 @@ function App() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             {isAdmin && (
-              <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded">
+              <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded hidden sm:inline">
                 Session: ${messages.reduce((sum, m) => sum + (m.cost?.cost || 0), 0).toFixed(6)} ({messages.filter(m => m.cost).reduce((sum, m) => sum + (m.cost?.calls || 0), 0)} calls)
               </span>
             )}
-            {/* Model toggle — Claude Sonnet (default) or Claude Opus. */}
-            <div className="flex items-center bg-mauve-3 rounded-lg p-0.5">
+            {/* Model toggle — Claude Sonnet (default) or Claude Opus.
+                Labels shorten to Sonnet/Opus on mobile to save header space. */}
+            <div className="flex items-center bg-mauve-3 rounded-lg p-0.5 flex-shrink-0">
               <button
                 onClick={() => setSelectedModel('claude-sonnet')}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                className={`px-2 sm:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
                   selectedModel === 'claude-sonnet'
                     ? 'bg-white text-orange-700 shadow-sm'
                     : 'text-mauve-9 hover:text-mauve-11'
                 }`}
               >
-                Claude Sonnet
+                <span className="sm:hidden">Sonnet</span>
+                <span className="hidden sm:inline">Claude Sonnet</span>
               </button>
               <button
                 onClick={() => setSelectedModel('claude-opus')}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                className={`px-2 sm:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
                   selectedModel === 'claude-opus'
                     ? 'bg-white text-purple-700 shadow-sm'
                     : 'text-mauve-9 hover:text-mauve-11'
                 }`}
               >
-                Claude Opus
+                <span className="sm:hidden">Opus</span>
+                <span className="hidden sm:inline">Claude Opus</span>
               </button>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-9">Powered by Claude Sonnet</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-9 hidden lg:inline">Powered by Claude Sonnet</span>
           </div>
         </header>
 
@@ -940,7 +974,7 @@ function App() {
         {/* Chat area */}
         {viewMode === 'chat' && (
           <>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center view-transition">
                   <div className="w-16 h-16 mb-4">
@@ -952,7 +986,7 @@ function App() {
                       ? 'Ask me anything about UniPoint quality data — inspections, NCRs, corrective actions, equipment, and more.'
                       : 'Ask me anything about M2M data — sales orders, jobs, inventory, purchase orders, customers, and more.'}
                   </p>
-                  <div className="grid grid-cols-2 gap-3 max-w-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full px-2 sm:px-0">
                     {(activeCompany.id === 'unipoint' ? [
                       { label: 'Show me all open non-conformance reports', query: 'Show me all open non-conformance reports' },
                       { label: 'What corrective actions are in progress?', query: 'What corrective actions are in progress?' },
@@ -1063,7 +1097,7 @@ function App() {
             </div>
 
             {/* Input area */}
-            <div className="border-t border-mauve-6 bg-white px-6 py-4">
+            <div className="border-t border-mauve-6 bg-white px-3 sm:px-6 py-3 sm:py-4">
               <div className="max-w-4xl mx-auto">
                 {/* Mode toggle */}
                 <div className="flex items-center justify-between mb-3">
@@ -1091,7 +1125,7 @@ function App() {
                       Query Builder
                     </button>
                   </div>
-                  <span className="text-[10px] text-mauve-9 italic">
+                  <span className="text-[10px] text-mauve-9 italic hidden sm:inline">
                     {inputMode === 'chat'
                       ? 'Ask in plain English.'
                       : 'Pick the data sources and fields you want.'}
