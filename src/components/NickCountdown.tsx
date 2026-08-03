@@ -19,8 +19,6 @@ function computeTarget(): Date {
 }
 
 // Calendar-correct breakdown from now to target: years, months, days, then h/m/s.
-// Borrows down the chain so each field stays in range (days uses the real length
-// of the month we borrow from).
 function breakdown(now: Date, target: Date) {
   if (now >= target) return { y: 0, mo: 0, d: 0, h: 0, mi: 0, s: 0 };
   let y = target.getFullYear() - now.getFullYear();
@@ -58,28 +56,17 @@ export function NickCountdown({ collapsed }: { collapsed: boolean }) {
   const b = breakdown(new Date(now), target);
   const done = target.getTime() <= now;
 
-  // Big primary unit — years / months / days.
-  const Big = ({ value, label }: { value: number; label: string }) => (
-    <div className="flex flex-col items-center">
-      <span className="tabular-nums font-black leading-none text-6xl sm:text-8xl" style={{ color: NAVY }}>
-        {value}
-      </span>
-      <span className="mt-3 text-[10px] sm:text-xs uppercase tracking-[0.3em]" style={{ color: `${NAVY}80` }}>
-        {label}
-      </span>
-    </div>
-  );
-  // Smaller secondary unit — hours / minutes / seconds.
-  const Small = ({ value, label }: { value: string; label: string }) => (
-    <div className="flex flex-col items-center">
-      <span className="tabular-nums font-bold leading-none text-3xl sm:text-5xl" style={{ color: `${NAVY}cc` }}>
-        {value}
-      </span>
-      <span className="mt-2 text-[9px] sm:text-[11px] uppercase tracking-[0.25em]" style={{ color: `${NAVY}66` }}>
-        {label}
-      </span>
-    </div>
-  );
+  // One straight row of split-flap units. Each digit is its own card; a digit only
+  // re-mounts (and re-plays the flip) when its value actually changes, like a real
+  // flip clock. Years lead the row instead of days.
+  const units: { v: string; label: string }[] = [
+    { v: pad(b.y), label: 'Years' },
+    { v: pad(b.mo), label: 'Months' },
+    { v: pad(b.d), label: 'Days' },
+    { v: pad(b.h), label: 'Hours' },
+    { v: pad(b.mi), label: 'Minutes' },
+    { v: pad(b.s), label: 'Seconds' },
+  ];
 
   return (
     <div className="px-2 pb-1">
@@ -95,19 +82,42 @@ export function NickCountdown({ collapsed }: { collapsed: boolean }) {
         {!collapsed && <span className="font-medium">Countdown</span>}
       </button>
 
-      {/* The full-screen countdown — rendered via a portal to document.body so it
-          fills the WHOLE screen. Solid white, MAC navy + gold. */}
+      {/* Full-screen countdown — white overlay, dark split-flap cards in one row. */}
       {open &&
         createPortal(
           <div
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-white"
             onClick={() => setOpen(false)}
           >
-            <div className="relative px-8 text-center" onClick={(e) => e.stopPropagation()}>
+            <style>{`
+              @keyframes nickflip {
+                0%   { transform: rotateX(-85deg); opacity: .2; }
+                55%  { opacity: 1; }
+                100% { transform: rotateX(0deg); opacity: 1; }
+              }
+              .nick-flip {
+                position: relative; display: flex; align-items: center; justify-content: center;
+                width: 2.75rem; height: 3.75rem; border-radius: .5rem;
+                background: linear-gradient(#3a3a40, #202024);
+                color: #f6f5f1; font-weight: 800; font-variant-numeric: tabular-nums;
+                font-size: 2.25rem; line-height: 1; transform-origin: center;
+                box-shadow: 0 8px 16px rgba(10,25,48,.28), inset 0 1px 0 rgba(255,255,255,.07);
+                animation: nickflip .45s cubic-bezier(.2,.7,.2,1);
+              }
+              .nick-flip::after {
+                content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+                background: rgba(0,0,0,.5); box-shadow: 0 1px 0 rgba(255,255,255,.05);
+              }
+              @media (min-width: 640px) {
+                .nick-flip { width: 3.5rem; height: 4.75rem; font-size: 3rem; }
+              }
+            `}</style>
+
+            <div className="relative px-6 text-center" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="absolute -top-6 right-0 text-2xl transition-colors"
+                className="absolute -top-8 right-0 text-2xl transition-colors"
                 style={{ color: `${NAVY}66` }}
               >
                 ✕
@@ -124,24 +134,29 @@ export function NickCountdown({ collapsed }: { collapsed: boolean }) {
               {done ? (
                 <div className="text-5xl font-black" style={{ color: NAVY }}>Time's up. Enjoy retirement.</div>
               ) : (
-                <>
-                  {/* Primary: years / months / days */}
-                  <div className="flex items-start justify-center gap-10 sm:gap-20">
-                    <Big value={b.y} label={b.y === 1 ? 'Year' : 'Years'} />
-                    <Big value={b.mo} label={b.mo === 1 ? 'Month' : 'Months'} />
-                    <Big value={b.d} label={b.d === 1 ? 'Day' : 'Days'} />
-                  </div>
-
-                  {/* Secondary: hours / minutes / seconds */}
-                  <div className="mt-12 flex items-start justify-center gap-8 sm:gap-14">
-                    <Small value={pad(b.h)} label="Hours" />
-                    <Small value={pad(b.mi)} label="Minutes" />
-                    <Small value={pad(b.s)} label="Seconds" />
-                  </div>
-                </>
+                <div
+                  className="flex items-start justify-center gap-3 sm:gap-5 overflow-x-auto"
+                  style={{ perspective: '800px' }}
+                >
+                  {units.map((u) => (
+                    <div key={u.label} className="flex flex-col items-center gap-2 flex-shrink-0">
+                      <div className="flex gap-1">
+                        {u.v.split('').map((ch, di) => (
+                          <div key={`${di}-${ch}`} className="nick-flip">{ch}</div>
+                        ))}
+                      </div>
+                      <span
+                        className="text-[10px] sm:text-xs uppercase tracking-[0.25em]"
+                        style={{ color: `${NAVY}99` }}
+                      >
+                        {u.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               )}
 
-              <div className="mt-14 text-sm" style={{ color: `${NAVY}66` }}>
+              <div className="mt-12 text-sm" style={{ color: `${NAVY}66` }}>
                 Target:{' '}
                 {target.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </div>
