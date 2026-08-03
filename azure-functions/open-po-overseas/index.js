@@ -158,6 +158,36 @@ module.exports = async function (context, req) {
       return;
     }
 
+    // ?inspectPart=<partno> dumps every INMASTX row for one part, to see which
+    // row a comment actually lives on when the dashboard says a code is absent.
+    const inspectPart = req.query && req.query.inspectPart;
+    if (inspectPart) {
+      const rows = await withQuery(connString, async (request) => {
+        request.input('p', sql.VarChar, String(inspectPart).trim());
+        const r = await request.query(`
+          SELECT im.FPARTNO AS [PartNo], im.FAC AS [Facility], im.FREV AS [Rev],
+                 CAST(im.FCOMMENT AS VARCHAR(4000)) AS [Comment]
+          FROM INMASTX im
+          WHERE LTRIM(RTRIM(im.FPARTNO)) = @p
+        `);
+        return r.recordset;
+      });
+      context.res = {
+        status: 200,
+        headers: CORS,
+        body: JSON.stringify({
+          part: String(inspectPart).trim(),
+          rowCount: rows.length,
+          rows: rows.map(r => ({
+            ...r,
+            PartNo: (r.PartNo || '').trim(),
+            ParsedHts: extractHtsCode(r.Comment),
+          })),
+        }),
+      };
+      return;
+    }
+
     const requested = (req.body && Array.isArray(req.body.vendors) && req.body.vendors.length)
       ? req.body.vendors
       : DEFAULT_VENDORS;
@@ -197,9 +227,6 @@ module.exports = async function (context, req) {
         return `@s${i}`;
       }).join(',');
 
-      const commentSelect = noComment
-        ? `NULL AS [ItemComment]`
-        : `(SELECT TOP 1 CAST(im.FCOMMENT AS VARCHAR(4000)) FROM INMASTX im WHERE im.FPARTNO = pi.FPARTNO AND im.FCOMMENT IS NOT NULL) AS [ItemComment]`;
 
       // Every alias is bracketed. LINENO and DESCRIPTION are reserved words in
       // T-SQL, and an unbracketed `AS LineNo` is a syntax error — which is why
@@ -223,8 +250,7 @@ module.exports = async function (context, req) {
         '    pi.FUCOST AS [UnitCost],',
         '    ((pi.FORDQTY - pi.FRCPQTY) * pi.FUCOST) AS [ExtendedCost],',
         '    pi.FLSTPDATE AS [LastPromiseDate],',
-        '    pi.FREQDATE AS [RequestDate],',
-        `    ${commentSelect}`,
+        '    pi.FREQDATE AS [RequestDate]',
         'FROM POMAST pm',
         '    INNER JOIN POITEM pi ON pi.FPONO = pm.FPONO',
         '    LEFT JOIN APVEND v ON v.FVENDNO = pm.FVENDNO',
@@ -244,6 +270,57 @@ module.exports = async function (context, req) {
       return r.recordset;
     });
 
+    // INMASTX holds one row per part AND revision, and the HTS code is often on
+    // only one of them — a correlated TOP 1 silently returned whichever row the
+    // engine felt like, so a code recorded against rev 1 was invisible while
+    // rev 0 carried an unrelated note. Fetch every comment for the parts in
+    // play and choose in JS, where the choice can be explained.
+    const partNos = [...new Set(rows.map(r => String(r.PartNo || '').trim()).filter(Boolean))];
+
+    const comments = new Map();   // partNo -> [{ rev, comment }]
+    for (let i = 0; i < partNos.length; i += 400) {
+      const slice = partNos.slice(i, i + 400);
+      const batch = await withQuery(connString, async (request) => {
+        const params = slice.map((pn, j) => {
+          request.input(`p${j}`, sql.VarChar, pn);
+          return `@p${j}`;
+        }).join(',');
+        const r = await request.query(`
+          SELECT LTRIM(RTRIM(im.FPARTNO)) AS [PartNo],
+                 LTRIM(RTRIM(im.FREV))    AS [Rev],
+                 CAST(im.FCOMMENT AS VARCHAR(4000)) AS [Comment]
+          FROM INMASTX im
+          WHERE LTRIM(RTRIM(im.FPARTNO)) IN (${params})
+            AND im.FCOMMENT IS NOT NULL
+        `);
+        return r.recordset;
+      });
+      for (const c of batch) {
+        const key = (c.PartNo || '').trim();
+        if (!comments.has(key)) comments.set(key, []);
+        comments.set(key, [...comments.get(key), { rev: (c.Rev || '').trim(), comment: c.Comment }]);
+      }
+    }
+
+    /**
+     * The comment for a PO line, preferring the revision actually ordered.
+     *
+     * Falling back to any revision that yields a code matters: a part can carry
+     * the classification on one revision and unrelated notes on another.
+     */
+    function commentFor(partNo, rev) {
+      const list = comments.get(String(partNo || '').trim()) || [];
+      if (!list.length) return { comment: null, revUsed: null };
+
+      const exact = list.find(c => c.rev === String(rev || '').trim());
+      if (exact && extractHtsCode(exact.comment)) return { comment: exact.comment, revUsed: exact.rev };
+
+      const coded = list.find(c => extractHtsCode(c.comment));
+      if (coded) return { comment: coded.comment, revUsed: coded.rev };
+
+      return { comment: exact ? exact.comment : list[0].comment, revUsed: exact ? exact.rev : list[0].rev };
+    }
+
     // M2M pads fixed-width character columns, which would otherwise show up as
     // trailing spaces in every dashboard cell and break exact-match filters.
     const all = rows.map(row => {
@@ -257,6 +334,9 @@ module.exports = async function (context, req) {
         out.VendorCountry = VENDOR_COUNTRY_OVERRIDES[out.VendorNo];
         out.VendorCountryAssumed = true;
       }
+      const picked = commentFor(out.PartNo, out.Rev);
+      out.ItemComment = picked.comment;
+      out.ItemCommentRev = picked.revUsed;
       out.HtsCode = extractHtsCode(out.ItemComment);
       // Keep the source text so a wrong or missing code can be traced back to
       // the comment it came from without opening M2M.
