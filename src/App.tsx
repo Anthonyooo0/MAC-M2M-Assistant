@@ -8,6 +8,7 @@ import { AdminView } from './components/AdminView';
 import { CostDashboard } from './components/CostDashboard';
 import { QueryBuilder, type BuilderPayload } from './components/QueryBuilder';
 import { NickCountdown } from './components/NickCountdown';
+import { Menu, Plus, MessageSquare, Pencil, Trash2, Loader2, LayoutDashboard, CircleDollarSign, LogOut, ChevronsLeft, Send } from 'lucide-react';
 
 const M2M_QUERY_URL = import.meta.env.VITE_M2M_QUERY_URL || '';
 const CHAT_SESSIONS_URL = import.meta.env.VITE_CHAT_SESSIONS_URL || '';
@@ -667,9 +668,7 @@ function App() {
             onClick={() => { handleNewChat(); setMobileNavOpen(false); }}
             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-all border border-white/10"
           >
-            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="w-5 h-5 flex-shrink-0" strokeWidth={1.75} />
             {!sidebarCollapsed && <span className="font-medium">New Chat</span>}
           </button>
         </div>
@@ -712,9 +711,7 @@ function App() {
                 }`}
                 onClick={() => { handleSelectSession(session); setMobileNavOpen(false); }}
               >
-                <svg className="w-4 h-4 flex-shrink-0 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
+                <MessageSquare className="w-4 h-4 flex-shrink-0 opacity-50" strokeWidth={1.75} />
                 {editingSessionId === session.id ? (
                   <input
                     ref={editInputRef}
@@ -744,9 +741,7 @@ function App() {
                     className="p-1 hover:bg-white/10 rounded"
                     title="Rename"
                   >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    <Pencil className="w-3 h-3" strokeWidth={1.75} />
                   </button>
                   <button
                     onClick={(e) => {
@@ -756,9 +751,7 @@ function App() {
                     className="p-1 hover:bg-red-500/20 rounded text-red-300"
                     title="Delete"
                   >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    <Trash2 className="w-3 h-3" strokeWidth={1.75} />
                   </button>
                 </div>
               </div>
@@ -769,9 +762,7 @@ function App() {
             {!loadingSessions && sessions.length === 0 && sessionsLoadFailed && (
               <div className="px-4 py-3 text-center space-y-2">
                 <div className="flex items-center justify-center gap-2 text-xs text-yellow-300/70">
-                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
+                  <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.75} />
                   Reconnecting...
                 </div>
                 <button
@@ -789,9 +780,7 @@ function App() {
         {(!chatHistoryEnabled || sidebarCollapsed) && (
           <div className="flex-1 px-2">
             <button className="w-full flex items-center gap-3 px-4 py-3 text-sm nav-active text-white bg-white/10 rounded-lg">
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
+              <MessageSquare className="w-5 h-5 flex-shrink-0" strokeWidth={1.75} />
               {!sidebarCollapsed && <span className="font-medium">Chat</span>}
             </button>
           </div>
@@ -808,9 +797,7 @@ function App() {
                   : 'text-blue-200 hover:text-white hover:bg-white/5'
               }`}
             >
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              <LayoutDashboard className="w-5 h-5 flex-shrink-0" strokeWidth={1.75} />
               {!sidebarCollapsed && <span className="font-medium">Admin Dashboard</span>}
             </button>
             <button
@@ -821,9 +808,7 @@ function App() {
                   : 'text-blue-200 hover:text-white hover:bg-white/5'
               }`}
             >
-              <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <CircleDollarSign className="w-5 h-5 flex-shrink-0" strokeWidth={1.75} />
               {!sidebarCollapsed && <span className="font-medium">API Costs</span>}
             </button>
           </div>
@@ -847,9 +832,7 @@ function App() {
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-sm text-blue-200 hover:text-white hover:bg-white/5 rounded-lg transition-all"
           >
-            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut className="w-5 h-5 flex-shrink-0" strokeWidth={1.75} />
             {!sidebarCollapsed && <span className="font-medium">Sign Out</span>}
           </button>
         </div>
@@ -860,9 +843,7 @@ function App() {
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="w-full flex items-center justify-center py-2 text-blue-200/60 hover:text-white transition-colors"
           >
-            <svg className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
+            <ChevronsLeft className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} strokeWidth={1.75} />
           </button>
         </div>
       </aside>
@@ -870,7 +851,7 @@ function App() {
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="bg-white border-b border-mauve-6 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between gap-2">
+        <header className="bg-white border-b border-mauve-6 px-3 sm:px-6 h-14 flex items-center justify-between gap-2 flex-shrink-0">
           <div className="flex items-center gap-3 sm:gap-6 min-w-0">
             {/* Hamburger — opens the sidebar drawer on mobile only */}
             <button
@@ -878,12 +859,10 @@ function App() {
               className="md:hidden p-2 -ml-1 text-mauve-11 hover:text-mac-navy flex-shrink-0"
               aria-label="Open menu"
             >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
+              <Menu className="w-6 h-6" strokeWidth={1.75} />
             </button>
             <div className="min-w-0">
-              <h2 className="text-lg sm:text-xl font-bold text-mauve-12 truncate">
+              <h2 className="text-sm sm:text-base font-semibold text-mauve-12 tracking-tight leading-tight truncate">
                 {viewMode === 'admin' ? 'Admin Dashboard' : viewMode === 'costs' ? 'API Costs' : 'M2M Assistant'}
               </h2>
               <p className="text-xs text-mauve-9 hidden sm:block">
@@ -891,7 +870,7 @@ function App() {
               </p>
             </div>
             {userCompanies.length > 1 && (
-              <div className="hidden sm:flex bg-mauve-3 rounded-lg p-1">
+              <div className="hidden sm:flex items-center rounded-md border border-mauve-6 bg-mauve-2 p-0.5">
                 {userCompanies.map(company => {
                   const hasMessages = messages.length > 0;
                   const isActive = company.id === activeCompanyId;
@@ -906,12 +885,12 @@ function App() {
                         handleNewChat();
                       }
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-all ${
+                    className={`flex items-center gap-2 px-3 py-1 rounded text-[11px] font-semibold uppercase tracking-wide transition-colors ${
                       isActive
-                        ? 'bg-white text-mac-navy shadow-sm'
+                        ? 'bg-white text-mac-navy ring-1 ring-mauve-6'
                         : isLocked
                           ? 'text-mauve-7 cursor-not-allowed'
-                          : 'text-mauve-9 hover:text-mauve-11'
+                          : 'text-mauve-10 hover:text-mauve-12'
                     }`}
                   >
                     <img src={company.logo} alt={company.shortName} className="w-5 h-5 object-contain" />
@@ -930,13 +909,13 @@ function App() {
             )}
             {/* Model toggle — Claude Sonnet (default) or Claude Opus.
                 Labels shorten to Sonnet/Opus on mobile to save header space. */}
-            <div className="flex items-center bg-mauve-3 rounded-lg p-0.5 flex-shrink-0">
+            <div className="flex items-center rounded-md border border-mauve-6 bg-mauve-2 p-0.5 flex-shrink-0">
               <button
                 onClick={() => setSelectedModel('claude-sonnet')}
-                className={`px-2 sm:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                className={`px-2 sm:px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors ${
                   selectedModel === 'claude-sonnet'
-                    ? 'bg-white text-orange-700 shadow-sm'
-                    : 'text-mauve-9 hover:text-mauve-11'
+                    ? 'bg-white text-orange-700 ring-1 ring-mauve-6'
+                    : 'text-mauve-10 hover:text-mauve-12'
                 }`}
               >
                 <span className="sm:hidden">Sonnet</span>
@@ -944,10 +923,10 @@ function App() {
               </button>
               <button
                 onClick={() => setSelectedModel('claude-opus')}
-                className={`px-2 sm:px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                className={`px-2 sm:px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded transition-colors ${
                   selectedModel === 'claude-opus'
-                    ? 'bg-white text-purple-700 shadow-sm'
-                    : 'text-mauve-9 hover:text-mauve-11'
+                    ? 'bg-white text-purple-700 ring-1 ring-mauve-6'
+                    : 'text-mauve-10 hover:text-mauve-12'
                 }`}
               >
                 <span className="sm:hidden">Opus</span>
@@ -1151,9 +1130,7 @@ function App() {
                       disabled={isLoading || !input.trim()}
                       className="px-5 py-3 bg-mac-navy hover:bg-mac-blue text-white font-bold rounded-lg text-sm transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                      </svg>
+                      <Send className="w-4 h-4" strokeWidth={1.75} />
                       Send
                     </button>
                   </div>
