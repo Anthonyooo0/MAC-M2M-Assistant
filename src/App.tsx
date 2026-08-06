@@ -270,6 +270,7 @@ function App() {
           content: m.content,
           sql: m.sql,
           columns: m.columns,
+          columnSources: m.columnSources,
           rows: m.rows,
           rowCount: m.rowCount,
           error: m.error,

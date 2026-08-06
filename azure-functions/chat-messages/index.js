@@ -57,7 +57,7 @@ module.exports = async function (context, req) {
       }
       const result = await pool.request()
         .input('sessionId', sql.UniqueIdentifier, sessionId)
-        .query('SELECT id, role, content, sql_query, columns, rows_data, row_count, error, created_at FROM chat_messages WHERE session_id = @sessionId ORDER BY created_at ASC');
+        .query('SELECT id, role, content, sql_query, columns, column_sources, rows_data, row_count, error, created_at FROM chat_messages WHERE session_id = @sessionId ORDER BY created_at ASC');
 
       // Get per-query costs for this session
       let costMap = {};
@@ -99,6 +99,7 @@ module.exports = async function (context, req) {
           content,
           sql: row.sql_query || undefined,
           columns: row.columns ? JSON.parse(row.columns) : undefined,
+          columnSources: row.column_sources ? JSON.parse(row.column_sources) : undefined,
           rows: row.rows_data ? JSON.parse(row.rows_data) : undefined,
           rowCount: row.row_count,
           error: row.error || undefined,
@@ -126,11 +127,12 @@ module.exports = async function (context, req) {
           .input('content', sql.NVarChar, msg.content || '')
           .input('sqlQuery', sql.NVarChar, msg.sql || null)
           .input('columns', sql.NVarChar, msg.columns ? JSON.stringify(msg.columns) : null)
+          .input('columnSources', sql.NVarChar, msg.columnSources ? JSON.stringify(msg.columnSources) : null)
           .input('rowsData', sql.NVarChar, msg.rows ? JSON.stringify(msg.rows) : null)
           .input('rowCount', sql.Int, msg.rowCount != null ? msg.rowCount : null)
           .input('error', sql.NVarChar, msg.error || null)
-          .query(`INSERT INTO chat_messages (session_id, role, content, sql_query, columns, rows_data, row_count, error)
-                  VALUES (@sessionId, @role, @content, @sqlQuery, @columns, @rowsData, @rowCount, @error)`);
+          .query(`INSERT INTO chat_messages (session_id, role, content, sql_query, columns, column_sources, rows_data, row_count, error)
+                  VALUES (@sessionId, @role, @content, @sqlQuery, @columns, @columnSources, @rowsData, @rowCount, @error)`);
       }
 
       // Update session timestamp and auto-title from first user message
