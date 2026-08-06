@@ -58,15 +58,22 @@ const VENDOR_COUNTRY_OVERRIDES = {
  */
 const NON_MATERIAL_EXACT = new Set([
   'PACKAGING', 'MATERIAL CERT', 'FREIGHT', 'FRIEGHT',
-  'HANDLING', 'PROJECT MANAGEMENT', 'TOOL', 'TOOLING',
+  'HANDLING', 'PROJECT MANAGEMENT',
 ]);
 
 /**
- * Words that mark a charge line even inside a longer description, e.g.
- * "KLK SUPRVSN & TRAINING". Kept short deliberately — matching loosely is how
- * real parts get dropped.
+ * Words that mark a charge line even inside a longer part number, e.g.
+ * "KLK SUPRVSN & TRAINING", "TOOL-Z029003B025P1", "Z110001A018- SAMPLE".
+ *
+ * Kept short deliberately — matching loosely is how real parts get dropped.
+ * Verified against the live data: these catch the eight charge and sample
+ * lines and nothing else.
  */
-const NON_MATERIAL_WORDS = ['SUPRVSN', 'SUPERVISION', 'TRAINING'];
+const NON_MATERIAL_WORDS = [
+  'SUPRVSN', 'SUPERVISION', 'TRAINING',
+  'TOOL', 'TOOLING',
+  'SAMPLE', 'SAMPLES',
+];
 
 const NON_MATERIAL_RE = new RegExp(`(^|[^A-Z])(${NON_MATERIAL_WORDS.join('|')})([^A-Z]|$)`, 'i');
 
