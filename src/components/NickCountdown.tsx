@@ -1,22 +1,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-// The moment this first went live for Nick is stored once in localStorage, so the
-// clock keeps counting down to the SAME target across reloads. Target = start + 2y 7m 31d.
-const START_KEY = 'nick-countdown-start-v1';
-
-function computeTarget(): Date {
-  let iso = localStorage.getItem(START_KEY);
-  if (!iso) {
-    iso = new Date().toISOString();
-    localStorage.setItem(START_KEY, iso);
-  }
-  const t = new Date(iso);
-  t.setFullYear(t.getFullYear() + 2);
-  t.setMonth(t.getMonth() + 7);
-  t.setDate(t.getDate() + 31);
-  return t;
-}
+// Nick's retirement date. The countdown ticks toward this fixed target.
+const RETIREMENT_DATE = new Date(2029, 6, 28); // July 28, 2029 (month is 0-indexed)
 
 // Calendar-correct breakdown from now to target: years, months, days, then h/m/s.
 function breakdown(now: Date, target: Date) {
@@ -43,7 +29,7 @@ const GOLD = '#c9a227';
 export function NickCountdown({ collapsed }: { collapsed: boolean }) {
   const [open, setOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [target] = useState(() => computeTarget());
+  const target = RETIREMENT_DATE;
 
   // Tick every second only while the screen is open.
   useEffect(() => {
