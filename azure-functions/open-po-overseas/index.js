@@ -56,13 +56,28 @@ const VENDOR_COUNTRY_OVERRIDES = {
  *
  * FRIEGHT is the transposition that appears in the live data.
  */
-const NON_MATERIAL_WORDS = ['PACKAGING', 'MATERIAL CERT', 'FREIGHT', 'FRIEGHT'];
+const NON_MATERIAL_EXACT = new Set([
+  'PACKAGING', 'MATERIAL CERT', 'FREIGHT', 'FRIEGHT',
+  'HANDLING', 'PROJECT MANAGEMENT', 'TOOL', 'TOOLING',
+]);
+
+/**
+ * Words that mark a charge line even inside a longer description, e.g.
+ * "KLK SUPRVSN & TRAINING". Kept short deliberately — matching loosely is how
+ * real parts get dropped.
+ */
+const NON_MATERIAL_WORDS = ['SUPRVSN', 'SUPERVISION', 'TRAINING'];
 
 const NON_MATERIAL_RE = new RegExp(`(^|[^A-Z])(${NON_MATERIAL_WORDS.join('|')})([^A-Z]|$)`, 'i');
 
 function isNonMaterial(partNo) {
   const p = String(partNo || '').trim().toUpperCase();
   if (!p) return true;
+  // Exact match, not "contains": TOOL is a charge line, but TOOL-Z029003B025P1
+  // carries a real part number and is kept. A charge wrongly kept merely shows
+  // as having no HTS code; a real part wrongly dropped disappears from the
+  // tariff exposure without a trace.
+  if (NON_MATERIAL_EXACT.has(p)) return true;
   return NON_MATERIAL_RE.test(p);
 }
 
