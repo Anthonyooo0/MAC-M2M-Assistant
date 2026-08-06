@@ -12,6 +12,22 @@ interface ResultsTableProps {
   columnSources?: Record<string, ColumnSource>;
 }
 
+// M2M returns pure dates as midnight-UTC ISO timestamps (e.g. 2024-11-22T00:00:00.000Z).
+// Show those as M/D/YYYY. The date parts are read straight from the string (no Date
+// parsing) so there is no timezone shift, and only midnight-UTC values match, so real
+// timestamps with a time-of-day keep their full value.
+const MIDNIGHT_ISO = /^(\d{4})-(\d{2})-(\d{2})T00:00:00(?:\.000)?Z$/;
+
+function formatCell(val: unknown): string {
+  if (val == null) return '';
+  if (typeof val === 'string') {
+    const m = val.match(MIDNIGHT_ISO);
+    if (m) return `${Number(m[2])}/${Number(m[3])}/${m[1]}`;
+    return val.trimEnd();
+  }
+  return String(val);
+}
+
 export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, columnSources }) => {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -35,7 +51,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
         columns.some(col => {
           const val = row[col];
           if (val == null) return false;
-          return String(val).toLowerCase().includes(search.toLowerCase());
+          return formatCell(val).toLowerCase().includes(search.toLowerCase());
         })
       )
     : rows;
@@ -73,11 +89,11 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
   };
 
   return (
-    <div className="mt-3 ml-11 bg-white rounded-lg border border-mauve-6 shadow-sm overflow-hidden view-transition">
+    <div className="mt-3 ml-0 sm:ml-11 bg-white rounded-lg border border-mauve-6 shadow-sm overflow-hidden view-transition">
       {/* Toolbar */}
-      <div className="px-4 py-3 bg-mauve-2 border-b border-mauve-6 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] font-bold text-mauve-9 uppercase tracking-wider">
+      <div className="px-3 sm:px-4 py-3 bg-mauve-2 border-b border-mauve-6 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <span className="text-[10px] font-bold text-mauve-9 uppercase tracking-wider flex-shrink-0">
             {sortedRows.length} of {rows.length} row{rows.length !== 1 ? 's' : ''}
           </span>
           <input
@@ -85,7 +101,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter results..."
-            className="px-3 py-1.5 text-xs border border-mauve-6 rounded-lg focus:border-mauve-8 outline-none w-48"
+            className="px-3 py-1.5 text-xs border border-mauve-6 rounded-lg focus:border-mauve-8 outline-none flex-1 min-w-0 sm:flex-none sm:w-48"
           />
         </div>
         <button
@@ -143,7 +159,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ columns, rows, colum
               <tr key={i} className="hover:bg-mauve-2 transition-colors">
                 {columns.map((col) => {
                   const val = row[col];
-                  const display = val == null ? '' : typeof val === 'string' ? val.trimEnd() : String(val);
+                  const display = formatCell(val);
                   return (
                     <td key={col} className="px-4 py-2 text-mauve-12 whitespace-nowrap max-w-[300px] truncate" title={display}>
                       {display}
