@@ -29,23 +29,6 @@ function generateRequestId() {
 // Logged with every cost record so prompt changes can be correlated with accuracy shifts.
 const PROMPT_VERSION = '2.1.0';
 
-// Shared generation config for all Gemini calls — single source of truth.
-// responseMimeType + responseSchema enforce structured JSON output at the API level,
-// eliminating the need for the parseGeminiResponse fallback path.
-const GEMINI_GENERATION_CONFIG = {
-  temperature: 0,
-  maxOutputTokens: 2048,
-  responseMimeType: 'application/json',
-  responseSchema: {
-    type: 'OBJECT',
-    properties: {
-      explanation: { type: 'STRING', description: 'A helpful plain-English explanation' },
-      sql: { type: 'STRING', description: 'The SQL SELECT query, or empty string if no query needed' },
-    },
-    required: ['explanation', 'sql'],
-  },
-};
-
 // ---------------------------------------------------------------------------
 // Cost persistence pool — reused across invocations (same pattern as chat-sessions).
 // Eliminates ~200-500ms per request from opening a fresh connection every time.
@@ -199,37 +182,6 @@ async function checkCostCap(costPool, userEmail) {
   } catch (_e) {
     return { ok: true }; // If cost check fails, allow the request (fail open)
   }
-}
-
-// ---------------------------------------------------------------------------
-// Model tiering — route simple questions to Flash (cheaper/faster),
-// complex SQL generation to Pro.
-// ---------------------------------------------------------------------------
-const GEMINI_PRO_MODEL = 'gemini-3.1-pro-preview';
-const GEMINI_FLASH_MODEL = 'gemini-2.0-flash';
-
-// Heuristic: if the question looks conversational (no SQL needed) or is
-// extremely simple (single table, basic lookup), use Flash.
-function selectModel(userMessage, hasHistory) {
-  const q = userMessage.toLowerCase();
-
-  // Conversational patterns — clearly no SQL needed
-  const conversational = /\b(what does|what is|explain|help me understand|what do you|how does|tell me about|what are the fields|what columns)\b/;
-  if (conversational.test(q) && !/\b(show|list|find|get|count|how many|query|select)\b/.test(q)) {
-    return GEMINI_FLASH_MODEL;
-  }
-
-  // Greetings and meta-questions
-  if (/^(hi|hello|hey|thanks|thank you|ok|got it)\b/.test(q) && q.length < 50) {
-    return GEMINI_FLASH_MODEL;
-  }
-
-  // Everything else (SQL generation) uses Pro
-  return GEMINI_PRO_MODEL;
-}
-
-function getGeminiUrl(model, apiKey) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 }
 
 // Load schemas at startup
@@ -474,79 +426,6 @@ User: "What is a CPA?"
 // Helpers
 // ---------------------------------------------------------------------------
 
-// Low-level Gemini HTTP call — no retry logic, just transport.
-function callGeminiAPIOnce(geminiUrl, geminiBody) {
-  return new Promise((resolve, reject) => {
-    const payload = JSON.stringify(geminiBody);
-    const urlObj = new URL(geminiUrl);
-    const options = {
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + urlObj.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload),
-      },
-    };
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          parsed._statusCode = res.statusCode;
-          resolve(parsed);
-        } catch (e) {
-          reject(new Error('Failed to parse Gemini response: ' + data.substring(0, 200)));
-        }
-      });
-    });
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
-}
-
-// Retryable status codes — transient errors that may resolve on a second attempt.
-const RETRYABLE_STATUS_CODES = new Set([429, 500, 503]);
-
-// Resilient wrapper: retries on transient API errors (429 rate limit, 503 unavailable,
-// 500 server error) and network failures, with exponential backoff.
-// Non-retryable errors (400 bad request, 401 auth, 404) are returned immediately.
-async function callGeminiAPI(geminiUrl, geminiBody, maxRetries = 3) {
-  const delays = [1000, 2000, 4000]; // 1s, 2s, 4s exponential backoff
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await callGeminiAPIOnce(geminiUrl, geminiBody);
-
-      // Success or non-retryable error — return immediately
-      if (!result._statusCode || result._statusCode < 400 || !RETRYABLE_STATUS_CODES.has(result._statusCode)) {
-        return result;
-      }
-
-      // Retryable status code — retry if attempts remain
-      if (attempt < maxRetries) {
-        const delay = delays[Math.min(attempt, delays.length - 1)];
-        await new Promise(r => setTimeout(r, delay));
-        continue;
-      }
-
-      // Out of retries — return the error response as-is
-      return result;
-
-    } catch (networkErr) {
-      // Network-level failure (ECONNREFUSED, ETIMEDOUT, DNS failure, etc.)
-      if (attempt < maxRetries) {
-        const delay = delays[Math.min(attempt, delays.length - 1)];
-        await new Promise(r => setTimeout(r, delay));
-        continue;
-      }
-      throw networkErr; // Out of retries — propagate the error
-    }
-  }
-}
-
 // Scrub potential PII from text before sending to Gemini (a third-party API).
 // This is a best-effort filter — it catches common PII patterns but cannot
 // detect all possible sensitive data (e.g., a name alone is not scrubbable).
@@ -623,33 +502,6 @@ function composeBuilderMessage(builder, fallbackMessage) {
 
   lines.push('</builder_request>');
   return lines.join('\n');
-}
-
-function parseGeminiResponse(geminiData) {
-  const generatedText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!generatedText) throw new Error('Gemini returned no response.');
-
-  let cleaned = generatedText
-    .replace(/^\uFEFF/, '')           // BOM
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-
-  try {
-    const parsed = JSON.parse(cleaned);
-    return {
-      explanation: parsed.explanation || '',
-      sqlQuery: (parsed.sql || '').trim(),
-    };
-  } catch (e) {
-    // Do NOT fall back to treating raw text as SQL.
-    // Return error state so the system can retry or inform the user.
-    return {
-      explanation: 'The AI returned an improperly formatted response. Please try rephrasing your question.',
-      sqlQuery: '',
-    };
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -942,92 +794,6 @@ function validateSqlSafety(sqlQuery) {
 }
 
 // ---------------------------------------------------------------------------
-// Context architecture — token budgeting, selective schema, conversation trim
-// ---------------------------------------------------------------------------
-
-// Rough token estimate: ~4 characters per token for English/SQL mixed content.
-function estimateTokens(text) {
-  return Math.ceil(text.length / 4);
-}
-
-// Build a table-of-contents from a schema file: just the "## TABLE — DESCRIPTION" lines.
-// Used for the first phase of selective schema injection.
-function buildSchemaTableOfContents(schemaText) {
-  return schemaText.split('\n')
-    .filter(line => line.startsWith('## '))
-    .join('\n');
-}
-
-// Extract the full column block for specific tables from a schema file.
-// Returns only the requested tables' definitions (header + all columns until next header).
-function extractTablesFromSchema(schemaText, tableNames) {
-  const lowerNames = new Set(tableNames.map(t => t.toLowerCase()));
-  const lines = schemaText.split('\n');
-  const result = [];
-  let capturing = false;
-
-  for (const line of lines) {
-    const tableMatch = line.match(/^## (\S+)/);
-    if (tableMatch) {
-      capturing = lowerNames.has(tableMatch[1].toLowerCase());
-    }
-    if (capturing) {
-      result.push(line);
-    }
-  }
-  return result.join('\n');
-}
-
-// Parse Gemini's table selection response into an array of table names.
-// Expects a JSON array or comma-separated list; handles both gracefully.
-function parseTableSelection(text) {
-  const cleaned = text.trim();
-  // Try JSON array first
-  try {
-    const parsed = JSON.parse(cleaned);
-    if (Array.isArray(parsed)) return parsed.map(t => String(t).trim().toUpperCase()).filter(Boolean);
-    // If Gemini returned {tables: [...]} via responseSchema override
-    if (parsed.tables && Array.isArray(parsed.tables)) return parsed.tables.map(t => String(t).trim().toUpperCase()).filter(Boolean);
-  } catch (_e) { /* not JSON */ }
-  // Fall back to extracting ## TABLE names or bare words that look like table names
-  const matches = cleaned.match(/\b[A-Z_][A-Z0-9_]{2,}\b/g);
-  return matches ? [...new Set(matches)] : [];
-}
-
-// Gemini 3.1 Pro context window: 1,048,576 tokens.
-// We budget 80% to leave headroom for the response and safety margin.
-const MAX_CONTEXT_TOKENS = Math.floor(1_048_576 * 0.80);
-
-// Trim conversation history to fit within the token budget.
-// Preserves the most recent turns (users care about recent context).
-// Always keeps at least the last user message.
-function trimConversationToFit(systemTokens, schemaTokens, geminiMessages) {
-  const overhead = systemTokens + schemaTokens + 200; // 200 tokens for schemaAck + structural JSON
-  const available = MAX_CONTEXT_TOKENS - overhead;
-
-  // Calculate total conversation tokens
-  let totalConvTokens = 0;
-  for (const m of geminiMessages) {
-    totalConvTokens += estimateTokens(m.parts[0].text);
-  }
-
-  if (totalConvTokens <= available) {
-    return geminiMessages; // Fits — no trimming needed
-  }
-
-  // Trim from the front (oldest messages), always keep the last message (current user input)
-  let trimmed = [...geminiMessages];
-  let currentTokens = totalConvTokens;
-  // Keep removing the oldest pair (user + model) until we fit
-  while (currentTokens > available && trimmed.length > 1) {
-    const removed = trimmed.shift();
-    currentTokens -= estimateTokens(removed.parts[0].text);
-  }
-
-  return trimmed;
-}
-
-// ---------------------------------------------------------------------------
 // Schema validator — checks SQL against actual schema before execution
 // ---------------------------------------------------------------------------
 
@@ -1052,10 +818,6 @@ function parseSchemaFile(schemaText) {
 // Parse once at startup
 const M2M_TABLES = parseSchemaFile(M2M_SCHEMA);
 const UNIPOINT_TABLES = parseSchemaFile(UNIPOINT_SCHEMA);
-
-// Pre-computed table-of-contents for selective schema injection
-const M2M_SCHEMA_TOC = buildSchemaTableOfContents(M2M_SCHEMA);
-const UNIPOINT_SCHEMA_TOC = buildSchemaTableOfContents(UNIPOINT_SCHEMA);
 
 function validateAgainstSchema(sqlQuery, schemaTables) {
   const errors = [];
@@ -1214,10 +976,6 @@ function scoreConfidence(sqlQuery) {
 // Token usage & cost tracking
 // ---------------------------------------------------------------------------
 
-// Gemini 3.1 Pro Preview pricing (per 1M tokens) — update if model changes
-const GEMINI_COST_PER_1M_INPUT = 1.25;   // $1.25 per 1M input tokens
-const GEMINI_COST_PER_1M_OUTPUT = 10.00; // $10.00 per 1M output tokens
-
 // Claude Sonnet 4.6 pricing (per 1M tokens)
 const CLAUDE_COST_PER_1M_INPUT = 3.00;   // $3.00 per 1M input tokens
 const CLAUDE_COST_PER_1M_OUTPUT = 15.00; // $15.00 per 1M output tokens
@@ -1226,26 +984,10 @@ const CLAUDE_COST_PER_1M_OUTPUT = 15.00; // $15.00 per 1M output tokens
 const CLAUDE_OPUS_COST_PER_1M_INPUT = 5.00;   // $5.00 per 1M input tokens
 const CLAUDE_OPUS_COST_PER_1M_OUTPUT = 25.00; // $25.00 per 1M output tokens
 
-// Legacy aliases — keep for backward compatibility with calculateCost calls
-const COST_PER_1M_INPUT = GEMINI_COST_PER_1M_INPUT;
-const COST_PER_1M_OUTPUT = GEMINI_COST_PER_1M_OUTPUT;
-
-function extractTokenUsage(geminiResponse) {
-  const usage = geminiResponse?.usageMetadata;
-  if (!usage) return { input: 0, output: 0 };
-  return {
-    input: usage.promptTokenCount || 0,
-    output: usage.candidatesTokenCount || 0,
-  };
-}
-
 function calculateCost(inputTokens, outputTokens, modelProvider) {
   const isOpus = modelProvider === 'claude-opus';
-  const isClaudeModel = modelProvider === 'claude' || isOpus;
-  const costIn = isOpus ? CLAUDE_OPUS_COST_PER_1M_INPUT
-    : isClaudeModel ? CLAUDE_COST_PER_1M_INPUT : GEMINI_COST_PER_1M_INPUT;
-  const costOut = isOpus ? CLAUDE_OPUS_COST_PER_1M_OUTPUT
-    : isClaudeModel ? CLAUDE_COST_PER_1M_OUTPUT : GEMINI_COST_PER_1M_OUTPUT;
+  const costIn = isOpus ? CLAUDE_OPUS_COST_PER_1M_INPUT : CLAUDE_COST_PER_1M_INPUT;
+  const costOut = isOpus ? CLAUDE_OPUS_COST_PER_1M_OUTPUT : CLAUDE_COST_PER_1M_OUTPUT;
   const inputCost = (inputTokens / 1_000_000) * costIn;
   const outputCost = (outputTokens / 1_000_000) * costOut;
   return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000; // 6 decimal places
@@ -1377,18 +1119,10 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // Validate API key for the selected provider
-    if (useClaudeModel) {
-      if (!process.env.ANTHROPIC_API_KEY) {
-        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Anthropic API key is not configured.' }) };
-        return;
-      }
-    } else {
-      const geminiKey = process.env.GEMINI_API_KEY;
-      if (!geminiKey) {
-        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini API key is not configured.' }) };
-        return;
-      }
+    // Validate the Anthropic API key (Claude is the only provider)
+    if (!process.env.ANTHROPIC_API_KEY) {
+      context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Anthropic API key is not configured.' }) };
+      return;
     }
 
     // Pick connection string and system prompt based on requested database.
@@ -1396,7 +1130,6 @@ module.exports = async function (context, req) {
     let connString;
     let activeStaticInstructions = M2M_STATIC_INSTRUCTIONS;
     let activeSchema = M2M_SCHEMA;
-    let activeSchemaTOC = M2M_SCHEMA_TOC;
     if (database === 'm2mdata66') {
       connString = process.env.M2M_IMPULSE_CONNECTION_STRING;
       if (!connString) {
@@ -1407,7 +1140,6 @@ module.exports = async function (context, req) {
       connString = process.env.UNIPOINT_CONNECTION_STRING;
       activeStaticInstructions = UNIPOINT_STATIC_INSTRUCTIONS;
       activeSchema = UNIPOINT_SCHEMA;
-      activeSchemaTOC = UNIPOINT_SCHEMA_TOC;
       if (!connString) {
         context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'UniPoint database connection is not configured.' }) };
         return;
@@ -1427,16 +1159,13 @@ module.exports = async function (context, req) {
 
     // Build conversation — scrub PII from all user messages before
     // they leave the network to the third-party API.
-    const geminiMessages = [];
     const claudeMessages = [];
 
     if (Array.isArray(history)) {
       for (const turn of history) {
         if (turn.role === 'user') {
-          geminiMessages.push({ role: 'user', parts: [{ text: scrubPII(turn.content) }] });
           claudeMessages.push({ role: 'user', content: scrubPII(turn.content) });
         } else if (turn.role === 'model') {
-          geminiMessages.push({ role: 'model', parts: [{ text: turn.content }] });
           claudeMessages.push({ role: 'assistant', content: turn.content });
         }
       }
@@ -1481,7 +1210,6 @@ module.exports = async function (context, req) {
       }
     }
 
-    geminiMessages.push({ role: 'user', parts: [{ text: userMessageText }] });
     claudeMessages.push({ role: 'user', content: userMessageText });
 
     // -----------------------------------------------------------------------
@@ -1493,49 +1221,12 @@ module.exports = async function (context, req) {
       // rewritten by the model — if it fails validation we report it instead).
       sqlQuery = rawSql.trim();
       explanation = (message && message.trim()) || 'Preset query.';
-    } else if (useClaudeModel) {
+    } else {
       // --- Claude path (with prompt caching — schema cached after first request) ---
       const claudeData = await callClaudeAPI(activeStaticInstructions, activeSchema, claudeMessages, claudeModel);
       { const t = extractClaudeTokenUsage(claudeData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
 
       ({ explanation, sqlQuery } = parseClaudeResponse(claudeData));
-
-    } else {
-      // --- Gemini path (unchanged) ---
-      const geminiKey = process.env.GEMINI_API_KEY;
-      const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
-
-      const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-      const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-      const systemTokens = estimateTokens(activeStaticInstructions);
-      const schemaTokens = estimateTokens(activeSchema);
-      const trimmedMessages = trimConversationToFit(systemTokens, schemaTokens, geminiMessages);
-
-      const geminiBody = {
-        system_instruction: { parts: [{ text: activeStaticInstructions }] },
-        contents: [schemaMessage, schemaAck, ...trimmedMessages],
-        generationConfig: GEMINI_GENERATION_CONFIG,
-      };
-
-      const geminiData = await callGeminiAPI(geminiUrl, geminiBody);
-      { const t = extractTokenUsage(geminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-
-      if (geminiData._statusCode && geminiData._statusCode >= 400) {
-        context.log.error(`[m2m-query][${requestId}] Gemini error:`, JSON.stringify(geminiData));
-        context.res = {
-          status: 500,
-          headers: CORS,
-          body: JSON.stringify({ error: 'Gemini API error: ' + (geminiData.error?.message || JSON.stringify(geminiData)) }),
-        };
-        return;
-      }
-
-      if (!geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-        context.res = { status: 500, headers: CORS, body: JSON.stringify({ error: 'Gemini returned no response.' }) };
-        return;
-      }
-
-      ({ explanation, sqlQuery } = parseGeminiResponse(geminiData));
     }
 
     if (sqlQuery) {
@@ -1585,32 +1276,6 @@ module.exports = async function (context, req) {
         let retrySql = retryParsed.sqlQuery;
         if (retrySql) retrySql = cleanSqlQuery(retrySql);
         if (retrySql) { sqlQuery = retrySql; safety = validateSqlSafety(sqlQuery); }
-      } else {
-        const geminiKey = process.env.GEMINI_API_KEY;
-        const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
-        const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-        const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-        const safetyRetryMessages = [
-          ...geminiMessages,
-          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-          { role: 'user', parts: [{ text: safetyRetryText }] },
-        ];
-
-        const safetyRetryBody = {
-          system_instruction: { parts: [{ text: activeStaticInstructions }] },
-          contents: [schemaMessage, schemaAck, ...safetyRetryMessages],
-          generationConfig: GEMINI_GENERATION_CONFIG,
-        };
-
-        const safetyRetryData = await callGeminiAPI(geminiUrl, safetyRetryBody);
-        { const t = extractTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-        if (safetyRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-          const retryParsed = parseGeminiResponse(safetyRetryData);
-          explanation = retryParsed.explanation;
-          let retrySql = retryParsed.sqlQuery;
-          if (retrySql) retrySql = cleanSqlQuery(retrySql);
-          if (retrySql) { sqlQuery = retrySql; safety = validateSqlSafety(sqlQuery); }
-        }
       }
 
       if (!safety.ok) {
@@ -1654,26 +1319,6 @@ module.exports = async function (context, req) {
           const schemaRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, schemaRetryClaude, claudeModel);
           { const t = extractClaudeTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
           retryParsed = parseClaudeResponse(schemaRetryData);
-        } else {
-          const geminiKey = process.env.GEMINI_API_KEY;
-          const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
-          const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-          const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-          const schemaRetryMessages = [
-            ...geminiMessages,
-            { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-            { role: 'user', parts: [{ text: schemaRetryText }] },
-          ];
-          const schemaRetryBody = {
-            system_instruction: { parts: [{ text: activeStaticInstructions }] },
-            contents: [schemaMessage, schemaAck, ...schemaRetryMessages],
-            generationConfig: GEMINI_GENERATION_CONFIG,
-          };
-          const schemaRetryData = await callGeminiAPI(geminiUrl, schemaRetryBody);
-          { const t = extractTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-          if (schemaRetryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-            retryParsed = parseGeminiResponse(schemaRetryData);
-          }
         }
 
         if (retryParsed) {
@@ -1718,7 +1363,6 @@ module.exports = async function (context, req) {
     const MAX_RETRIES = 2;
     let result;
     let lastError = null;
-    let retryConversationGemini = [...geminiMessages];
     let retryConversationClaude = [...claudeMessages];
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -1783,41 +1427,6 @@ module.exports = async function (context, req) {
             context.log.error(`[m2m-query][${requestId}] Claude retry error:`, retryErr.message);
             break;
           }
-        } else {
-          const geminiKey = process.env.GEMINI_API_KEY;
-          const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
-          const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-          const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-
-          retryConversationGemini = [
-            ...retryConversationGemini,
-            { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-            { role: 'user', parts: [{ text: retryText }] },
-          ];
-
-          const systemTokens = estimateTokens(activeStaticInstructions);
-          const schemaTokens = estimateTokens(activeSchema);
-          const trimmedRetryConv = trimConversationToFit(systemTokens, schemaTokens, retryConversationGemini);
-
-          const retryGeminiBody = {
-            system_instruction: { parts: [{ text: activeStaticInstructions }] },
-            contents: [schemaMessage, schemaAck, ...trimmedRetryConv],
-            generationConfig: GEMINI_GENERATION_CONFIG,
-          };
-
-          const retryGeminiData = await callGeminiAPI(geminiUrl, retryGeminiBody);
-          { const t = extractTokenUsage(retryGeminiData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-
-          if (retryGeminiData._statusCode && retryGeminiData._statusCode >= 400) {
-            context.log.error(`[m2m-query][${requestId}] Gemini retry error:`, JSON.stringify(retryGeminiData));
-            break;
-          }
-
-          if (!retryGeminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-            break;
-          }
-
-          retryParsed = parseGeminiResponse(retryGeminiData);
         }
 
         if (!retryParsed) break;
@@ -1878,26 +1487,6 @@ module.exports = async function (context, req) {
           zeroRowParsed = parseClaudeResponse(zeroRowData);
         } catch (zeroErr) {
           context.log.warn(`[m2m-query][${requestId}] Claude zero-row retry failed: ${zeroErr.message}`);
-        }
-      } else {
-        const geminiKey = process.env.GEMINI_API_KEY;
-        const geminiUrl = getGeminiUrl(GEMINI_PRO_MODEL, geminiKey);
-        const schemaMessage = { role: 'user', parts: [{ text: `<database_schema>\n${activeSchema}\n</database_schema>` }] };
-        const schemaAck = { role: 'model', parts: [{ text: 'Schema loaded. Ready to help with database queries.' }] };
-        const zeroRowMessages = [
-          ...geminiMessages,
-          { role: 'model', parts: [{ text: JSON.stringify({ explanation, sql: sqlQuery }) }] },
-          { role: 'user', parts: [{ text: zeroRowText }] },
-        ];
-        const zeroRowBody = {
-          system_instruction: { parts: [{ text: activeStaticInstructions }] },
-          contents: [schemaMessage, schemaAck, ...zeroRowMessages],
-          generationConfig: GEMINI_GENERATION_CONFIG,
-        };
-        const zeroRowData = await callGeminiAPI(geminiUrl, zeroRowBody);
-        { const t = extractTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-        if (zeroRowData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()) {
-          zeroRowParsed = parseGeminiResponse(zeroRowData);
         }
       }
 
@@ -2004,7 +1593,7 @@ module.exports = async function (context, req) {
               .input('inputTokens', sql.Int, totalInputTokens)
               .input('outputTokens', sql.Int, totalOutputTokens)
               .input('geminiCalls', sql.Int, geminiCalls)
-              .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens, useClaudeModel ? 'claude' : 'gemini'))
+              .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens, modelProvider))
               .input('promptVersion', sql.NVarChar, PROMPT_VERSION + (useClaudeModel ? '-claude' : '') + (isBuilderMode ? '+builder' : ''))
               .input('requestId', sql.NVarChar, requestId)
               .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
@@ -2026,7 +1615,6 @@ module.exports = async function (context, req) {
 module.exports._internals = {
   validateSqlSafety,
   validateAgainstSchema,
-  parseGeminiResponse,
   cleanSqlQuery,
   getErrorGuidance,
   semanticSanityCheck,
