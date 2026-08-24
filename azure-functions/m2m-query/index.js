@@ -51,6 +51,12 @@ function getCostPool() {
       user: parts['user id'] || parts['uid'] || '',
       password: parts['password'] || parts['pwd'] || '',
       options: { encrypt: true, trustServerCertificate: false },
+      // Deliberately SHORT, unlike the user-facing functions which wait 60s for
+      // an Azure SQL auto-pause resume. Cost recording runs in this function's
+      // finally block, so it sits in the critical path of every user query —
+      // waiting out a resume here would add that delay to every question asked.
+      // Losing a cost row is the better trade; the figures also ride back on
+      // the API response.
       connectionTimeout: 5000,
       requestTimeout: 5000,
       pool: { max: 5, min: 1, idleTimeoutMillis: 30000 },
@@ -684,12 +690,19 @@ function parseClaudeResponse(claudeData) {
 }
 
 // Extract token usage from Claude response
+// Extract token usage from a Claude response.
+// NOTE: usage.input_tokens counts UNCACHED input only. With prompt caching on,
+// the schema block is billed as cache_read_input_tokens (repeat requests) or
+// cache_creation_input_tokens (first request). Both are real charges, so they
+// are returned separately here and priced separately in calculateCost().
 function extractClaudeTokenUsage(claudeResponse) {
   const usage = claudeResponse?.usage;
-  if (!usage) return { input: 0, output: 0 };
+  if (!usage) return { input: 0, output: 0, cacheRead: 0, cacheCreate: 0 };
   return {
     input: usage.input_tokens || 0,
     output: usage.output_tokens || 0,
+    cacheRead: usage.cache_read_input_tokens || 0,
+    cacheCreate: usage.cache_creation_input_tokens || 0,
   };
 }
 
@@ -984,13 +997,21 @@ const CLAUDE_COST_PER_1M_OUTPUT = 15.00; // $15.00 per 1M output tokens
 const CLAUDE_OPUS_COST_PER_1M_INPUT = 5.00;   // $5.00 per 1M input tokens
 const CLAUDE_OPUS_COST_PER_1M_OUTPUT = 25.00; // $25.00 per 1M output tokens
 
-function calculateCost(inputTokens, outputTokens, modelProvider) {
+// Prompt-cache rate multipliers, applied to the model's base INPUT rate.
+// Reading from cache is ~10% of input price; writing to it is ~125%.
+const CACHE_READ_MULTIPLIER = 0.1;
+const CACHE_WRITE_MULTIPLIER = 1.25;
+
+// Cache token counts are optional (default 0) so older 3-argument callers still work.
+function calculateCost(inputTokens, outputTokens, modelProvider, cacheReadTokens = 0, cacheCreateTokens = 0) {
   const isOpus = modelProvider === 'claude-opus';
   const costIn = isOpus ? CLAUDE_OPUS_COST_PER_1M_INPUT : CLAUDE_COST_PER_1M_INPUT;
   const costOut = isOpus ? CLAUDE_OPUS_COST_PER_1M_OUTPUT : CLAUDE_COST_PER_1M_OUTPUT;
   const inputCost = (inputTokens / 1_000_000) * costIn;
   const outputCost = (outputTokens / 1_000_000) * costOut;
-  return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000; // 6 decimal places
+  const cacheReadCost = (cacheReadTokens / 1_000_000) * costIn * CACHE_READ_MULTIPLIER;
+  const cacheCreateCost = (cacheCreateTokens / 1_000_000) * costIn * CACHE_WRITE_MULTIPLIER;
+  return Math.round((inputCost + outputCost + cacheReadCost + cacheCreateCost) * 1_000_000) / 1_000_000; // 6 decimal places
 }
 
 // ---------------------------------------------------------------------------
@@ -1076,24 +1097,42 @@ module.exports = async function (context, req) {
   let explanation = '';
   let dbServer = '?';
   let dbName = '?';
-  // Token usage tracking for cost analysis
+  // Token usage tracking for cost analysis. Cached input is tracked separately
+  // from uncached input because it is billed at a different rate.
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheCreateTokens = 0;
   let geminiCalls = 0;
   // Declared out here so the catch block can reference them — otherwise an error
   // in the try would make the catch throw its own ReferenceError, producing an
   // empty-body 500 instead of a real error message.
-  let useClaudeModel = false;
   // This app is Claude-only (Gemini removed). The user picks Sonnet or Opus;
   // default is Sonnet. modelProvider drives cost calc + is reported to the UI.
   let claudeModel = CLAUDE_SONNET_MODEL;
   let modelProvider = 'claude';
 
+  // Single place where token usage is tallied, so no call site can drift.
+  const accrueUsage = (claudeResponse) => {
+    const t = extractClaudeTokenUsage(claudeResponse);
+    totalInputTokens += t.input;
+    totalOutputTokens += t.output;
+    totalCacheReadTokens += t.cacheRead;
+    totalCacheCreateTokens += t.cacheCreate;
+    geminiCalls++;
+  };
+  // Cost so far, including cached input. Used by every response payload.
+  const currentCost = () => calculateCost(
+    totalInputTokens, totalOutputTokens, modelProvider,
+    totalCacheReadTokens, totalCacheCreateTokens,
+  );
+  // Total input tokens actually billed (uncached + cached), for the UI and cost table.
+  const billedInputTokens = () => totalInputTokens + totalCacheReadTokens + totalCacheCreateTokens;
+
   try {
     const { message, history, model: requestedModel, mode, builder, rawSql } = req.body || {};
     // Claude-only: always use Claude for SQL generation (Gemini removed). The
     // user chooses Sonnet (default) or Opus; anything else falls back to Sonnet.
-    useClaudeModel = true;
     if (requestedModel === 'claude-opus') {
       claudeModel = CLAUDE_OPUS_MODEL;
       modelProvider = 'claude-opus';
@@ -1157,6 +1196,41 @@ module.exports = async function (context, req) {
     // after the first cached request.
     activeSchema = buildSchemaWithGlossary(activeSchema);
 
+    // -----------------------------------------------------------------------
+    // Self-correction, in one place.
+    //
+    // Four different checks can reject a query — safety, schema validation, a
+    // SQL error at execution, and a zero-row result — and all four recover the
+    // same way: show the model what it just produced, tell it what was wrong,
+    // and take the corrected query back. Only the reason text differs, so the
+    // procedure lives here once rather than being spelled out at each check.
+    //
+    //   reasonText   what to tell the model went wrong
+    //   baseMessages conversation to build on. Most callers pass the original
+    //                claudeMessages; the SQL-error loop passes its own growing
+    //                conversation so earlier failed attempts stay visible.
+    //
+    // Returns { explanation, sql, messages }. `sql` is already cleaned, and is
+    // '' when the model answered without a query. `messages` is the
+    // conversation including this exchange, so a looping caller can accumulate.
+    // Callers keep their own error handling and decide what to re-validate.
+    // -----------------------------------------------------------------------
+    const repair = async (reasonText, baseMessages) => {
+      const messages = [
+        ...baseMessages,
+        { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
+        { role: 'user', content: reasonText },
+      ];
+      const data = await callClaudeAPI(activeStaticInstructions, activeSchema, messages, claudeModel);
+      accrueUsage(data);
+      const parsed = parseClaudeResponse(data);
+      return {
+        explanation: parsed.explanation,
+        sql: parsed.sqlQuery ? cleanSqlQuery(parsed.sqlQuery) : '',
+        messages,
+      };
+    };
+
     // Build conversation — scrub PII from all user messages before
     // they leave the network to the third-party API.
     const claudeMessages = [];
@@ -1181,15 +1255,37 @@ module.exports = async function (context, req) {
         ? `[preset] ${(message && message.trim()) || 'preset query'}`
         : scrubPII(message.trim());
 
+    // -----------------------------------------------------------------------
+    // Query cache lookup.
+    //
+    // The cache key is (question, database) and carries NO conversation
+    // context, so it is only sound for a self-contained question. A follow-up
+    // such as "now show me the late ones" means something different in every
+    // chat, and caching it either way — reading or writing — would cross wires
+    // between unrelated conversations. Hence the no-history requirement, which
+    // also gates the write further down.
+    //
+    // A hit reuses the generated SQL but still executes it below, so results
+    // are always current; only the model round trips are skipped.
+    // -----------------------------------------------------------------------
+    const hasHistory = Array.isArray(history) && history.length > 0;
+    const cacheable = !isBuilderMode && !isRawMode && !!message && !hasHistory;
+    const cached = cacheable ? getCachedResult(message, database || 'm2mdata99') : null;
+    if (cached) {
+      context.log.info(`[m2m-query][${requestId}] Cache hit — skipping clarifier and generation`);
+    }
+
     // Clarifier pass — only for chat mode. Catches genuinely vague questions
     // ("show me orders") and asks ONE follow-up instead of guessing. Builder
-    // and raw-SQL modes are already structured, so they skip this.
-    if (!isBuilderMode && !isRawMode) {
+    // and raw-SQL modes are already structured, so they skip this. A cache hit
+    // skips it too: the question already produced a good query once.
+    if (!isBuilderMode && !isRawMode && !cached) {
       const clarifier = await runClarifier(userMessageText, history);
+      // runClarifier returns the raw usage object, so wrap it in the shape
+      // accrueUsage expects. This also starts counting the clarifier's cached
+      // input, which the old inline version ignored.
       if (clarifier && clarifier.usage) {
-        totalInputTokens += clarifier.usage.input_tokens || 0;
-        totalOutputTokens += clarifier.usage.output_tokens || 0;
-        geminiCalls++;
+        accrueUsage({ usage: clarifier.usage });
       }
       if (clarifier && clarifier.ok === false && clarifier.question) {
         context.res = {
@@ -1203,7 +1299,7 @@ module.exports = async function (context, req) {
             rowCount: 0,
             _requestId: requestId,
             _clarifier: true,
-            _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider, confidence: 1.0 },
+            _cost: { inputTokens: billedInputTokens(), outputTokens: totalOutputTokens, calls: geminiCalls, cost: currentCost(), model: modelProvider, confidence: 1.0 },
           }),
         };
         return;
@@ -1221,10 +1317,15 @@ module.exports = async function (context, req) {
       // rewritten by the model — if it fails validation we report it instead).
       sqlQuery = rawSql.trim();
       explanation = (message && message.trim()) || 'Preset query.';
+    } else if (cached) {
+      // Reuse SQL this exact question produced before. It still runs below, so
+      // the rows are fresh — only the model call is avoided.
+      explanation = cached.explanation;
+      sqlQuery = cached.sqlQuery;
     } else {
       // --- Claude path (with prompt caching — schema cached after first request) ---
       const claudeData = await callClaudeAPI(activeStaticInstructions, activeSchema, claudeMessages, claudeModel);
-      { const t = extractClaudeTokenUsage(claudeData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
+      accrueUsage(claudeData);
 
       ({ explanation, sqlQuery } = parseClaudeResponse(claudeData));
     }
@@ -1237,7 +1338,7 @@ module.exports = async function (context, req) {
       context.res = {
         status: 200,
         headers: CORS,
-        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider, confidence: 1.0 } }),
+        body: JSON.stringify({ explanation, sql: '', columns: [], rows: [], rowCount: 0, _requestId: requestId, _cost: { inputTokens: billedInputTokens(), outputTokens: totalOutputTokens, calls: geminiCalls, cost: currentCost(), model: modelProvider, confidence: 1.0 } }),
       };
       return;
     }
@@ -1263,20 +1364,9 @@ module.exports = async function (context, req) {
         `You MUST only generate SELECT queries. Do not use INSERT, UPDATE, DELETE, DROP, or any other statement type. ` +
         `Please regenerate as a SELECT query only.`;
 
-      if (useClaudeModel) {
-        const safetyRetryClaude = [
-          ...claudeMessages,
-          { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
-          { role: 'user', content: safetyRetryText },
-        ];
-        const safetyRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, safetyRetryClaude, claudeModel);
-        { const t = extractClaudeTokenUsage(safetyRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-        const retryParsed = parseClaudeResponse(safetyRetryData);
-        explanation = retryParsed.explanation;
-        let retrySql = retryParsed.sqlQuery;
-        if (retrySql) retrySql = cleanSqlQuery(retrySql);
-        if (retrySql) { sqlQuery = retrySql; safety = validateSqlSafety(sqlQuery); }
-      }
+      const safetyRepair = await repair(safetyRetryText, claudeMessages);
+      explanation = safetyRepair.explanation;
+      if (safetyRepair.sql) { sqlQuery = safetyRepair.sql; safety = validateSqlSafety(sqlQuery); }
 
       if (!safety.ok) {
         context.res = {
@@ -1309,39 +1399,25 @@ module.exports = async function (context, req) {
           schemaCheck.errors.map(e => `- ${e}`).join('\n') + '\n\n' +
           `You MUST only use table and column names from the schema. Please fix these errors and regenerate the query.`;
 
-        let retryParsed;
-        if (useClaudeModel) {
-          const schemaRetryClaude = [
-            ...claudeMessages,
-            { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
-            { role: 'user', content: schemaRetryText },
-          ];
-          const schemaRetryData = await callClaudeAPI(activeStaticInstructions, activeSchema, schemaRetryClaude, claudeModel);
-          { const t = extractClaudeTokenUsage(schemaRetryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-          retryParsed = parseClaudeResponse(schemaRetryData);
-        }
+        const schemaRepair = await repair(schemaRetryText, claudeMessages);
+        explanation = schemaRepair.explanation;
+        const retrySql = schemaRepair.sql;
 
-        if (retryParsed) {
-          explanation = retryParsed.explanation;
-          let retrySql = retryParsed.sqlQuery;
-          if (retrySql) retrySql = cleanSqlQuery(retrySql);
-
-          if (retrySql) {
-            const retrySchemaCheck = validateAgainstSchema(retrySql, activeSchemaTables);
-            if (retrySchemaCheck.ok) {
-              sqlQuery = retrySql;
-            } else {
-              context.res = {
-                status: 400,
-                headers: CORS,
-                body: JSON.stringify({
-                  error: `Schema validation failed: ${retrySchemaCheck.errors.join('; ')}`,
-                  explanation,
-                  sql: retrySql,
-                }),
-              };
-              return;
-            }
+        if (retrySql) {
+          const retrySchemaCheck = validateAgainstSchema(retrySql, activeSchemaTables);
+          if (retrySchemaCheck.ok) {
+            sqlQuery = retrySql;
+          } else {
+            context.res = {
+              status: 400,
+              headers: CORS,
+              body: JSON.stringify({
+                error: `Schema validation failed: ${retrySchemaCheck.errors.join('; ')}`,
+                explanation,
+                sql: retrySql,
+              }),
+            };
+            return;
           }
         }
       }
@@ -1411,29 +1487,19 @@ module.exports = async function (context, req) {
           `${fixGuidance}\n\n` +
           `Generate a corrected query using ONLY columns from the schema.`;
 
-        let retryParsed;
-
-        if (useClaudeModel) {
-          retryConversationClaude = [
-            ...retryConversationClaude,
-            { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
-            { role: 'user', content: retryText },
-          ];
-          try {
-            const retryData = await callClaudeAPI(activeStaticInstructions, activeSchema, retryConversationClaude, claudeModel);
-            { const t = extractClaudeTokenUsage(retryData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-            retryParsed = parseClaudeResponse(retryData);
-          } catch (retryErr) {
-            context.log.error(`[m2m-query][${requestId}] Claude retry error:`, retryErr.message);
-            break;
-          }
+        let sqlRepair;
+        try {
+          // Build on the growing conversation so earlier failed attempts stay
+          // visible to the model, and keep what comes back for the next lap.
+          sqlRepair = await repair(retryText, retryConversationClaude);
+          retryConversationClaude = sqlRepair.messages;
+        } catch (retryErr) {
+          context.log.error(`[m2m-query][${requestId}] Claude retry error:`, retryErr.message);
+          break;
         }
 
-        if (!retryParsed) break;
-
-        explanation = retryParsed.explanation;
-        let retrySqlQuery = retryParsed.sqlQuery;
-        if (retrySqlQuery) retrySqlQuery = cleanSqlQuery(retrySqlQuery);
+        explanation = sqlRepair.explanation;
+        const retrySqlQuery = sqlRepair.sql;
 
         if (!retrySqlQuery) {
           // Model gave explanation-only — return it
@@ -1473,26 +1539,16 @@ module.exports = async function (context, req) {
         `- The data may exist but with slightly different spelling or format.\n\n` +
         `Please regenerate the query with BROADER filters to find the data. Use LIKE with wildcards for text, widen date ranges, and remove unnecessary status filters.`;
 
-      let zeroRowParsed;
-
-      if (useClaudeModel) {
-        const zeroRowClaude = [
-          ...claudeMessages,
-          { role: 'assistant', content: JSON.stringify({ explanation, sql: sqlQuery }) },
-          { role: 'user', content: zeroRowText },
-        ];
-        try {
-          const zeroRowData = await callClaudeAPI(activeStaticInstructions, activeSchema, zeroRowClaude, claudeModel);
-          { const t = extractClaudeTokenUsage(zeroRowData); totalInputTokens += t.input; totalOutputTokens += t.output; geminiCalls++; }
-          zeroRowParsed = parseClaudeResponse(zeroRowData);
-        } catch (zeroErr) {
-          context.log.warn(`[m2m-query][${requestId}] Claude zero-row retry failed: ${zeroErr.message}`);
-        }
+      // Best-effort: a failure here leaves the original zero-row result standing.
+      let zeroRowRepair = null;
+      try {
+        zeroRowRepair = await repair(zeroRowText, claudeMessages);
+      } catch (zeroErr) {
+        context.log.warn(`[m2m-query][${requestId}] Claude zero-row retry failed: ${zeroErr.message}`);
       }
 
-      if (zeroRowParsed) {
-        let zeroRowSql = zeroRowParsed.sqlQuery;
-        if (zeroRowSql) zeroRowSql = cleanSqlQuery(zeroRowSql);
+      if (zeroRowRepair) {
+        const zeroRowSql = zeroRowRepair.sql;
 
         if (zeroRowSql) {
           const zeroRowSafety = validateSqlSafety(zeroRowSql);
@@ -1502,7 +1558,7 @@ module.exports = async function (context, req) {
               if (zeroRowResult.recordset.length > 0) {
                 result = zeroRowResult;
                 sqlQuery = zeroRowSql;
-                explanation = zeroRowParsed.explanation || explanation;
+                explanation = zeroRowRepair.explanation || explanation;
                 context.log.info(`[m2m-query][${requestId}] Zero-row retry found ${zeroRowResult.recordset.length} rows`);
               }
             } catch (retryErr) {
@@ -1527,9 +1583,10 @@ module.exports = async function (context, req) {
     }
 
     // Cache successful SQL generation for future identical questions.
-    // Skip in raw-SQL mode — there's no natural-language question to key on
-    // (message is undefined) and presets are already deterministic.
-    if (!isRawMode && message && sqlQuery && result.recordset.length > 0) {
+    // `cacheable` excludes raw-SQL and Builder modes (no plain question to key
+    // on) and, critically, any turn with conversation history — that SQL only
+    // makes sense in its own thread and must not be served to another one.
+    if (cacheable && sqlQuery && result.recordset.length > 0) {
       setCachedResult(message, database || 'm2mdata99', explanation, sqlQuery);
     }
 
@@ -1546,7 +1603,7 @@ module.exports = async function (context, req) {
         rows: result.recordset,
         rowCount: result.recordset.length,
         _requestId: requestId,
-        _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider, confidence: scoreConfidence(sqlQuery) },
+        _cost: { inputTokens: billedInputTokens(), outputTokens: totalOutputTokens, calls: geminiCalls, cost: currentCost(), model: modelProvider, confidence: scoreConfidence(sqlQuery) },
       }),
     };
 
@@ -1555,7 +1612,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: CORS,
-      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _requestId: requestId, _cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, calls: geminiCalls, cost: calculateCost(totalInputTokens, totalOutputTokens, modelProvider), model: modelProvider } }),
+      body: JSON.stringify({ error: err.message || String(err), sql: sqlQuery || '', _requestId: requestId, _cost: { inputTokens: billedInputTokens(), outputTokens: totalOutputTokens, calls: geminiCalls, cost: currentCost(), model: modelProvider } }),
     };
   } finally {
     // Pool is NOT closed — it's reused across invocations.
@@ -1590,11 +1647,14 @@ module.exports = async function (context, req) {
               .input('sessionId', sql.UniqueIdentifier, req.body?.sessionId || null)
               .input('userEmail', sql.NVarChar, req.body?.userEmail || 'unknown')
               .input('databaseName', sql.NVarChar, req.body?.database === 'unipoint_live' ? 'UniPoint Quality' : req.body?.database === 'm2mdata66' ? 'MAC Impulse' : 'MAC Products')
-              .input('inputTokens', sql.Int, totalInputTokens)
+              // input_tokens now records ALL billed input (uncached + cache reads +
+              // cache writes). Rows written before this change hold uncached-only
+              // counts, so historical totals understate input for the same spend.
+              .input('inputTokens', sql.Int, billedInputTokens())
               .input('outputTokens', sql.Int, totalOutputTokens)
               .input('geminiCalls', sql.Int, geminiCalls)
-              .input('cost', sql.Float, calculateCost(totalInputTokens, totalOutputTokens, modelProvider))
-              .input('promptVersion', sql.NVarChar, PROMPT_VERSION + (useClaudeModel ? '-claude' : '') + (isBuilderMode ? '+builder' : ''))
+              .input('cost', sql.Float, currentCost())
+              .input('promptVersion', sql.NVarChar, PROMPT_VERSION + '-claude' + (isBuilderMode ? '+builder' : ''))
               .input('requestId', sql.NVarChar, requestId)
               .query(`INSERT INTO query_costs (session_id, user_email, database_name, input_tokens, output_tokens, gemini_calls, cost, prompt_version, request_id)
                       VALUES (@sessionId, @userEmail, @databaseName, @inputTokens, @outputTokens, @geminiCalls, @cost, @promptVersion, @requestId)`);
