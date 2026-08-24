@@ -26,7 +26,10 @@ function getPool() {
       user: parts['user id'] || parts['uid'] || '',
       password: parts['password'] || parts['pwd'] || '',
       options: { encrypt: true, trustServerCertificate: false },
-      connectionTimeout: 15000,
+      // 60s: an Azure SQL serverless database resuming from auto-pause takes
+      // ~30-60s. A shorter timeout can never wait one out, so the first request
+      // after an idle period always failed. Better a slow load than an error.
+      connectionTimeout: 60000,
       requestTimeout: 30000,
       pool: { max: 10, min: 1, idleTimeoutMillis: 30000 },
     };
@@ -55,7 +58,7 @@ module.exports = async function (context, req) {
 
       if (!userEmail) {
         context.res = { status: 400, headers: CORS, body: JSON.stringify({ error: 'userEmail required' }) };
-        return;
+        return; 
       }
 
       // Admin mode: return all sessions grouped by user

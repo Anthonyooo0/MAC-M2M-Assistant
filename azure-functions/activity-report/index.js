@@ -33,7 +33,10 @@ function parseConn(connStr) {
     user: p['user id'] || p['uid'] || '',
     password: p['password'] || p['pwd'] || '',
     options: { encrypt: true, trustServerCertificate: false },
-    connectionTimeout: 10000,
+    // 60s: an Azure SQL serverless database resuming from auto-pause takes
+    // ~30-60s. A shorter timeout can never wait one out, so the first request
+    // after an idle period always failed. Better a slow load than an error.
+    connectionTimeout: 60000,
     requestTimeout: 20000,
   };
 }
