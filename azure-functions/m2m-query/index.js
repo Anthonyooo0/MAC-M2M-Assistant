@@ -27,7 +27,11 @@ function generateRequestId() {
 
 // Prompt version — increment when system instructions or few-shot examples change.
 // Logged with every cost record so prompt changes can be correlated with accuracy shifts.
-const PROMPT_VERSION = '2.1.0';
+// 2.2.0 — fixed SOMAST order-date column in the few-shot example and alias
+// guidance (FORDDATE -> FORDERDATE; FORDDATE is POMAST's column and does not
+// exist on SOMAST). The bad example was making every sales-order question fail
+// schema validation and burn a repair round trip.
+const PROMPT_VERSION = '2.2.0';
 
 // ---------------------------------------------------------------------------
 // Cost persistence pool — reused across invocations (same pattern as chat-sessions).
@@ -308,7 +312,7 @@ The COMPLETE database schema is provided in the first message of the conversatio
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
 2. Do NOT add a TOP limit by default. Return ALL matching rows. Only add a TOP clause if the user explicitly asks for "top N", "first N", or a sample. Aggregates (COUNT/SUM/AVG) still do not use TOP.
 3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name. Users do not know internal field names like FSONO or FCOMPANY. Use the description from the schema as a guide.
-   Examples: RTRIM(FSONO) AS "Sales Order", RTRIM(FCOMPANY) AS "Company", FORDERQTY AS "Order Qty", FORDDATE AS "Order Date"
+   Examples: RTRIM(FSONO) AS "Sales Order", RTRIM(FCOMPANY) AS "Company", FORDERQTY AS "Order Qty", FORDERDATE AS "Order Date"
    - Every column in every SELECT must have an AS alias with a friendly name.
    - Use double quotes around aliases that contain spaces.
    - For aggregates: COUNT(*) AS "Total Count", SUM(FORDERQTY) AS "Total Qty"
@@ -330,6 +334,10 @@ The COMPLETE database schema is provided in the first message of the conversatio
 <common_corrections>
 Key column corrections (common mistakes to avoid):
 - SOITEM: use FQUANTITY (not fshipqty). SOMAST: use FSTATUS for status.
+- ORDER DATE differs between sales and purchase orders — do not mix them up:
+  SOMAST (sales orders) uses FORDERDATE. There is NO FORDDATE on SOMAST.
+  POMAST (purchase orders) uses FORDDATE. There is NO FORDERDATE on POMAST.
+  SOMAST also has FDUEDATE for the due date.
 - POMAST/POITEM: there is NO FDUEDATE. Use POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
 - Inventory on hand: use INONHD table, FONHAND column for quantity on hand. Join to INMASTX via FPARTNO. Do NOT use INMASTX fields for on-hand qty.
 - Late sales orders: compare SOMAST.FDUEDATE to GETDATE(). A sales order is late when FDUEDATE < GETDATE() and FSTATUS is not 'Closed' or 'Cancelled'.
@@ -339,7 +347,7 @@ Key column corrections (common mistakes to avoid):
 
 <examples>
 User: "Show me all open sales orders"
-{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled') ORDER BY FORDDATE DESC"}
+{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDERDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled') ORDER BY FORDERDATE DESC"}
 
 User: "How many POs did we place this month?"
 {"explanation":"Here is the count of purchase orders created so far this month.","sql":"SELECT COUNT(*) AS \"PO Count\" FROM POMAST WHERE FORDDATE >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)"}
