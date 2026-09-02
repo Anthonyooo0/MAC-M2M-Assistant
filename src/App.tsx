@@ -98,7 +98,10 @@ const MULTI_COMPANY_USERS: Record<string, string[]> = {
   'juan.ortiz@macproducts.net': ['mac-products', 'mac-impulse', 'unipoint'],
   'edward.russnow@macproducts.net': ['mac-products', 'mac-impulse'],
   'chirag.patel@macproducts.net': ['mac-products', 'unipoint'],
+  'michael.ustupski@macproducts.net': ['mac-products', 'mac-impulse'],
+  'david.zuercher@macproducts.net': ['mac-products', 'mac-impulse'],
 };
+
 
 function App() {
   const { instance, accounts } = useMsal();
@@ -852,7 +855,7 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="bg-white border-b border-mauve-6 px-3 sm:px-6 h-14 flex items-center justify-between gap-2 flex-shrink-0">
-          <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             {/* Hamburger — opens the sidebar drawer on mobile only */}
             <button
               onClick={() => setMobileNavOpen(true)}
@@ -865,7 +868,7 @@ function App() {
               <h2 className="text-sm sm:text-base font-semibold text-mauve-12 tracking-tight leading-tight truncate">
                 {viewMode === 'admin' ? 'Admin Dashboard' : viewMode === 'costs' ? 'API Costs' : 'M2M Assistant'}
               </h2>
-              <p className="text-xs text-mauve-9 hidden sm:block">
+              <p className="text-xs text-mauve-9 hidden 2xl:block truncate">
                 {viewMode === 'admin' ? 'View all user sessions and SQL queries' : viewMode === 'costs' ? 'API usage and cost tracking' : 'Ask questions about your M2M ERP data in plain English'}
               </p>
             </div>
@@ -933,7 +936,7 @@ function App() {
                 <span className="hidden sm:inline">Claude Opus</span>
               </button>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-9 hidden lg:inline">Powered by Claude Sonnet</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-mauve-9 hidden 2xl:inline">Powered by Claude</span>
           </div>
         </header>
 
