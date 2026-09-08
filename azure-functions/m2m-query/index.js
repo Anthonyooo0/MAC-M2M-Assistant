@@ -27,11 +27,18 @@ function generateRequestId() {
 
 // Prompt version — increment when system instructions or few-shot examples change.
 // Logged with every cost record so prompt changes can be correlated with accuracy shifts.
+// 2.3.0 — "open" now means FSTATUS = 'Open' strictly. The clarifier extracts the
+// status the user named, validateAgainstConstraints enforces it before execute,
+// and the zero-row retry no longer fires on a query that already matches the
+// request. The old few-shot taught NOT IN ('Closed','Cancelled'), which also
+// admits On Hold and Revised.
 // 2.2.0 — fixed SOMAST order-date column in the few-shot example and alias
 // guidance (FORDDATE -> FORDERDATE; FORDDATE is POMAST's column and does not
 // exist on SOMAST). The bad example was making every sales-order question fail
 // schema validation and burn a repair round trip.
-const PROMPT_VERSION = '2.2.0';
+const PROMPT_VERSION = '2.3.0';
+
+const KNOWN_STATUSES = ['Open', 'Closed', 'Cancelled', 'On Hold', 'Revised'];
 
 // ---------------------------------------------------------------------------
 // Cost persistence pool — reused across invocations (same pattern as chat-sessions).
@@ -347,13 +354,13 @@ Key column corrections (common mistakes to avoid):
 
 <examples>
 User: "Show me all open sales orders"
-{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDERDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled') ORDER BY FORDERDATE DESC"}
+{"explanation":"Here are all currently open sales orders, showing the order number, customer, status, order date, and due date.","sql":"SELECT RTRIM(FSONO) AS \"Sales Order\", RTRIM(FCOMPANY) AS \"Customer\", RTRIM(FSTATUS) AS \"Status\", FORDERDATE AS \"Order Date\", FDUEDATE AS \"Due Date\" FROM SOMAST WHERE RTRIM(FSTATUS) = 'Open' ORDER BY FORDERDATE DESC"}
 
 User: "How many POs did we place this month?"
 {"explanation":"Here is the count of purchase orders created so far this month.","sql":"SELECT COUNT(*) AS \"PO Count\" FROM POMAST WHERE FORDDATE >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)"}
 
 User: "What does the FSTATUS field mean?"
-{"explanation":"The FSTATUS field on the SOMAST (Sales Order Master) table indicates the current lifecycle status of a sales order. Common values include: 'Open' (active, not yet fulfilled), 'Closed' (fully shipped and invoiced), 'Cancelled' (voided before completion), and 'Started' (in progress). You can use this field to filter for active or completed orders.","sql":""}
+{"explanation":"The FSTATUS field on the SOMAST (Sales Order Master) table indicates the current lifecycle status of a sales order. Common values include: 'Open' (active, not yet fulfilled), 'Closed' (fully shipped and invoiced), 'Cancelled' (voided before completion), 'On Hold', and 'Revised'. You can use this field to filter for active or completed orders.","sql":""}
 </examples>`;
 
 const UNIPOINT_STATIC_INSTRUCTIONS = `<system_role>
@@ -532,7 +539,7 @@ const CLAUDE_HAIKU_MODEL = 'claude-haiku-4-5';
 // doubt — we'd rather generate slightly-wrong SQL than over-interrogate.
 const CLARIFIER_SYSTEM = `You are a fast triage agent for the MAC Products M2M Assistant — a tool that turns natural-language questions into SQL against an ERP database.
 
-Your only job: decide whether the user's question is specific enough to generate a useful SQL query, OR whether it's so vague that asking ONE quick clarifying question would save everyone time.
+Your job has two parts: (1) decide whether the user's question is specific enough to generate a useful SQL query, OR whether it's so vague that asking ONE quick clarifying question would save everyone time; (2) if proceeding, report which order status the user named, if any.
 
 Bias STRONGLY toward proceeding. Only ask for clarification when the question is genuinely useless as-is. If the user's wording is reasonable, even if not perfect, return ok=true.
 
@@ -554,8 +561,13 @@ EXAMPLES THAT DO NOT NEED CLARIFICATION (proceed):
 If the user has a conversation history, USE IT — pronouns/follow-ups like "now show me the late ones" or "just for last month" are clear if the prior turn established the topic.
 
 Output strict JSON, no markdown:
-- {"ok": true} — proceed to SQL generation
+- {"ok": true, "constraints": {"status": "<value or null>"}} — proceed to SQL generation
 - {"ok": false, "question": "<one short clarifying question>"} — ask the user
+
+For "status": if the user's question names an order status, return it EXACTLY as one of:
+Open, Closed, Cancelled, On Hold, Revised
+"open orders", "still open", "active orders" all mean Open.
+If the user did not name a status, return null. Do NOT guess a status they didn't mention.
 
 Keep clarifying questions to ONE sentence, ~15 words max, friendly tone.`;
 
@@ -605,7 +617,11 @@ async function runClarifier(userMessage, history) {
         usage: response.usage || { input_tokens: 0, output_tokens: 0 },
       };
     }
-    return { ok: true, usage: response.usage || { input_tokens: 0, output_tokens: 0 } };
+    return {
+      ok: true,
+      constraints: parsed.constraints || null,
+      usage: response.usage || {input_tokens: 0, output_tokens: 0},
+    };
   } catch (_e) {
     return { ok: true }; // Fail open — never block the user on clarifier issues
   }
@@ -877,6 +893,29 @@ function validateAgainstSchema(sqlQuery, schemaTables) {
   if (errors.length > 0) {
     return { ok: false, errors };
   }
+  return { ok: true };
+}
+
+
+function validateAgainstConstraints(sqlQuery, constraints) {
+  if (!constraints) return { ok: true }; // clarifier gave us nothing - fail open
+
+  if (constraints.status) {
+    const upperSql = sqlQuery.toUpperCase();
+
+    const hasStatusFilter = upperSql.includes('STATUS');
+    if (!hasStatusFilter) {
+      return { ok: false, reason: 'User asked for ' + constraints.status + ' orders but SQL has no status filter' };
+    }
+
+    for (const status of KNOWN_STATUSES) {
+      if (status === constraints.status) continue;
+      if (upperSql.includes("'" + status.toUpperCase() + "'")) {
+        return { ok: false, reason: 'User asked for ' + constraints.status + ' orders but SQL references ' + status };
+      }
+    }
+  }
+
   return { ok: true };
 }
 
@@ -1287,8 +1326,10 @@ module.exports = async function (context, req) {
     // ("show me orders") and asks ONE follow-up instead of guessing. Builder
     // and raw-SQL modes are already structured, so they skip this. A cache hit
     // skips it too: the question already produced a good query once.
+    let constraints = null;
     if (!isBuilderMode && !isRawMode && !cached) {
       const clarifier = await runClarifier(userMessageText, history);
+      constraints = clarifier.constraints || null;
       // runClarifier returns the raw usage object, so wrap it in the shape
       // accrueUsage expects. This also starts counting the clarifier's cached
       // input, which the old inline version ignored.
@@ -1431,6 +1472,42 @@ module.exports = async function (context, req) {
       }
     }
 
+    // Enforce what the user actually asked for (status). Runs before execute so a
+    // query that contradicts the request never reaches the database.
+    if (sqlQuery && !isRawMode) {
+      const constraintCheck = validateAgainstConstraints(sqlQuery, constraints);
+      if (!constraintCheck.ok) {
+        context.log.warn(`[m2m-query][${requestId}] Constraint check failed: ${constraintCheck.reason} — retrying`);
+
+        const constraintRetryText = `Your query was rejected: "${constraintCheck.reason}". ` +
+          `The user asked for ${constraints.status} records specifically. Filter to exactly that status ` +
+          `(e.g. RTRIM(FSTATUS) = '${constraints.status}') and do not reference any other status value. ` +
+          `Do not use NOT IN — "not closed and not cancelled" is not the same as "open".`;
+
+        const constraintRepair = await repair(constraintRetryText, claudeMessages);
+        explanation = constraintRepair.explanation;
+        const retrySql = constraintRepair.sql;
+
+        if (retrySql) {
+          const retryConstraintCheck = validateAgainstConstraints(retrySql, constraints);
+          if (retryConstraintCheck.ok) {
+            sqlQuery = retrySql;
+          } else {
+            context.res = {
+              status: 400,
+              headers: CORS,
+              body: JSON.stringify({
+                error: `Constraint validation failed: ${retryConstraintCheck.reason}`,
+                explanation,
+                sql: retrySql,
+              }),
+            };
+            return;
+          }
+        }
+      }
+    }
+
     // Get or create a pooled connection — reused across invocations
     try {
       pool = await getDbPool(connString);
@@ -1537,7 +1614,10 @@ module.exports = async function (context, req) {
     // (e.g. "count SOs missing a street" when none are missing) must report
     // that zero, not have the model rewrite the query to find something.
     // -----------------------------------------------------------------------
-    if (result.recordset.length === 0 && !isRawMode) {
+    // The constraint check gates this: when the query already matches what the user
+    // asked for, zero rows is the correct answer and must not be "broadened" away.
+    if (result.recordset.length === 0 && !isRawMode
+        && validateAgainstConstraints(sqlQuery, constraints).ok) {
       context.log.info(`[m2m-query][${requestId}] Query returned 0 rows — retrying with broader criteria`);
 
       const zeroRowText = `The query you generated ran successfully but returned ZERO rows. This likely means your WHERE filters are too restrictive. Common issues:\n` +
@@ -1683,6 +1763,7 @@ module.exports = async function (context, req) {
 module.exports._internals = {
   validateSqlSafety,
   validateAgainstSchema,
+  validateAgainstConstraints,
   cleanSqlQuery,
   getErrorGuidance,
   semanticSanityCheck,
