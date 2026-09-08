@@ -1614,10 +1614,10 @@ module.exports = async function (context, req) {
     // (e.g. "count SOs missing a street" when none are missing) must report
     // that zero, not have the model rewrite the query to find something.
     // -----------------------------------------------------------------------
-    // The constraint check gates this: when the query already matches what the user
-    // asked for, zero rows is the correct answer and must not be "broadened" away.
-    if (result.recordset.length === 0 && !isRawMode
-        && validateAgainstConstraints(sqlQuery, constraints).ok) {
+    // Skipped when the user named a status. This retry exists to broaden filters,
+    // and broadening a status the user asked for is exactly the bug it would cause:
+    // "no open orders for this part" is a correct answer, not a query to widen.
+    if (result.recordset.length === 0 && !isRawMode && !(constraints && constraints.status)) {
       context.log.info(`[m2m-query][${requestId}] Query returned 0 rows — retrying with broader criteria`);
 
       const zeroRowText = `The query you generated ran successfully but returned ZERO rows. This likely means your WHERE filters are too restrictive. Common issues:\n` +
@@ -1640,7 +1640,11 @@ module.exports = async function (context, req) {
 
         if (zeroRowSql) {
           const zeroRowSafety = validateSqlSafety(zeroRowSql);
-          if (zeroRowSafety.ok) {
+          const zeroRowConstraints = validateAgainstConstraints(zeroRowSql, constraints);
+          if (!zeroRowConstraints.ok) {
+            context.log.warn(`[m2m-query][${requestId}] Zero-row retry rejected: ${zeroRowConstraints.reason}`);
+          }
+          if (zeroRowSafety.ok && zeroRowConstraints.ok) {
             try {
               const zeroRowResult = await pool.request().query(zeroRowSql);
               if (zeroRowResult.recordset.length > 0) {
