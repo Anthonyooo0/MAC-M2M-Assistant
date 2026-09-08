@@ -976,7 +976,24 @@ function App() {
                       { label: 'List recent inspections', query: 'List recent inspections' },
                       { label: 'Show equipment maintenance due', query: 'Show equipment maintenance due' },
                     ] : [
-                      { label: 'Show me all open sales orders', query: 'Show me all open sales orders' },
+                      // Deterministic: this question never varies, so it runs as raw SQL
+                      // instead of 3 model calls. FSTATUS = 'Open' strictly -- On Hold
+                      // and Revised are not open.
+                      {
+                        label: 'Show me all open sales orders',
+                        rawSql:
+                          `SELECT RTRIM(s.FSONO) AS "Sales Order", ` +
+                          `RTRIM(s.FCUSTNO) AS "Customer No", ` +
+                          `RTRIM(s.FCOMPANY) AS "Company", ` +
+                          `RTRIM(s.FSTATUS) AS "Status", ` +
+                          `s.FORDERDATE AS "Order Date", ` +
+                          `s.FDUEDATE AS "Due Date", ` +
+                          `RTRIM(s.FORDERNAME) AS "Order Description", ` +
+                          `RTRIM(s.FCUSTPONO) AS "Customer PO" ` +
+                          `FROM SOMAST s ` +
+                          `WHERE RTRIM(s.FSTATUS) = 'Open' ` +
+                          `ORDER BY s.FORDERDATE DESC`,
+                      },
                       { label: 'What jobs are active right now?', query: 'What jobs are active right now?' },
                       { label: 'List inventory items with zero on hand', query: 'List inventory items with zero on hand' },
                       { label: 'Show purchase orders due this month', query: 'Show purchase orders due this month' },
