@@ -60,7 +60,7 @@ term listed below — do not infer the mapping from general M2M knowledge.
 
 # Sales Orders (M2M)
 
-- "open SO" / "open orders" → SOMAST where RTRIM(FSTATUS) NOT IN ('Closed', 'Cancelled')
+- "open SO" / "open orders" / "still open" / "active orders" → SOMAST where RTRIM(FSTATUS) = 'Open'. Strictly 'Open' — never NOT IN ('Closed','Cancelled'), which also admits 'On Hold' and 'Revised'. Those are not open.
 - "closed SO" → SOMAST where RTRIM(FSTATUS) = 'Closed'
 - "cancelled SO" → SOMAST where RTRIM(FSTATUS) = 'Cancelled'
 - "late order" / "past due" → SOMAST where FDUEDATE < GETDATE() and FSTATUS not in ('Closed','Cancelled')
