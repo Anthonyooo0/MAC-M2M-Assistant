@@ -65,6 +65,27 @@ term listed below — do not infer the mapping from general M2M knowledge.
 - "cancelled SO" → SOMAST where RTRIM(FSTATUS) = 'Cancelled'
 - "late order" / "past due" → SOMAST where FDUEDATE < GETDATE() and FSTATUS not in ('Closed','Cancelled')
 - "Wabtec orders" / "Wabtec sales orders" → product class '04' (Wabtec product class — NOT customer number). NOTE: SOMAST has NO FPRODCL column — product class lives at line/job level: SOITEM.FPRODCL = '04' (join SOMAST to SOITEM on FSONO), or JOMAST.FPRODCL = '04' for job orders.
+- "open line" / "open SO line" → SOITEM where RTRIM(FCITEMSTATUS) = 'Open'. Line-item status lives on FCITEMSTATUS, not FSTATUS.
+- "open release" → SORELS where RTRIM(FCRELSSTATUS) = 'Open'.
+- SOITEM quantity is FQUANTITY. SOITEM has NO FORDERQTY column. SOITEM.FPRICE is a Logical (boolean) flag, NOT a price — it is false on every row. For sales-order money use SORELS: FUNETPRICE (unit price) and FNETPRICE (net price), with SORELS.FORDERQTY for quantity.
+- TRAP — two SORELS columns are named like statuses but hold something else: SORELS.FSTATUS holds a JOB NUMBER (e.g. '00367-0000') and SORELS.FPOSTATUS holds a PURCHASE ORDER NUMBER. Verified: 0 SORELS rows contain a status word in FSTATUS. The real release status is FCRELSSTATUS. Never filter SORELS.FSTATUS by a status value — it silently returns nothing.
+
+# Purchase Orders (M2M)
+
+- "open PO" / "open purchase order" → POMAST where RTRIM(FSTATUS) = 'Open'
+- POMAST.FSTATUS values are OPEN, CLOSED, CANCELLED, STARTED, ON HOLD, AWAITING APPROVAL. Stored uppercase, but the database collation is case-insensitive so = 'Open' matches 'OPEN'.
+
+# Job Orders (M2M)
+
+- "open job" / "active job" / "jobs in progress" / "what is running" → JOMAST where RTRIM(FSTATUS) IN ('OPEN', 'RELEASED', 'STARTED'). Jobs are the EXCEPTION to the strict-Open rule used for sales orders: a job that is RELEASED or STARTED is on the floor and counts as active. Filtering JOMAST to FSTATUS = 'OPEN' alone returns ~261 jobs when ~2,004 are actually in flight.
+- JOMAST.FSTATUS values are CLOSED, CANCELLED, RELEASED, STARTED, OPEN, COMPLETED, ON HOLD. COMPLETED is finished, not active.
+- "closed job" → JOMAST where RTRIM(FSTATUS) = 'CLOSED'
+
+# Sales & Invoicing (M2M)
+
+- "sold" / "last sold" / "when did we sell" / "when did we last ship" → an INVOICE, not a sales order. Use ARITEM (invoice lines) joined to ARMAST (invoice headers) on FCINVOICE, and date by ARMAST.FINVDATE. Do NOT answer from SOMAST/SORELS — an open sales order is a commitment to sell, not a sale. Filter ARMAST.FINVDATE > '1900-01-01' to drop sentinels.
+- ARITEM prices: FPRICE is the UNIT price. FTOTPRICE is the EXTENDED price (already unit * invoiced qty, less discounts) — select FTOTPRICE whenever the user wants extended/total/line value. Never label FPRICE as "Extended Price". ARITEM.FSHIPQTY is the qty invoiced.
+- "most recent" / "last time" questions: ORDER BY the date DESC, but be aware several invoices can share one FINVDATE. If TOP 1 is used and the top rows tie on the sort date, say so in the explanation rather than presenting one arbitrary row as the answer.
 
 # Quality (UniPoint)
 
