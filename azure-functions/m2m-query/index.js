@@ -27,6 +27,11 @@ function generateRequestId() {
 
 // Prompt version — increment when system instructions or few-shot examples change.
 // Logged with every cost record so prompt changes can be correlated with accuracy shifts.
+// 2.4.0 — corrected the SOITEM pricing line, which was wrong on all three of
+// its claims (FPRICE is a boolean flag, and SOITEM has neither FORDERQTY nor
+// FSHIPQTY), and stopped the alias examples from implying SOMAST.FORDERQTY
+// exists. Business rules for sold/invoiced, prices, PO and job status live in
+// mac-glossary.txt -- deliberately NOT duplicated here.
 // 2.3.0 — "open" now means FSTATUS = 'Open' strictly. The clarifier extracts the
 // status the user named, validateAgainstConstraints enforces it before execute,
 // and the zero-row retry no longer fires on a query that already matches the
@@ -36,7 +41,7 @@ function generateRequestId() {
 // guidance (FORDDATE -> FORDERDATE; FORDDATE is POMAST's column and does not
 // exist on SOMAST). The bad example was making every sales-order question fail
 // schema validation and burn a repair round trip.
-const PROMPT_VERSION = '2.3.0';
+const PROMPT_VERSION = '2.4.0';
 
 const KNOWN_STATUSES = ['Open', 'Closed', 'Cancelled', 'On Hold', 'Revised'];
 
@@ -319,10 +324,10 @@ The COMPLETE database schema is provided in the first message of the conversatio
 1. ONLY generate SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, EXEC, EXECUTE, TRUNCATE.
 2. Do NOT add a TOP limit by default. Return ALL matching rows. Only add a TOP clause if the user explicitly asks for "top N", "first N", or a sample. Aggregates (COUNT/SUM/AVG) still do not use TOP.
 3. ALWAYS use column aliases (AS) to give every column a clean, human-readable name. Users do not know internal field names like FSONO or FCOMPANY. Use the description from the schema as a guide.
-   Examples: RTRIM(FSONO) AS "Sales Order", RTRIM(FCOMPANY) AS "Company", FORDERQTY AS "Order Qty", FORDERDATE AS "Order Date"
+   Examples: RTRIM(FSONO) AS "Sales Order", RTRIM(FCOMPANY) AS "Company", FORDERDATE AS "Order Date", FDUEDATE AS "Due Date"
    - Every column in every SELECT must have an AS alias with a friendly name.
    - Use double quotes around aliases that contain spaces.
-   - For aggregates: COUNT(*) AS "Total Count", SUM(FORDERQTY) AS "Total Qty"
+   - For aggregates: COUNT(*) AS "Total Count", SUM(SORELS.FORDERQTY) AS "Total Qty"
 4. M2M uses fixed-width CHAR fields — always use RTRIM() when displaying or comparing text values.
 5. Use proper JOIN syntax when linking tables.
 6. When searching text, use LIKE with wildcards: WHERE RTRIM(fcompany) LIKE '%search%'
@@ -348,7 +353,7 @@ Key column corrections (common mistakes to avoid):
 - POMAST/POITEM: there is NO FDUEDATE. Use POMAST.FORDDATE (order date), POMAST.FREQDATE (request date), POITEM.FREQDATE (date requested), POITEM.FORGPDATE (original promise date), POITEM.FLSTPDATE (last promise date).
 - Inventory on hand: use INONHD table, FONHAND column for quantity on hand. Join to INMASTX via FPARTNO. Do NOT use INMASTX fields for on-hand qty.
 - Late sales orders: compare SOMAST.FDUEDATE to GETDATE(). A sales order is late when FDUEDATE < GETDATE() and FSTATUS is not 'Closed' or 'Cancelled'.
-- SOITEM pricing: use FPRICE for unit price, FORDERQTY for quantity. There is NO FUNETPRICE in SOITEM — that column is in SORELS. Use FSHIPQTY for shipped qty.
+- SOITEM has NO price and NO order-qty column. SOITEM.FPRICE is a Logical (boolean) flag, not money — it is false on every row. SOITEM has no FORDERQTY, no FSHIPQTY, no FUNETPRICE and no FNETPRICE. SOITEM quantity is FQUANTITY. For sales-order money and quantities use SORELS instead.
 - SORELS pricing: use FUNETPRICE for unit price, FNETPRICE for net price, FORDERQTY for quantity.
 </common_corrections>
 
